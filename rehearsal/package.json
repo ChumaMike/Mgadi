@@ -1,0 +1,19 @@
+{
+  "name": "mgadi-rehearsal",
+  "version": "0.0.0-practice",
+  "private": true,
+  "description": "PRACTICE BUILD, NOT THE HACKSECURE ENTRY. Mgadi rehearsal for team soloDolo.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "scoreboard": "node scripts/scoreboard.js",
+    "scoreboard:ai": "node scripts/scoreboard.js --ai"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "1.3.0"
+  }
+}

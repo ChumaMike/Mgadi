@@ -1,0 +1,41 @@
+{
+  "checkedOn": "2026-10-26",
+  "status": "Checked online against each bank's own web page on 26 Oct 2026. Phone-check every number on 27 Oct before the demo.",
+  "note": "Always compare with the number on the back of your bank card. Never use a number from the suspicious email or message.",
+  "banks": [
+    {
+      "id": "absa",
+      "name": "Absa",
+      "lines": [{ "label": "Fraud line (24 hours)", "number": "0860 557 557", "tel": "+27860557557" }],
+      "source": "https://www.absa.co.za/talk-to-us"
+    },
+    {
+      "id": "capitec",
+      "name": "Capitec",
+      "lines": [
+        { "label": "Business banking fraud", "number": "0860 30 92 50", "tel": "+27860309250" },
+        { "label": "Personal banking fraud", "number": "0860 10 20 43", "tel": "+27860102043" }
+      ],
+      "source": "https://www.capitecbank.co.za/fraud-centre/report-fraud/"
+    },
+    {
+      "id": "fnb",
+      "name": "FNB",
+      "lines": [{ "label": "Single fraud line (24 hours)", "number": "087 575 9444", "tel": "+27875759444" }],
+      "source": "https://www.fnb.co.za/security-centre/incident-reporting-process/"
+    },
+    {
+      "id": "nedbank",
+      "name": "Nedbank",
+      "lines": [{ "label": "Fraud line (24 hours)", "number": "0800 110 929", "tel": "+27800110929" }],
+      "source": "https://personal.nedbank.co.za/learn/help-centre/useful-information/victim-of-fraud.html"
+    },
+    {
+      "id": "standardbank",
+      "name": "Standard Bank",
+      "lines": [{ "label": "Fraud line", "number": "0800 222 050", "tel": "+27800222050" }],
+      "source": "https://community.standardbank.co.za/t5/Security/Reporting/m-p/458881 (staff reply; also listed on connect.standardbank.co.za)"
+    }
+  ],
+  "other": "Bank not listed? Use the fraud number on the back of your bank card or in your banking app."
+}

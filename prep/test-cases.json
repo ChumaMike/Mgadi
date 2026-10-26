@@ -1,0 +1,28 @@
+{
+  "about": "20 synthetic incident descriptions written by team soloDolo. No real victim data. 'expect' is the correct route: a playbook label, or 'clarify' (Mgadi should ask a question first). A payment-diversion case that goes to 'clarify' is a SAFE miss (the question still ends at the bank); one that goes to any other playbook is an UNSAFE miss.",
+  "warning": "The rehearsal's rule classifier was written while looking at these cases, so its score on them is optimistic. At the event, write a fresh held-out set (prep/heldout-cases.json) BEFORE tuning, and report both.",
+  "cases": [
+    { "id": "pd01", "group": "payment_diversion", "expect": "payment_diversion", "text": "Our supplier says they never changed bank details but we paid R70,000 to the new account they emailed us last week." },
+    { "id": "pd02", "group": "payment_diversion", "expect": "payment_diversion", "text": "paid invoice to new acc from email, now supplier phoning saying where is our money??" },
+    { "id": "pd03", "group": "payment_diversion", "expect": "payment_diversion", "text": "We got an email from Ridgeline Supplies saying their banking details changed. Bookkeeper did EFT of R 48 500,00 yesterday. Today the real Ridgeline says they didn't receive anything." },
+    { "id": "pd04", "group": "payment_diversion", "expect": "payment_diversion", "text": "supplier letter said the old account is closed, use the new one. we transfered the money. they say they never sent that letter" },
+    { "id": "pd05", "group": "payment_diversion", "expect": "payment_diversion", "text": "Ngikhokhile i-invoice ku-account entsha, manje i-supplier ithi ayitholanga imali" },
+    { "id": "pd06", "group": "payment_diversion", "expect": "payment_diversion", "text": "Contractor emailed updated bank details. We paid the deposit for the build. Contractor now says the email was not from them and they have not been paid." },
+    { "id": "pd07", "group": "payment_diversion", "expect": "payment_diversion", "text": "The invoice PDF had different banking details from usual. We paid it on Friday. Supplier still waiting for payment and says their account never changed." },
+    { "id": "pd08", "group": "payment_diversion", "expect": "payment_diversion", "text": "I think we've been scammed. Paid R12 000 to what we thought was our printing supplier's new bank account. They never got it." },
+    { "id": "pd09", "group": "payment_diversion", "expect": "payment_diversion", "text": "Email from our landlord's agent gave a new account for the rent. Paid it. Agent says they never changed accounts." },
+    { "id": "pd10", "group": "payment_diversion", "expect": "payment_diversion", "text": "Accounts lady changed the beneficiary details after an email request and paid R70k. Supplier says it wasn't them" },
+
+    { "id": "am01", "group": "ambiguous", "expect": "clarify", "text": "Supplier says they haven't been paid yet but our bank shows the payment went through." },
+    { "id": "am02", "group": "ambiguous", "expect": "clarify", "text": "Something weird happened with a payment to a supplier, not sure what" },
+    { "id": "am03", "group": "ambiguous", "expect": "clarify", "text": "We received an email asking us to update the bank details for one of our suppliers." },
+    { "id": "am04", "group": "ambiguous", "expect": "clarify", "text": "Supplier phoned, says invoice 2481 is still outstanding. Not sure what's going on." },
+    { "id": "am05", "group": "ambiguous", "expect": "clarify", "text": "I'm panicking, something about our bank account and an email, please help" },
+
+    { "id": "nd01", "group": "not_payment_diversion", "expect": "mailbox_compromise", "text": "My Outlook password was changed and I'm locked out, and clients say they get strange emails from me. Nothing has gone out of the bank." },
+    { "id": "nd02", "group": "not_payment_diversion", "expect": "suspicious_message", "text": "I clicked a link in an SMS saying my parcel was waiting and typed in my email password" },
+    { "id": "nd03", "group": "not_payment_diversion", "expect": "not_cyber", "text": "A customer is late paying their invoice, it's been 60 days." },
+    { "id": "nd04", "group": "not_payment_diversion", "expect": "suspicious_message", "text": "Supplier emailed to say their bank details changed. We haven't paid yet." },
+    { "id": "nd05", "group": "not_payment_diversion", "expect": "not_cyber", "text": "Our banking app is offline and the payment to our supplier is pending." }
+  ]
+}

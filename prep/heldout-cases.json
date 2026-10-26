@@ -1,0 +1,20 @@
+{
+  "about": "10 cases written AFTER the rules were tuned on test-cases.json, to measure honestly. Same 'expect' meaning as test-cases.json.",
+  "history": [
+    "26 Oct, rules v1 (before seeing these): 2/10 correct, 0 unsafe. Every miss went to 'clarify' (safe), because unknown text falls to 'unsure'.",
+    "26 Oct, rules v2 (general patterns added after seeing these, so this set is now 'used'): see npm run scoreboard. At the event, write a NEW held-out set before touching the rules."
+  ],
+  "notes": "ho05 was first expected as 'clarify' but 'we paid into a different account' and the supplier asking why is a payment diversion on any fair reading, so it was corrected to payment_diversion.",
+  "cases": [
+    { "id": "ho01", "expect": "payment_diversion", "text": "The plumbing supplier's email said to use their Capitec account from now on. We did the transfer Monday, now their accountant says no money came in." },
+    { "id": "ho02", "expect": "payment_diversion", "text": "Got a fake invoice that looked exactly like our courier's, different account at the bottom. Already paid R9 800. Courier knows nothing about it" },
+    { "id": "ho03", "expect": "payment_diversion", "text": "someone pretended to be our tile guy on email and gave his 'new' banking info. we paid. he never asked for that" },
+    { "id": "ho04", "expect": "payment_diversion", "text": "Sent the monthly payment to the account on the latest statement. Turns out the statement was altered, our supplier has received nothing." },
+    { "id": "ho05", "expect": "payment_diversion", "text": "Our supplier is asking why we paid into a different account??" },
+    { "id": "ho06", "expect": "clarify", "text": "I think something is wrong with our email and our money" },
+    { "id": "ho07", "expect": "mailbox_compromise", "text": "Gmail says someone signed in from Lagos. I didn't do that." },
+    { "id": "ho08", "expect": "suspicious_message", "text": "Got a WhatsApp from 'the bank' asking for my OTP, I didn't send it" },
+    { "id": "ho09", "expect": "not_cyber", "text": "We paid a supplier twice by mistake and want the money back" },
+    { "id": "ho10", "expect": "suspicious_message", "text": "An email says our supplier moved banks and attached a letter. Should we pay the new one?" }
+  ]
+}

@@ -1,0 +1,235 @@
+{
+  "version": "draft-2026-10-26",
+  "reviewed": false,
+  "reviewNote": "DRAFT. Written from bank and Information Regulator guidance. Not yet reviewed by a practitioner.",
+  "incidents": {
+    "payment_diversion": {
+      "title": "Possible payment diversion",
+      "summary": "Money was paid to an account that may belong to a criminal, after banking details were changed. Speed matters: act on the first step now.",
+      "steps": [
+        {
+          "id": "call-bank",
+          "kind": "bank",
+          "title": "Call your bank's fraud line now.",
+          "why": "Your bank is the only one who can try to stop or recall the payment. Minutes count.",
+          "do": [
+            "Pick your bank below and call the official fraud line.",
+            "Say: \"I made a payment to a fraudulent account. Please try to stop or recall it.\"",
+            "Have ready: the date, the amount and the account it went to.",
+            "Write down the reference number they give you."
+          ],
+          "done": "I've called the bank"
+        },
+        {
+          "id": "confirm-supplier",
+          "kind": "supplier",
+          "title": "Confirm with your supplier on a number you already had.",
+          "why": "Do not reply to the email or call any number in it. The criminal may be reading that mailbox.",
+          "do": [
+            "Phone the supplier on a number from an old invoice, your contacts or their website.",
+            "Ask: \"Did you change your banking details?\"",
+            "Tell them their email may also be hacked."
+          ],
+          "done": "I've spoken to the supplier"
+        },
+        {
+          "id": "check-mailbox",
+          "kind": "mailbox",
+          "title": "Check your mailbox for hidden rules and strange sign-ins.",
+          "why": "Criminals often add a hidden rule that forwards or hides emails, so they can see payments coming.",
+          "do": [
+            "Use a different, clean device if you can.",
+            "Look for forwarding and inbox rules you did not create, and delete them.",
+            "Check recent sign-ins for places or devices you don't recognise.",
+            "Change your email password and turn on two-step verification."
+          ],
+          "done": "I've checked the mailbox"
+        },
+        {
+          "id": "keep-evidence",
+          "kind": "evidence",
+          "title": "Keep the evidence.",
+          "why": "The bank, SAPS and your insurer will ask for it. Don't delete the email.",
+          "do": [
+            "Save the email with the \"new banking details\" (screenshot or download it).",
+            "Save the proof of payment.",
+            "Add them below. Mgadi fingerprints each file on this phone. Nothing is uploaded."
+          ],
+          "done": "I've kept the evidence"
+        }
+      ]
+    },
+    "mailbox_compromise": {
+      "title": "Possible hacked mailbox",
+      "summary": "Someone may have access to your email. No payment has been mentioned, so the aim is to lock them out before they use it.",
+      "steps": [
+        {
+          "id": "secure-account",
+          "kind": "plain",
+          "title": "Lock the account.",
+          "why": "Stop the criminal from reading or sending email as you.",
+          "do": [
+            "From a clean device, change your email password.",
+            "Turn on two-step verification.",
+            "Sign out of all other sessions if your email offers it."
+          ],
+          "done": "I've locked the account"
+        },
+        {
+          "id": "check-mailbox",
+          "kind": "mailbox",
+          "title": "Check for hidden rules and strange sign-ins.",
+          "why": "A hidden forwarding rule can keep leaking your email after you change the password.",
+          "do": [
+            "Delete forwarding and inbox rules you did not create.",
+            "Check recent sign-ins for places or devices you don't recognise."
+          ],
+          "done": "I've checked the mailbox"
+        },
+        {
+          "id": "warn-contacts",
+          "kind": "plain",
+          "title": "Warn your clients and suppliers.",
+          "why": "Criminals use a hacked mailbox to send fake invoices to your contacts.",
+          "do": [
+            "Phone or message your main clients: \"Our email was hacked. We have NOT changed our banking details.\"",
+            "If money has left your account, call your bank's fraud line now."
+          ],
+          "done": "I've warned my contacts"
+        },
+        {
+          "id": "keep-evidence",
+          "kind": "evidence",
+          "title": "Keep the evidence.",
+          "why": "Screenshots of the rules and sign-ins help IT support and SAPS.",
+          "do": ["Screenshot the strange rules and sign-ins before you delete them, and add them below."],
+          "done": "I've kept the evidence"
+        }
+      ]
+    },
+    "suspicious_message": {
+      "title": "Suspicious message, no money moved",
+      "summary": "Good news: it sounds like no money has left yet. Don't pay and don't click until you've checked.",
+      "steps": [
+        {
+          "id": "stop",
+          "kind": "plain",
+          "title": "Don't pay, don't click, don't reply.",
+          "why": "A request to change banking details is the start of most payment-diversion scams.",
+          "do": [
+            "Do not update any banking details from the message.",
+            "If you typed a password into a link, change it now from a clean device.",
+            "If you shared a PIN or OTP, call your bank's fraud line now."
+          ],
+          "done": "Done"
+        },
+        {
+          "id": "verify",
+          "kind": "supplier",
+          "title": "Check with the sender on a number you already had.",
+          "why": "The only safe check is a call to a number you trusted before this message arrived.",
+          "do": ["Phone the supplier or person on a number from an old invoice, your contacts or their website."],
+          "done": "I've checked"
+        },
+        {
+          "id": "keep-evidence",
+          "kind": "evidence",
+          "title": "Keep the message.",
+          "why": "It helps your bank warn others.",
+          "do": ["Screenshot or save the message and add it below. Then report it to your bank."],
+          "done": "I've kept it"
+        }
+      ]
+    },
+    "not_cyber": {
+      "title": "This may not be a cyber incident",
+      "summary": "From what you described, this sounds like a normal payment or admin problem. Stay careful anyway.",
+      "steps": [
+        {
+          "id": "double-check",
+          "kind": "plain",
+          "title": "Double-check before you relax.",
+          "why": "Late payments and pending payments are common, but scams also start this way.",
+          "do": [
+            "If anyone asked you to change banking details, treat it as suspicious and start again.",
+            "If money has left your account to an account you don't recognise, call your bank's fraud line now.",
+            "Otherwise, follow up with your bank or customer as usual."
+          ],
+          "done": "Understood"
+        }
+      ]
+    },
+    "unsure": {
+      "title": "Let's be safe",
+      "summary": "We couldn't tell what happened. When in doubt, Mgadi always starts with the safest step.",
+      "steps": [
+        {
+          "id": "call-bank",
+          "kind": "bank",
+          "title": "If money moved, call your bank's fraud line now.",
+          "why": "Your bank is the only one who can try to stop a payment.",
+          "do": ["Pick your bank below and call the official fraud line.", "Write down the reference number."],
+          "done": "I've called the bank"
+        },
+        {
+          "id": "keep-evidence",
+          "kind": "evidence",
+          "title": "Keep the evidence.",
+          "why": "Whatever happened, the bank and SAPS will want it.",
+          "do": ["Save the emails, messages and proof of payment, and add them below."],
+          "done": "I've kept the evidence"
+        }
+      ]
+    }
+  },
+  "clarify": {
+    "payment": {
+      "question": "Did the supplier confirm that the bank change was genuine?",
+      "yes": { "label": "not_cyber", "text": "Yes, they confirmed it" },
+      "no": { "label": "payment_diversion", "text": "No, or I'm not sure" }
+    },
+    "money": {
+      "question": "Has any money left your account because of this?",
+      "yes": { "label": "payment_diversion", "text": "Yes, or I'm not sure" },
+      "no": { "label": "suspicious_message", "text": "No, nothing was paid" }
+    }
+  },
+  "mailboxGuides": {
+    "Microsoft 365 / Outlook": [
+      "Outlook on the web: Settings (gear) > Mail > Rules. Delete rules you did not create.",
+      "Settings > Mail > Forwarding. Turn off forwarding you did not set up.",
+      "Recent sign-ins: go to mysignins.microsoft.com and look for places or devices you don't know."
+    ],
+    "Gmail / Google Workspace": [
+      "Gmail: Settings (gear) > See all settings > Filters and Blocked Addresses. Delete filters you did not create.",
+      "Settings > Forwarding and POP/IMAP. Remove forwarding addresses you don't know.",
+      "Recent sign-ins: go to myaccount.google.com/security and check Your devices and Recent security activity."
+    ],
+    "Other email": [
+      "Look in settings for Rules, Filters or Forwarding and remove anything you did not set up.",
+      "Ask your email or website provider to show you recent sign-ins."
+    ]
+  },
+  "whoElse": [
+    {
+      "who": "SAPS",
+      "what": "Open a fraud case at your nearest police station and keep the case (CAS) number. Take this incident pack.",
+      "contact": "Crime Stop: 08600 10111"
+    },
+    {
+      "who": "Your insurer",
+      "what": "If you have business or cyber cover, tell them today. Ask if social-engineering or funds-transfer loss is covered.",
+      "contact": "The number on your policy"
+    },
+    {
+      "who": "IT support",
+      "what": "If you have an IT person or provider, ask them to check the mailbox and devices.",
+      "contact": "Your usual IT contact"
+    },
+    {
+      "who": "Information Regulator (POPIA)",
+      "what": "If the hacked mailbox held personal information about clients or staff, you may need to report a security compromise under POPIA section 22. This is not legal advice: check with a professional.",
+      "contact": "eservices.inforegulator.org.za"
+    }
+  ]
+}
