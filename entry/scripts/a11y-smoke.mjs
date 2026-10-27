@@ -40,6 +40,13 @@ const tile = (page, text) => page.locator(`.incident-choices button:has-text("${
 
 // The ransomware guide to its evidence screen: seven taps, the way a person would.
 const toEvidence = async (p) => { await tile(p, 'My device or files are locked').click(); for (let i = 0; i < 7; i += 1) { await p.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await p.waitForTimeout(50); } await p.waitForSelector('#evidence-files'); };
+// The supplier check, POPIA draft and helper handoff are reached the way a person would reach them.
+const startCheck = async (p) => { await p.click('.tool-entry'); await p.waitForSelector('#chk-supplier'); };
+const fillCheck = async (p) => { await startCheck(p); await p.fill('#chk-supplier', 'Test Supplier'); await p.selectOption('#chk-changed', 'bank_account'); await p.selectOption('#chk-arrived', 'email'); await p.fill('#chk-amount', 'R 70 000,00'); await p.check('#chk-q-dont_call'); await p.click('button:has-text("Check for red flags")'); await p.waitForSelector('#ver-who'); };
+const recordCheck = async (p) => { await fillCheck(p); await p.fill('#ver-who', 'Thandi'); await p.selectOption('#ver-source', 'old_invoice'); await p.selectOption('#ver-result', 'confirmed'); await p.check('#ver-mine'); await p.click('button:has-text("Save my check")'); await p.waitForSelector('button:has-text("Create a link for the second person")'); };
+const makeCheckLink = async (p) => { await recordCheck(p); await p.click('button:has-text("Create a link for the second person")'); await p.waitForSelector('input[aria-label="Link for the second person"]'); return p.locator('input[aria-label="Link for the second person"]').inputValue(); };
+const toPack = async (p) => { await tile(p, 'A suspicious message or link').click(); await p.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await p.waitForSelector('#evidence-files'); await p.click('text=Review what goes in the pack'); await p.click('text=Make incident pack'); await p.waitForSelector('.pack-summary'); };
+const makeHandoffLink = async (p) => { await toPack(p); await p.click('button:has-text("Send a summary to a helper")'); await p.waitForSelector('#ho-approve'); await p.check('#ho-approve'); await p.click('button:has-text("Create the link")'); await p.waitForSelector('input[aria-label="Link for the contact"]'); return p.locator('input[aria-label="Link for the contact"]').inputValue(); };
 // Each screen is reached the way a person would, then audited.
 const screens = {
   'home': async () => {},
@@ -57,6 +64,16 @@ const screens = {
   'pack review with handoff': async (p) => { await toEvidence(p); await p.click('details.handoff-form summary'); await p.fill('#handoff-followup', 'Call back Thursday'); await p.click('text=Review what goes in the pack'); await p.waitForSelector('#include-handoff'); },
   'specialist summary (ransomware)': async (p) => { await toEvidence(p); await p.click('details.handoff-form summary'); await p.fill('#handoff-followup', 'Call back Thursday'); await p.click('text=Review what goes in the pack'); await p.click('text=Make incident pack'); await p.waitForSelector('text=Handoff for an IT or security specialist'); },
   'voice panel (simulation)': async (p) => { await tile(p, 'My device or files are locked').click(); await p.waitForSelector('text=Step 1 of'); await p.click('.voice-launch'); await p.waitForSelector('.voice-panel:not([hidden])'); },
+  'supplier check: start': startCheck,
+  'supplier check: red flags and the verification form': fillCheck,
+  'supplier check: check saved, second person offered': recordCheck,
+  'supplier check: link made, owner waiting': async (p) => { await makeCheckLink(p); },
+  'supplier check: the second person decides': async (p) => { const link = await makeCheckLink(p); await p.goto(link); await p.waitForSelector('button:has-text("Approve")'); },
+  'supplier check: a link that cannot be used': async (p) => { await p.goto(`${new URL(p.url()).origin}/#mgadi=1.c.${'A'.repeat(16)}.${'A'.repeat(22)}.${'A'.repeat(43)}`); await p.waitForSelector('text=This link cannot be used'); },
+  'POPIA draft (template)': async (p) => { await toPack(p); await p.click('button:has-text("Draft a POPIA notification (template)")'); await p.waitForSelector('.popia-draft'); },
+  'helper summary: preview before sending': async (p) => { await toPack(p); await p.click('button:has-text("Send a summary to a helper")'); await p.waitForSelector('#ho-approve'); },
+  'helper summary: link made, owner waiting': async (p) => { await makeHandoffLink(p); },
+  'helper summary: the contact acknowledges': async (p) => { const link = await makeHandoffLink(p); await p.goto(link); await p.waitForSelector('button:has-text("Acknowledge")'); },
   'signing dialog': async (p) => { await tile(p, 'My device or files are locked').click(); await p.waitForSelector('text=Step 1 of'); await p.click('button:has-text("Sign this")'); await p.waitForSelector('dialog[open]'); },
 };
 const audit = async (page) => page.evaluate(async () => (await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] }, resultTypes: ['violations'] })).violations.map((v) => ({ id: v.id, impact: v.impact, count: v.nodes.length, help: v.help, sample: v.nodes[0].target.join(' ').slice(0, 90) })));
@@ -87,6 +104,21 @@ try {
   await page.goBack?.().catch(() => {}); page = await open(real.base); await tile(page, 'My device or files are locked').click(); await page.waitForSelector('text=Step 1 of');
   const small = await page.evaluate(() => [...document.querySelectorAll('button, a[href], summary, select, input[type=checkbox]')].filter((e) => e.offsetWidth > 0 && !e.closest('[hidden]') && !(e.tagName === 'A' && e.closest('li, p'))).map((e) => { const r = e.getBoundingClientRect(); const box = e.type === 'checkbox'; return { n: (e.textContent || e.id || e.tagName).trim().slice(0, 28), w: Math.round(r.width), h: Math.round(r.height), min: box ? 24 : 44 }; }).filter((t) => t.h < t.min || t.w < t.min));
   check('every visible control on a ransomware step meets its minimum: buttons 44 x 44 px, checkboxes 24 x 24 px (WCAG 2.2 AA asks 24); inline text links are exempt', small.length === 0, JSON.stringify(small));
+
+  // ---- 3b. The new screens: focus, announcements, touch targets, and that nothing important is colour alone.
+  const tools = await open(real.base); await tools.click('.tool-entry'); await tools.waitForSelector('#chk-supplier'); await tools.waitForTimeout(150);
+  check('supplier check: focus moves to the new screen\'s heading', await tools.evaluate(() => document.activeElement.tagName === 'H1'));
+  await tools.click('button:has-text("Check for red flags")');
+  check('supplier check: a form error is announced (role=alert) and says what is missing', /Please fill in/.test(await tools.locator('[role=alert]').innerText()));
+  check('supplier check: every field has a visible label tied to it', await tools.evaluate(() => [...document.querySelectorAll('#app input:not([type=checkbox]):not([type=file]), #app select, #app textarea')].every((e) => e.labels?.length > 0 || e.getAttribute('aria-label'))));
+  const result = await open(real.base); await recordCheck(result);
+  const tooSmall = await result.evaluate(() => [...document.querySelectorAll('button, summary, select, input[type=checkbox], input[type=text]')].filter((e) => e.offsetWidth > 0 && !e.closest('[hidden]')).map((e) => { const r = e.getBoundingClientRect(); const box = e.type === 'checkbox'; return { n: (e.textContent || e.id || e.tagName).trim().slice(0, 28), w: Math.round(r.width), h: Math.round(r.height), min: box ? 24 : 44 }; }).filter((t) => t.h < t.min || t.w < t.min));
+  check('supplier check result: every control meets its minimum size (buttons 44 px, checkboxes 24 px)', tooSmall.length === 0, JSON.stringify(tooSmall));
+  check('supplier check result: the verdict is stated in words, and red-flag levels are written ("High:"), not colour alone', /VERIFY BEFORE PAYING/.test(await result.locator('#app').innerText()) && /High: /.test(await result.locator('.flags').innerText()));
+  check('supplier check: the status box is a polite live region, so a screen reader hears the answer arrive', (await result.locator('[role=status].tool-status').count()) >= 1);
+  const pack = await open(real.base); await toPack(pack); await pack.click('button:has-text("Send a summary to a helper")'); await pack.waitForSelector('#ho-approve');
+  const packSmall = await pack.evaluate(() => [...document.querySelectorAll('button, summary, select, input[type=checkbox], input[type=text]')].filter((e) => e.offsetWidth > 0 && !e.closest('[hidden]')).map((e) => { const r = e.getBoundingClientRect(); const box = e.type === 'checkbox'; return { n: (e.textContent || e.id || e.tagName).trim().slice(0, 28), w: Math.round(r.width), h: Math.round(r.height), min: box ? 24 : 44 }; }).filter((t) => t.h < t.min || t.w < t.min));
+  check('helper summary: every control meets its minimum size, and the disabled "Create the link" button is explained by the tick box next to it', packSmall.length === 0 && (await pack.locator('button:has-text("Create the link")').isDisabled()) && (await pack.locator('label[for="ho-approve"]').count()) === 1, JSON.stringify(packSmall));
 
   // ---- 4. Language: switching keeps the incident, and untranslated text is marked as English, never passed off as translated.
   await page.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await page.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click();

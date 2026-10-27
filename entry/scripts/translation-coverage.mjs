@@ -46,8 +46,20 @@ function scan(source) {
   for (const m of source.matchAll(TEMPLATE)) dynamic.add(m[1]);
   return { strings: [...strings], dynamic: [...dynamic] };
 }
+// The new tools build much of their text in shared modules and often use double quotes, which the screen patterns above do not see.
+// For those files every sentence-like literal counts: three or more words, starting with a capital. A literal with ${...} is dynamic.
+function scanSentences(source) {
+  const strings = new Set(); const dynamic = new Set();
+  for (const m of source.matchAll(/(['"`])((?:(?!\1)[^\\\n]|\\.){12,})\1/g)) {
+    const text = m[2].replace(/\\'/g, "'");
+    if (!/^[A-Z0-9"“]/.test(text) || (text.match(/ /g) ?? []).length < 2) continue;
+    (text.includes('${') ? dynamic : strings).add(text);
+  }
+  return { strings: [...strings], dynamic: [...dynamic] };
+}
 const app = read('public/app.js'); const panel = read('public/voice/panel.js'); const controller = read('public/voice/controller.js');
 const access = read('public/accessibility/accessibility.js'); const summary = read('public/shared/summary.js'); const offline = read('public/offline/register.js');
+const tools = read('public/tools/tools.js');
 const fromFunctions = (source, names) => names.reduce((acc, name) => { const s = scan(functionBody(source, name)); acc.strings.push(...s.strings); acc.dynamic.push(...s.dynamic); return acc; }, { strings: [], dynamic: [] });
 const merge = (...parts) => ({ strings: [...new Set(parts.flatMap((p) => p.strings ?? p))], dynamic: [...new Set(parts.flatMap((p) => p.dynamic ?? []))] });
 const fromData = (value) => ({ strings: [...new Set(collect(value))], dynamic: [] });
@@ -68,6 +80,7 @@ const surfaces = [
   ['Errors and connectivity notices', merge(fromData(Object.values(FAILURE_COPY)), { strings: [], dynamic: offlineSentences })],
   ['Evidence and incident packs', merge(fromFunctions(app, ['showEvidencePack', 'showPackReview', 'showPack']), scan(summary))],
   ['Accessibility settings and signing dialog', scan(access)],
+  ['Supplier check, responder handoff and POPIA draft (screens and the texts they build)', merge(scan(tools), ...['public/tools/tools.js', 'public/shared/supplier-check.js', 'public/shared/responder.js', 'public/shared/popia.js'].map((f) => scanSentences(read(f))))],
 ];
 
 export const isTranslated = (text, lang, table = catalog) => Boolean(table[lang]?.[text]) && table[lang][text] !== text;
