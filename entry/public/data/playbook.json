@@ -1,20 +1,146 @@
 {
   "reviewed": false,
   "reviewNote": "Draft steps based on bank and regulator guidance. Practitioner review pending.",
+  "entry": {
+    "title": "What is happening?",
+    "intro": "Pick the closest one. You do not need to know technical words. Your bank fraud line stays at the top of every screen.",
+    "options": [
+      { "id": "money", "text": "Money or a payment problem", "next": "payment" },
+      { "id": "locked", "text": "My device or files are locked", "route": "ransomware_suspected" },
+      { "id": "account", "text": "Someone accessed my email or account", "route": "mailbox_compromise" },
+      { "id": "message", "text": "A suspicious message or link", "route": "suspicious_message" },
+      { "id": "unknown", "text": "I don't know what happened", "next": "clarify" }
+    ],
+    "payment": {
+      "title": "What happened with the money?",
+      "options": [
+        { "id": "paid", "text": "I paid after bank details changed", "route": "payment_diversion" },
+        { "id": "asked", "text": "I was asked to pay or change bank details, and I have not paid", "route": "suspicious_message" },
+        { "id": "ordinary", "text": "It looks like an ordinary payment problem", "route": "not_cyber" },
+        { "id": "unsure", "text": "I am not sure", "next": "clarify" }
+      ]
+    }
+  },
+  "clarify": {
+    "title": "One quick question",
+    "intro": "We could not tell what happened from your description. Your bank fraud line stays at the top of every screen.",
+    "question": "Which is closest to what is happening?",
+    "options": [
+      { "id": "paid", "text": "Money has been paid out, or is missing", "route": "payment_diversion" },
+      { "id": "locked", "text": "My files or device are locked, or someone wants money to unlock them", "route": "ransomware_suspected" },
+      { "id": "account", "text": "Someone may have got into my email or an account", "route": "mailbox_compromise" },
+      { "id": "message", "text": "I got a suspicious message or link, and nothing has been paid or locked", "route": "suspicious_message" },
+      { "id": "unsure", "text": "I am not sure", "route": "unsure" }
+    ]
+  },
   "incidents": {
     "payment_diversion": {
       "title": "Possible payment diversion",
       "summary": "Money may have been paid to a criminal after banking details changed. Act on step one now.",
       "steps": [
-        { "id": "bank", "title": "Call your bank's fraud line now", "why": "Only your bank can try to stop or recall the payment. Minutes count.", "do": ["Choose your bank and call its official fraud line.", "Say: I made a payment to a fraudulent account. Please try to stop or recall it.", "Write down the reference number."], "done": "I've called the bank" },
+        { "id": "bank", "title": "Call your bank's fraud line now", "why": "Only your bank can try to stop or recall the payment. Minutes count.", "do": ["Choose your bank and call its official fraud line.", "Say: I made a payment to a fraudulent account. Please try to stop or recall it.", "Write down the reference number."], "done": "I've called the bank", "skip": "I haven't called yet — continue" },
         { "id": "supplier", "title": "Confirm with your supplier on a number you already had", "why": "Do not reply to the suspicious email or call a number in it.", "do": ["Use a number from an old invoice, your contacts or the supplier's official website.", "Ask if they genuinely changed their banking details."], "done": "I've spoken to the supplier" },
         { "id": "mailbox", "title": "Check your mailbox", "why": "Criminals may hide or forward messages so they can watch payment conversations.", "do": ["Look for forwarding and inbox rules you did not create.", "Check recent sign-ins and change your password from a clean device.", "Turn on two-step verification."], "done": "I've checked the mailbox" },
-        { "id": "evidence", "title": "Keep the evidence", "why": "Your bank, SAPS and insurer may ask for the message and proof of payment.", "do": ["Do not delete the email or message.", "Save the proof of payment and screenshots.", "The evidence pack feature is next in this build."], "done": "I've kept the evidence" }
+        { "id": "evidence", "title": "Keep the evidence", "why": "Your bank, SAPS and insurer may ask for the message and proof of payment.", "do": ["Do not delete the email or message.", "Save the proof of payment and screenshots.", "Next you can fingerprint your files on this phone and make an incident pack."], "done": "I've kept the evidence" }
       ]
     },
-    "mailbox_compromise": { "title": "Possible hacked mailbox", "summary": "Lock the mailbox before it is used to send fraudulent invoices.", "steps": [{ "id": "secure", "title": "Lock the account", "why": "This can stop further access.", "do": ["Change the password from a clean device.", "Turn on two-step verification and sign out other sessions."], "done": "I've locked the account" }, { "id": "rules", "title": "Remove unknown rules", "why": "Forwarding rules can keep leaking email after a password change.", "do": ["Remove rules and forwarding you did not create.", "Keep screenshots for IT support."], "done": "I've checked the rules" }] },
+    "mailbox_compromise": { "title": "Possible hacked mailbox", "summary": "Lock the mailbox before it is used to send fraudulent invoices.", "orgNote": "If this is a work account at a larger organisation, tell your IT or security team first and follow their instructions. Do not change company systems on your own.", "steps": [{ "id": "secure", "title": "Lock the account", "why": "This can stop further access.", "do": ["Change the password from a clean device.", "Turn on two-step verification and sign out other sessions."], "done": "I've locked the account" }, { "id": "rules", "title": "Remove unknown rules", "why": "Forwarding rules can keep leaking email after a password change.", "do": ["Remove rules and forwarding you did not create.", "Keep screenshots for IT support."], "done": "I've checked the rules" }] },
     "suspicious_message": { "title": "Suspicious message — no money moved", "summary": "Good: you may be able to stop the scam before money leaves.", "steps": [{ "id": "stop", "title": "Don't pay, click or reply", "why": "A changed-bank-details message is a common payment-diversion tactic.", "do": ["Do not change any banking details from the message.", "Confirm the request on a trusted number."], "done": "I've stopped the payment" }] },
+    "ransomware_suspected": {
+      "title": "Possible ransomware: locked files or a demand for money",
+      "summary": "Files or a computer may be locked and someone may be demanding money. Stop it spreading, do not pay yet, and get a trusted specialist. Mgadi cannot unlock files or remove malware.",
+      "reviewed": false,
+      "orgNote": "If you work for a larger organisation, call your IT or security team first and follow their instructions. Do not change company systems on your own.",
+      "steps": [
+        {
+          "id": "check_signs",
+          "title": "Look at what you can see, without clicking anything",
+          "why": "Ransomware often shows a message that demands money, or stops your files from opening. Other problems can look similar, so look first.",
+          "do": [
+            "Look at the screen: is there a message that demands money or gives a deadline?",
+            "Notice whether your files have strange new endings or will not open.",
+            "Take a photo of the screen with another phone. Do not click anything in the message."
+          ],
+          "done": "I've looked and noted what I see",
+          "skip": "I can't tell, continue"
+        },
+        {
+          "id": "disconnect",
+          "title": "Disconnect the affected computer from the network",
+          "why": "This can stop locked files from spreading to other computers and shared drives.",
+          "do": [
+            "Unplug the network cable, or turn off Wi-Fi on the affected computer.",
+            "Disconnect any backup or shared drive that is plugged into it.",
+            "Do not switch it off unless you cannot disconnect it. Switching off can erase clues. If you had to, tell your specialist.",
+            "Leave everything as it is. Do not delete, rename or reinstall anything."
+          ],
+          "done": "I've disconnected it",
+          "skip": "I haven't done this, continue"
+        },
+        {
+          "id": "do_not_pay",
+          "title": "Do not pay, and do not reply to the attackers yet",
+          "why": "Paying does not guarantee your files come back, and attackers may demand more. Official guidance does not recommend paying.",
+          "do": [
+            "Do not pay or send cryptocurrency until a specialist has advised you.",
+            "Do not download or run any decryptor, cleaner or recovery tool from the message, an advert or a search result.",
+            "If you have already sent money from a bank account, use the red Bank fraud line button now and tell your bank."
+          ],
+          "done": "I understand"
+        },
+        {
+          "id": "get_help",
+          "title": "Get a trusted specialist, using a different device",
+          "why": "Locked files need an expert to check what happened and what can be saved. Use a phone or a computer that is not connected to the affected network.",
+          "do": [
+            "Call your IT support, managed IT provider or a cybersecurity specialist you already know. Use a phone call, not email from the affected computer.",
+            "If you work for a larger organisation, tell your IT or security team first and follow their instructions. Do not change company systems on your own.",
+            "If you have cyber insurance, check your policy and ask your insurer what they need from you, and when.",
+            "Be careful with strangers who offer to fix it and ask for access or passwords. Criminals pose as helpers."
+          ],
+          "done": "I've contacted a specialist",
+          "skip": "I haven't yet, continue"
+        },
+        {
+          "id": "keep_evidence",
+          "title": "Keep the information a specialist will need",
+          "why": "A responder can work faster if the clues are not lost.",
+          "do": [
+            "Keep the photo of the message. Do not contact any email address or wallet details it shows.",
+            "Write down when you first noticed it, which computer, and what you did.",
+            "Do not delete files, empty the recycle bin or reinstall the system.",
+            "Do not upload your private files anywhere. Your specialist will tell you what, if anything, to share."
+          ],
+          "done": "I've kept the information",
+          "skip": "I haven't yet, continue"
+        },
+        {
+          "id": "protect_backups",
+          "title": "Protect your backups",
+          "why": "A clean backup kept apart from the computer is often the safest way back. A backup that also gets locked cannot help.",
+          "do": [
+            "Do not plug a backup drive into the affected computer.",
+            "Disconnect any online backup that is connected to the affected network, and tell your specialist.",
+            "Do not restore anything until your specialist says it is safe. Restoring onto an infected computer can lock it again.",
+            "Write down where your backups are and when the last good one was made."
+          ],
+          "done": "I've protected my backups",
+          "skip": "I don't have backups, continue"
+        },
+        {
+          "id": "handoff",
+          "title": "Prepare a handoff and know your next steps",
+          "why": "A short summary saves time for your specialist, the police, your insurer and your bank.",
+          "do": [
+            "Next, make an incident pack on this phone. It holds only what you tell Mgadi, and you choose what goes in.",
+            "Report the crime to the South African Police Service. Ask your specialist about other duties. If personal information may have been exposed, they can advise whether the Information Regulator and the people affected must be told.",
+            "Ask your specialist whether a free decryption tool may exist for your case. For many kinds of ransomware none exists, so never count on one."
+          ],
+          "done": "I've understood the next steps"
+        }
+      ]
+    },
     "not_cyber": { "title": "This may not be a cyber incident", "summary": "It sounds like a normal payment or admin problem, but stay cautious.", "steps": [{ "id": "check", "title": "Double-check before you relax", "why": "Scams can look like an ordinary late payment.", "do": ["If details changed, start again and treat it as suspicious.", "If money left for an unfamiliar account, call your bank."], "done": "Understood" }] },
-    "unsure": { "title": "Let's be safe", "summary": "We could not tell what happened. Start with the safest action if money moved.", "steps": [{ "id": "bank", "title": "If money moved, call your bank now", "why": "The bank may be able to stop the payment.", "do": ["Choose your bank below and call its official fraud number."], "done": "I've called the bank" }] }
+    "unsure": { "title": "Let's be safe", "summary": "We could not tell what happened. Take the safest steps while you find out.", "steps": [{ "id": "bank", "title": "If money may have moved, call your bank now", "why": "The bank may be able to stop the payment. If no money has moved, you can continue.", "do": ["Choose your bank below and call its official fraud number.", "Only press the button when you have actually called."], "done": "I've called the bank", "skip": "I haven't called yet — continue" }, { "id": "pause", "title": "Pause before you pay or change anything", "why": "Criminals rely on speed. A short check can stop a loss.", "do": ["Do not pay, or change a supplier's banking details, until you have checked.", "Phone the supplier on a number you already had, not one from the message.", "Keep the message; you can add it to an incident pack."], "done": "I've understood" }] }
   }
 }

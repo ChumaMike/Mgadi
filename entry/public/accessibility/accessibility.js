@@ -11,6 +11,7 @@ let lastTarget;
 const synth = window.speechSynthesis;
 const el = (tag, text, attrs={}) => { const n=document.createElement(tag); n.lang='en'; if(text)bindText(n,text); for(const [k,v] of Object.entries(attrs))n.setAttribute(k,v); return n; };
 const button = (text,fn) => {const n=el('button',text,{type:'button',class:'button secondary'});n.addEventListener('click',fn);return n;};
+export const getLocale = () => locale;
 export function bindText(node, source, attribute=null) {
   bindings.set(new WeakRef(node),{source,attribute});
   apply(node,source,attribute);return node;
@@ -26,10 +27,18 @@ function updateLanguage() {
   document.documentElement.lang=locale;
   document.dispatchEvent(new CustomEvent('mgadi:language',{detail:{locale}}));
 }
-export function stopSpeech(){synth?.cancel();currentUtterance=null;spokenNodes=[];if(voiceStatus)voiceStatus.textContent='Audio stopped.';}
+let audioMessageStale=false;
+// Silent by default: navigation, language changes and consent changes must not announce "Audio stopped."
+// to screen readers. Only an explicit press of "Stop audio" announces.
+export function stopSpeech(announce=false){
+  synth?.cancel();currentUtterance=null;spokenNodes=[];
+  if(!voiceStatus)return;
+  if(announce)voiceStatus.textContent='Audio stopped.';
+  else if(audioMessageStale){voiceStatus.textContent='';audioMessageStale=false;}
+}
 function speak(nodes, index=0) {
   if(!synth || !window.SpeechSynthesisUtterance){voiceStatus.textContent='Read aloud is unavailable in this browser. All guidance remains readable.';return;}
-  if(index>=nodes.length){voiceStatus.textContent='Finished reading.';return;}
+  if(index>=nodes.length){voiceStatus.textContent='Finished reading.';audioMessageStale=true;return;}
   const node=nodes[index], lang=node.lang||'en';
   const voices=synth.getVoices();
   const voice=voices.find(v=>v.lang.toLowerCase().split('-')[0]===lang);
@@ -38,7 +47,7 @@ function speak(nodes, index=0) {
   currentUtterance.voice=voice;currentUtterance.lang=voice.lang;currentUtterance.rate=.9;
   currentUtterance.onend=()=>{if(spokenNodes===nodes)speak(nodes,index+1);};
   currentUtterance.onerror=()=>{voiceStatus.textContent='Audio unavailable. Please continue with the text.';};
-  voiceStatus.textContent=`Reading in ${languages[lang]||lang}.`;
+  voiceStatus.textContent=`Reading in ${languages[lang]||lang}.`;audioMessageStale=true;
   synth.speak(currentUtterance);
 }
 function listen(nodes){stopSpeech();if(document.documentElement.dataset.textOnly==='true'){voiceStatus.textContent='Text-only mode is on. Turn it off to use audio.';voiceStatus.focus();return;}if(!voiceConsent){voiceStatus.textContent='Enable “Allow read aloud” first. Your browser or operating system may process this guidance using an online voice service.';voiceStatus.focus();return;}spokenNodes=nodes;speak(nodes);}
@@ -58,8 +67,10 @@ function openSign(targets,messageId,call=false){
   for(const target of targets){const p=el('p',target.textContent,{lang:target.lang||'en'});caption.append(p);}
   video.hidden=true;video.removeAttribute('src');
   const clip=findReviewedSign(messageId);
-  signStatus.textContent=clip?`Reviewed SASL clip: ${clip.reviewer}`:'SASL translation unavailable for this message. The 3D model is a visual prototype, not a signing translation.';
-  if(clip){video.src=clip.src;video.hidden=false;}
+  signStatus.textContent=clip?`Reviewed SASL clip, reviewed by ${clip.reviewer} on ${clip.reviewedOn}.`:'SASL translation unavailable for this message. The 3D model is a visual prototype, not a signing translation. Other help that works: Listen, the transcript below, or Talk to Mgadi, which shows live captions when voice is available.';
+  video.replaceChildren();
+  // A reviewed clip always carries its captions (the registry will not accept one without).
+  if(clip){video.src=clip.src;const track=document.createElement('track');track.kind='captions';track.src=clip.captions;track.srclang='en';track.label='Captions';track.default=true;video.append(track);video.hidden=false;}
   document.querySelector('#call-demo-note').hidden=!call;
   dialog.showModal();
 }
@@ -81,7 +92,7 @@ export function installAccessibility(){
     toggle('text-only','Low-data / text-only mode',v=>{document.documentElement.dataset.textOnly=String(v);if(v){avatar?.pause();video?.pause();stopSpeech();} if(dialog?.open)dialog.close();}),
     toggle('hover-sign','Open signing panel when hovering over guidance',()=>{}),
     toggle('voice-consent','Allow read aloud. The device voice service may process guidance online.',v=>{voiceConsent=v;if(!v)stopSpeech();}),
-    button('Stop audio',stopSpeech),button('Pause audio',()=>synth?.pause()),button('Resume audio',()=>synth?.resume()));
+    button('Stop audio',()=>stopSpeech(true)),button('Pause audio',()=>synth?.pause()),button('Resume audio',()=>synth?.resume()));
   details.append(panel);host.append(details,notice,voiceStatus);
   dialog=el('dialog','',{class:'sign-dialog','aria-labelledby':'sign-title'});
   const title=el('h2','Signing studio',{id:'sign-title'});

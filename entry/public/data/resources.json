@@ -1,0 +1,41 @@
+{
+  "checkedOn": "2026-10-27",
+  "note": "These links open outside Mgadi, need an internet connection, and are run by other organisations. Mgadi does not control them and they are not an endorsement or a promise that they can help in your case. Never enter a password, a bank detail or a card number on any of them.",
+  "allowedHosts": ["www.cisa.gov", "www.nomoreransom.org", "csrc.nist.gov"],
+  "routes": {
+    "ransomware_suspected": [
+      {
+        "id": "cisa-hit",
+        "title": "I've been hit by ransomware: checklist",
+        "publisher": "CISA (United States government)",
+        "url": "https://www.cisa.gov/stopransomware/ive-been-hit-ransomware",
+        "purpose": "A response checklist for IT teams: isolate affected systems, preserve evidence, and why paying is not advised. Its reporting contacts are for the United States and do not apply in South Africa.",
+        "audience": "IT or security specialist"
+      },
+      {
+        "id": "nmr-tools",
+        "title": "Decryption tools",
+        "publisher": "No More Ransom (Europol, police and security companies)",
+        "url": "https://www.nomoreransom.org/en/decryption-tools.html",
+        "purpose": "A list of free decryption tools for some kinds of ransomware. Many kinds have no tool, so do not count on one. Do not upload private files to any website unless your specialist tells you to.",
+        "audience": "IT or security specialist"
+      },
+      {
+        "id": "nmr-qa",
+        "title": "Ransomware: questions and answers",
+        "publisher": "No More Ransom (Europol, police and security companies)",
+        "url": "https://www.nomoreransom.org/en/ransomware-qa.html",
+        "purpose": "Plain explanations of what ransomware is and why paying is not recommended.",
+        "audience": "Anyone"
+      },
+      {
+        "id": "nist-8374",
+        "title": "Ransomware risk management profile (NIST IR 8374 Rev. 1)",
+        "publisher": "NIST (United States standards body)",
+        "url": "https://csrc.nist.gov/pubs/ir/8374/r1/final",
+        "purpose": "How organisations prepare for, respond to and recover from ransomware. Written for IT and risk teams, not for first-hour steps.",
+        "audience": "IT or security specialist"
+      }
+    ]
+  }
+}

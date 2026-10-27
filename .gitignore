@@ -9,3 +9,6 @@ mgadi-incident-pack-*.json
 .vercel/
 entry/.vercel/
 team/private/
+entry/public/vendor/
+entry/public/icons/*.png
+entry/public/precache-manifest.json

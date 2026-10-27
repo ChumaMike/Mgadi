@@ -4,6 +4,7 @@ import http from 'node:http';
 import { once } from 'node:events';
 import triage from '../api/triage.js';
 import health from '../api/health.js';
+import { seal, randomId, randomToken, newKey, tokenHash } from '../public/shared/seal.js';
 
 async function start(t, handler) {
   const app = http.createServer(handler);
@@ -38,4 +39,21 @@ test('hosted health adapter reports rules-only and preserves no-store/security h
   assert.deepEqual(await response.json(), { ok: true, ai: false });
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.match(response.headers.get('content-security-policy'), /script-src 'self'/);
+});
+
+test('hosted links adapter: works with a store, answers 503 on Vercel without a shared store, and keeps the no-store and security headers', async (t) => {
+  const post = (base, body) => fetch(base, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const id = randomId(); const key = newKey(); const sealed = await seal({ note: 'synthetic' }, { key, kind: 'check', id });
+  const body = { op: 'create', kind: 'check', id, oh: await tokenHash(randomToken()), ch: await tokenHash(randomToken()), ...sealed };
+  const local = await start(t, (await import('../api/links.js?local')).default);
+  const made = await post(local, body); assert.equal(made.status, 201);
+  assert.equal(made.headers.get('cache-control'), 'no-store'); assert.match(made.headers.get('content-security-policy'), /script-src 'self'/);
+  assert.equal((await fetch(local)).status, 405, 'POST only');
+  // The adapter reads its environment when it is loaded, as a serverless function does. Load it as Vercel would, with no shared store.
+  const names = ['VERCEL', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'KV_REST_API_URL', 'KV_REST_API_TOKEN']; const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
+  let hosted;
+  try { for (const n of names) delete process.env[n]; process.env.VERCEL = '1'; hosted = (await import('../api/links.js?hosted')).default; }
+  finally { for (const n of names) { if (saved[n] === undefined) delete process.env[n]; else process.env[n] = saved[n]; } }
+  const refused = await post(await start(t, hosted), body);
+  assert.equal(refused.status, 503); assert.deepEqual(await refused.json(), { error: 'links_unavailable' });
 });
