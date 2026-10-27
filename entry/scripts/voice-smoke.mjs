@@ -22,7 +22,7 @@ const open = async ({ width = 390, height = 844, query = 'mockvoice=fast', reduc
   page.on('request', (r) => page.requests.push({ url: r.url(), body: r.postData() }));
   await page.goto(`${base}/?${query}`); await page.waitForSelector('h1'); return page;
 };
-const begin = async (page) => { await page.locator('.incident-choices button:has-text("I paid after")').click(); await page.waitForSelector('text=Step 1 of'); };
+const begin = async (page) => { await page.locator('.incident-choices button:has-text("Money or a payment problem")').click(); await page.locator('.incident-choices button:has-text("I paid after")').click(); await page.waitForSelector('text=Step 1 of'); };
 const launch = async (page) => { await page.click('.voice-launch'); await page.waitForSelector('.voice-panel:not([hidden])'); };
 const talk = async (page) => { await page.check('#voice-consent-check'); await page.click('.vp-start'); await page.waitForSelector('.vp-status:has-text("Connected")'); };
 const rect = (page, sel) => page.evaluate((s) => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return { x: r.x, y: r.y, w: r.width, h: r.height, visible: r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && !e.closest('[hidden]') }; }, sel);
@@ -184,6 +184,29 @@ try {
   check('320px at 200% text: the avatar steps aside rather than cover anything', await page.locator('.avatar-dock').isHidden() && big.every((b) => !hit(bigAvatar, b)), JSON.stringify({ bigAvatar, big }));
   await page.evaluate(() => document.querySelector('.vp-chat').scrollIntoView());
   check('320px at 200% text: the conversation is reachable by scrolling the panel', (await rect(page, '.vp-chat')).visible);
+  // 11. Connection lost in the middle of a live conversation (airplane mode): clean end, nothing lost, offline guide offered.
+  page = await open({ query: 'mockvoice=fast' }); await begin(page); await page.click('button:has-text("I\'ve called the bank")'); await page.waitForSelector('text=Step 2 of'); await launch(page); await talk(page);
+  await page.waitForSelector('.msg-assistant'); await page.waitForSelector('.msg-user');
+  const heard = await page.locator('.vp-chat .msg:not(.msg-system) .said').allInnerTexts();
+  const requestsBefore = page.requests.length;
+  await page.context().setOffline(true);
+  await page.waitForSelector('.vp-avail:has-text("internet connection")');
+  check('losing the internet mid-call ends it with an honest message (live AI voice needs internet)', (await page.locator('.vp-status').innerText()).includes("Couldn't connect") && /needs an internet connection/.test(await page.locator('.vp-avail').innerText()));
+  const kept = await page.locator('.vp-chat .msg:not(.msg-system) .said').allInnerTexts();
+  check('the conversation already shown is kept (nothing disappears or is rewritten; a message still being spoken may have grown)', kept.length >= heard.length && heard.length >= 2 && heard.every((text, i) => kept[i].startsWith(text)), JSON.stringify({ heard, kept }));
+  check('the message points to the guide on this phone', /guide on this phone/.test(await page.locator('.vp-avail').innerText()));
+  check('the call controls reset: no mute or end buttons, and no microphone indicator left on', (await page.locator('.vp-controls button:has-text("End call")').isHidden()) && (await page.locator('.vp-chips').innerText()).includes('Microphone off'));
+  check('the current action and the progress are unchanged', (await page.locator('.vp-now').innerText()).startsWith('Now:') && (await page.locator('.vp-count').innerText()).includes('step 2 of 4'));
+  check('the Bank fraud line button in the panel still works', await page.locator('.vp-bank').isEnabled());
+  await page.waitForTimeout(6000);
+  check('nothing retries or restarts while offline', (await page.locator('.vp-status').innerText()).includes("Couldn't connect") && page.requests.slice(requestsBefore).filter((r) => r.url.includes('/api/voice/session')).length === 0);
+  await page.context().setOffline(false);
+  await page.waitForTimeout(800);
+  check('coming back online does not silently restart the call; the person chooses "Try again"', (await page.locator('.vp-status').innerText()).includes("Couldn't connect") && (await page.locator('.vp-start').innerText()) === 'Try again');
+  await page.click('.vp-controls button:has-text("Use text guidance")');
+  check('"Use text guidance" returns to the same step, with progress kept', (await page.locator('.step-count').innerText()).includes('Step 2 of'));
+  check('no page errors during the connection loss', page.errors.length === 0, JSON.stringify(page.errors));
+
 } finally { await browser.close(); app.close(); }
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} voice browser checks passed.`);
