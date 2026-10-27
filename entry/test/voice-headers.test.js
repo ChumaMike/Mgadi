@@ -33,8 +33,16 @@ for (const [name, get] of [['local server', localHeaders], ['Vercel config', asy
   });
 }
 
-test('the Vercel voice functions are configured and build the vendor bundle', () => {
-  assert.equal(vercel.buildCommand, 'npm run vendor');
+test('the Vercel voice functions are configured, and the build makes the vendor bundle, the icons and the offline manifest', () => {
+  assert.equal(vercel.buildCommand, 'npm run build');
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.equal(pkg.scripts.build, 'node scripts/build.mjs');
+  const build = fs.readFileSync(new URL('../scripts/build.mjs', import.meta.url), 'utf8');
+  assert.match(build, /vendor-retell\.mjs/); assert.match(build, /writeIcons/); assert.match(build, /precache-manifest\.json/);
+  const headers = Object.fromEntries(vercel.headers.map((h) => [h.source, Object.fromEntries(h.headers.map((x) => [x.key, x.value]))]));
+  assert.equal(headers['/sw.js']['Cache-Control'], 'no-cache', 'the worker is always revalidated so updates are found');
+  assert.equal(headers['/precache-manifest.json']['Cache-Control'], 'no-store');
+  assert.match(headers['/manifest.webmanifest']['Content-Type'], /manifest\+json/);
   assert.ok(vercel.functions['api/voice/*.js']);
   assert.match(JSON.stringify(vercel.functions), /public\/data\/playbook\.json/);
   for (const file of ['config', 'session']) assert.ok(fs.existsSync(new URL(`../api/voice/${file}.js`, import.meta.url)));
