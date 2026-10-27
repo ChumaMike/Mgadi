@@ -27,6 +27,8 @@ Open `http://localhost:3000`. The app works without an AI key using safe local r
 2. Follow the bank, supplier, mailbox and evidence steps.
 3. Add evidence: it is fingerprinted in the browser and never uploaded.
 4. Optionally add details for a bank or specialist, then make, download and verify an incident pack.
+5. From the incident pack: draft a **POPIA notification template** for the information officer (not legal advice; sends nothing), or send a short **summary to a helper** by link that the helper can acknowledge.
+6. Before paying a supplier whose banking details changed, use **"Check a supplier's changed bank details before paying"**: red flags, a recorded independent check, and a second person who approves or rejects by link. Mgadi never blocks or releases a payment. What the server keeps for these links, and for how long: [LINKS-DATA.md](LINKS-DATA.md).
 
 Real callbacks to the person reporting are approved next scope but are not enabled. See `VOICE-CALLS.md` for Retell/+27 routing and setup checks.
 
