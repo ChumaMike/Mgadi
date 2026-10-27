@@ -9,3 +9,4 @@ mgadi-incident-pack-*.json
 .vercel/
 entry/.vercel/
 team/private/
+entry/public/vendor/

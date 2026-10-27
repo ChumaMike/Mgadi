@@ -11,6 +11,14 @@
     "start": "node server.js",
     "test": "node --test",
     "scoreboard": "node scripts/scoreboard.js",
-    "dev": "node scripts/dev.js"
+    "dev": "node scripts/dev.js",
+    "vendor": "node scripts/vendor-retell.mjs",
+    "build": "node scripts/vendor-retell.mjs"
+  },
+  "dependencies": {
+    "retell-client-js-sdk": "3.0.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
   }
 }
