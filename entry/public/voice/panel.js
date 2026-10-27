@@ -1,0 +1,230 @@
+// The "Talk to Mgadi" panel: live transcript, status, privacy indicators, the current reviewed action, tasks, a timeline
+// and the call controls. It is one persistent panel outside the screens, so the conversation and the text guidance
+// share a single incident state. All text is inserted as text nodes, never parsed as HTML.
+import { bindText, getLocale } from '../accessibility/accessibility.js';
+import { createAvatar } from '../accessibility/avatar.js';
+import { findReviewedSign } from '../accessibility/signs.js';
+import { createVoiceController, timelineTextFor } from './controller.js';
+import { createRetellAdapter } from './retell-adapter.js';
+import { createMockAdapter } from './mock-adapter.js';
+import { createAvatarDock } from './avatar-dock.js';
+
+const make = (tag, className, text) => { const n = document.createElement(tag); if (className) n.className = className; if (text != null) n.textContent = text; return n; };
+const tr = (tag, className, source) => { const n = make(tag, className); bindText(n, source); return n; };
+const timeOf = (iso) => { try { return new Date(iso).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Johannesburg' }); } catch { return ''; } };
+
+const STATUS = {
+  idle: 'Ready', connecting: 'Connecting…', reconnecting: 'Reconnecting…', ended: 'Conversation ended', failed: "Couldn't connect",
+};
+const ACTIVITY = { listening: 'Listening', speaking: 'Mgadi is speaking', 'you-speaking': 'Hearing you' };
+
+export async function initVoice({ bridge }) {
+  let config;
+  try { const response = await fetch('/api/voice/config', { cache: 'no-store' }); config = await response.json(); }
+  catch { config = { mode: 'off', languages: {}, captions: false, maxCallMs: 600000, consentVersion: '' }; }
+  const params = new URLSearchParams(location.search);
+  const adapter = config.mode === 'mock' ? createMockAdapter({ scenario: params.get('mockvoice') || '' })
+    : config.mode === 'retell' ? createRetellAdapter({ config })
+      : { captionsExpected: false, start: async () => { throw new Error('voice_unavailable'); } };
+
+  const getContext = () => {
+    const journey = bridge.getJourney();
+    return { language: getLocale(), route: journey?.label ?? 'unsure', stepId: journey ? journey.steps[journey.position]?.id ?? null : null, confirmed: journey ? journey.steps.filter((s) => s.state === 'confirmed').map((s) => s.id) : [] };
+  };
+  const live = { announce: null };
+  const controller = createVoiceController({
+    adapterFactory: () => adapter, getContext, config,
+    isOnline: () => navigator.onLine,
+    onEvent: (event) => {
+      const text = timelineTextFor(event); if (text) bridge.log(text);
+      if (event.type === 'message-final' && live.announce) live.announce.textContent = `${event.message.role === 'user' ? 'You said' : 'Mgadi assistant said'}: ${event.message.text}`;
+    },
+  });
+  const availability = () => config.languages?.[getLocale()] ?? { available: false, reason: 'Voice is not set up on this server.', label: getLocale() };
+
+  // ---- structure
+  const panel = make('section', 'voice-panel'); panel.hidden = true; panel.setAttribute('aria-label', 'Talk to Mgadi');
+  const head = make('div', 'vp-head');
+  const title = tr('h2', 'vp-title', 'Talk to Mgadi'); title.tabIndex = -1;
+  const sim = make('span', 'vp-sim', 'SIMULATED'); sim.hidden = config.mode !== 'mock';
+  const status = make('p', 'vp-status'); status.setAttribute('role', 'status');
+  const activity = make('p', 'vp-activity'); activity.setAttribute('aria-hidden', 'true');
+  const bankBtn = tr('button', 'button danger vp-bank', 'Bank fraud line'); bankBtn.type = 'button';
+  const minBtn = tr('button', 'button secondary vp-small', 'Minimise'); minBtn.type = 'button'; minBtn.setAttribute('aria-expanded', 'true');
+  const closeBtn = tr('button', 'button secondary vp-small', 'Close'); closeBtn.type = 'button';
+  const statusRow = make('div', 'vp-statusrow'); statusRow.append(status, activity);
+  const btnRow = make('div', 'vp-btnrow'); btnRow.append(bankBtn, minBtn, closeBtn);
+  const now = make('p', 'vp-now'); now.setAttribute('aria-label', 'Current action');
+  head.append(title, sim, statusRow, now, btnRow);
+  const body = make('div', 'vp-body');
+  const chips = make('ul', 'vp-chips'); chips.setAttribute('aria-label', 'Privacy and connection');
+  const notice = make('p', 'notice vp-avail');
+  const consentBox = make('div', 'vp-consent');
+  const consentCheck = make('input'); consentCheck.type = 'checkbox'; consentCheck.id = 'voice-consent-check';
+  const consentLabel = make('label', 'check'); consentLabel.setAttribute('for', 'voice-consent-check');
+  const consentText = tr('span', null, 'I understand and agree that my voice is processed by Retell AI for this conversation.');
+  consentLabel.append(consentCheck, consentText);
+  consentBox.append(tr('p', null, config.mode === 'mock' ? 'This is a simulated conversation. No microphone is used and nothing leaves this device.' : "Your browser will ask to use your microphone. Your voice is sent to Retell AI, our voice provider, which turns it into text and produces the assistant's replies. Mgadi does not record or save the conversation, and the Retell agent is set not to store transcripts or recordings, but Retell does process your audio while the call runs, possibly outside South Africa. The assistant is an AI, not a person. It can only explain Mgadi's draft guidance. It cannot call your bank, tick steps for you, or give legal advice. Never say passwords, PINs, one-time codes or card numbers."), consentLabel);
+  const action = make('section', 'vp-action'); action.setAttribute('aria-label', 'Current action');
+  const chat = make('ol', 'vp-chat'); chat.setAttribute('role', 'log'); chat.setAttribute('aria-label', 'Conversation'); chat.tabIndex = 0;
+  const empty = tr('li', 'vp-empty', 'Your conversation will appear here as captions, kept on this screen only.');
+  chat.append(empty);
+  const jump = tr('button', 'button secondary vp-small vp-jump', 'Latest messages'); jump.type = 'button'; jump.hidden = true;
+  const progress = make('details', 'vp-progress'); progress.append(tr('summary', null, 'Steps and timeline'));
+  const tasks = make('ul', 'vp-tasks'); const timeline = make('ol', 'vp-timeline'); progress.append(tr('h3', null, 'Steps'), tasks, tr('h3', null, 'Timeline'), timeline);
+  const announce = make('p', 'sr-only'); announce.setAttribute('role', 'status'); live.announce = announce;
+  body.append(chips, notice, consentBox, chat, jump, action, progress, announce);
+  const controls = make('div', 'vp-controls');
+  const startBtn = tr('button', 'button vp-start', 'Start voice conversation'); startBtn.type = 'button';
+  const muteBtn = tr('button', 'button secondary', 'Mute microphone'); muteBtn.type = 'button';
+  const endBtn = tr('button', 'button danger', 'End call'); endBtn.type = 'button';
+  const textBtn = tr('button', 'button secondary', 'Use text guidance'); textBtn.type = 'button';
+  const avatarBtn = tr('button', 'button secondary', 'Show avatar'); avatarBtn.type = 'button';
+  const clearBtn = tr('button', 'button secondary', 'Clear conversation'); clearBtn.type = 'button';
+  const sound = tr('button', 'button secondary', 'No sound? Tap to enable'); sound.type = 'button'; sound.hidden = true;
+  controls.append(startBtn, muteBtn, endBtn, sound, textBtn, avatarBtn, clearBtn);
+  panel.append(head, body, controls);
+  document.body.append(panel);
+
+  const dock = createAvatarDock({ createAvatar });
+  let opener = null;
+
+  let showBank = () => bridge.showBank();
+  // ---- rendering
+  const chip = (text, tone) => { const li = make('li', `vp-chip${tone ? ` ${tone}` : ''}`, text); chips.append(li); };
+  function renderChips(s) {
+    chips.replaceChildren();
+    const inCall = ['connecting', 'live', 'reconnecting'].includes(s.phase);
+    chip(!inCall ? 'Microphone off' : s.muted ? 'Microphone muted' : 'Microphone on', inCall && !s.muted ? 'on' : '');
+    if (config.mode === 'mock') chip('Simulation: nothing is sent anywhere', 'on');
+    else chip(inCall ? 'Your voice is being processed by Retell AI' : 'Not connected to Retell AI', inCall ? 'on' : '');
+    chip('Mgadi saves no audio or transcript');
+    chip(s.captions === 'unavailable' ? 'Live captions unavailable' : 'Captions stay on this screen only', s.captions === 'unavailable' ? 'warn' : '');
+  }
+  function renderMessages(s) {
+    const keys = new Set(s.messages.map((m) => m.key));
+    for (const li of [...chat.querySelectorAll('li[data-key]')]) if (!keys.has(li.dataset.key)) li.remove();
+    empty.hidden = s.messages.length > 0;
+    const nearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 48;
+    for (const m of s.messages) {
+      let li = chat.querySelector(`li[data-key="${CSS.escape(m.key)}"]`);
+      if (!li) {
+        li = make('li', `msg msg-${m.role}`); li.dataset.key = m.key;
+        if (m.role !== 'system') { li.append(make('span', 'who', m.role === 'user' ? 'You' : 'Mgadi assistant (AI)')); li.append(make('span', 'said')); li.append(make('time', 'at', timeOf(m.at))); }
+        else li.append(make('span', 'said'));
+        chat.append(li);
+      }
+      li.querySelector('.said').textContent = m.text;
+    }
+    if (nearBottom) { chat.scrollTop = chat.scrollHeight; jump.hidden = true; } else if (s.messages.length) jump.hidden = false;
+  }
+  function renderAction() {
+    action.replaceChildren();
+    const journey = bridge.getJourney();
+    action.append(tr('h3', null, 'Current action'));
+    if (!journey) { now.textContent = 'Now: choose what happened, or tell the assistant.'; action.append(tr('p', null, 'No steps yet. Choose what happened on the main screen, or tell the assistant. Your bank fraud line is always available above.')); return; }
+    const step = journey.steps[journey.position];
+    const pending = journey.steps.some((x) => x.state === 'pending') || step.state === 'pending';
+    if (!pending) { now.textContent = 'Now: all steps are done. Make your incident pack.'; action.append(tr('p', null, 'All steps are done. Make your incident pack on the main screen.')); return; }
+    const title = make('p', 'vp-step'); bindText(title, step.title);
+    now.textContent = ''; now.append(make('strong', null, 'Now: '), (() => { const t = make('span'); bindText(t, step.title); return t; })());
+    action.append(make('p', 'vp-count', `${journey.title} · step ${journey.position + 1} of ${journey.steps.length}`), title);
+    const buttons = make('div', 'vp-actions');
+    if (step.id === 'bank') { const b = tr('button', 'button danger', 'Choose a bank fraud line'); b.type = 'button'; b.addEventListener('click', () => showBank()); buttons.append(b); }
+    const done = make('button', 'button'); done.type = 'button'; bindText(done, step.done); done.addEventListener('click', () => bridge.confirmCurrent());
+    buttons.append(done);
+    if (step.skip) { const skip = make('button', 'button secondary'); skip.type = 'button'; bindText(skip, step.skip); skip.addEventListener('click', () => bridge.skipCurrent()); buttons.append(skip); }
+    action.append(buttons, tr('p', 'vp-note', 'Only you can mark a step done. The assistant cannot.'));
+    // Why it matters, and signing guidance. Signing appears only from reviewed SASL clips; the avatar is never presented as signing.
+    const more = make('details', 'vp-more'); more.append(tr('summary', null, 'Why this matters and signing'));
+    const why = make('p', 'vp-why'); bindText(why, step.why); more.append(why);
+    const clip = findReviewedSign(`${journey.label}.${step.id}`);
+    if (clip) {
+      const video = make('video'); video.controls = true; video.preload = 'none'; video.src = clip.src; video.setAttribute('aria-label', 'Reviewed SASL guidance for this step');
+      const track = make('track'); track.kind = 'captions'; track.src = clip.captions; track.srclang = 'en'; track.label = 'Captions'; track.default = true; video.append(track);
+      more.append(tr('h4', null, 'Reviewed SASL video'), video, make('p', 'vp-note', `Reviewed by ${clip.reviewer} on ${clip.reviewedOn}.`));
+    } else more.append(tr('p', 'vp-note', 'No reviewed SASL video exists for this step yet. The avatar is a visual companion, not a sign language translator.'));
+    action.append(more);
+  }
+  function renderProgress() {
+    const journey = bridge.getJourney();
+    tasks.replaceChildren();
+    if (!journey) tasks.append(tr('li', null, 'Steps appear once you choose what happened.'));
+    else journey.steps.forEach((step, index) => {
+      const li = make('li', `vp-task ${step.state}${index === journey.position && step.state === 'pending' ? ' now' : ''}`);
+      li.append(make('span', 'mark', step.state === 'confirmed' ? 'Done' : step.state === 'skipped' ? 'Skipped' : index === journey.position ? 'Now' : 'Not yet'));
+      const text = make('span', 'label'); bindText(text, step.title); li.append(text);
+      if (step.at) li.append(make('time', null, timeOf(step.at)));
+      tasks.append(li);
+    });
+    timeline.replaceChildren();
+    for (const entry of bridge.getTimeline().slice(-12)) { const li = make('li'); li.append(make('time', null, timeOf(entry.at)), make('span', null, entry.text)); timeline.append(li); }
+  }
+  function renderControls(s) {
+    const inCall = ['connecting', 'live', 'reconnecting'].includes(s.phase);
+    const a = availability();
+    consentBox.hidden = inCall || s.consented || !a.available;
+    notice.hidden = a.available && !(s.phase === 'failed') && s.captions !== 'unavailable';
+    notice.textContent = !a.available ? `Voice in ${a.label ?? getLocale()}: ${a.reason} You can use the text guidance, which keeps all your progress.` : s.phase === 'failed' ? s.error.message : s.captions === 'unavailable' ? 'Live captions are not available for this call, so the conversation will not appear as text. You can still talk, and the text guidance is below.' : '';
+    startBtn.hidden = inCall; startBtn.disabled = !a.available || (!s.consented && !consentCheck.checked);
+    startBtn.textContent = s.phase === 'failed' ? 'Try again' : s.phase === 'ended' ? 'Talk again' : 'Start voice conversation';
+    muteBtn.hidden = s.phase !== 'live'; muteBtn.textContent = s.muted ? 'Unmute microphone' : 'Mute microphone'; muteBtn.setAttribute('aria-pressed', String(s.muted));
+    endBtn.hidden = !inCall; endBtn.textContent = s.phase === 'connecting' ? 'Cancel' : 'End call';
+    sound.hidden = !(s.phase === 'live' && s.captions === 'on' && !s.audioHeard);
+    avatarBtn.hidden = !(inCall && dock.isHidden());
+    clearBtn.hidden = s.messages.length === 0 || inCall;
+  }
+  function render(s) {
+    panel.dataset.phase = s.phase;
+    const label = s.muted && s.phase === 'live' ? "Muted. Mgadi can't hear you" : STATUS[s.phase] ?? (s.phase === 'live' ? 'Connected' : '');
+    if (status.textContent !== label) status.textContent = label;
+    activity.textContent = s.phase === 'live' && !s.muted ? ACTIVITY[s.activity] ?? '' : '';
+    renderChips(s); renderMessages(s); renderControls(s); if (progress.open) renderProgress();
+    dock.setActive(['connecting', 'live', 'reconnecting'].includes(s.phase));
+    dock.setMood(s.phase === 'live' && !s.muted ? (s.activity === 'speaking' ? 'speaking' : 'listening') : 'idle');
+  }
+
+  // ---- behaviour
+  controller.subscribe(render);
+  bridge.subscribe(() => { renderAction(); renderProgress(); });
+  const refresh = () => { renderAction(); renderProgress(); render(controller.getState()); };
+  progress.addEventListener('toggle', () => { if (progress.open) renderProgress(); });
+  consentCheck.addEventListener('change', () => render(controller.getState()));
+  startBtn.addEventListener('click', () => { if (consentCheck.checked) controller.giveConsent(); controller.start(); });
+  endBtn.addEventListener('click', () => controller.end());
+  muteBtn.addEventListener('click', () => (controller.getState().muted ? controller.unmute() : controller.mute()));
+  sound.addEventListener('click', () => controller.startAudioPlayback());
+  clearBtn.addEventListener('click', () => controller.clearMessages());
+  const collapse = () => { panel.dataset.collapsed = 'true'; minBtn.setAttribute('aria-expanded', 'false'); minBtn.textContent = 'Expand'; };
+  // Opening the bank numbers minimises the panel so they are fully visible. A running call carries on.
+  showBank = () => { if (!panel.hidden) collapse(); bridge.showBank(); };
+  bankBtn.addEventListener('click', showBank);
+  document.querySelector('#emergency-button')?.addEventListener('click', () => { if (!panel.hidden) collapse(); });
+  textBtn.addEventListener('click', () => { controller.end('You switched to text guidance. Your progress is kept.'); close({ keepFocus: true }); bridge.showText(); });
+  avatarBtn.addEventListener('click', () => { dock.show(); render(controller.getState()); });
+  dock.onHidden = () => render(controller.getState());
+  jump.addEventListener('click', () => { chat.scrollTop = chat.scrollHeight; jump.hidden = true; });
+  chat.addEventListener('scroll', () => { if (chat.scrollHeight - chat.scrollTop - chat.clientHeight < 48) jump.hidden = true; });
+  minBtn.addEventListener('click', () => { const collapsed = panel.dataset.collapsed !== 'true'; panel.dataset.collapsed = String(collapsed); minBtn.setAttribute('aria-expanded', String(!collapsed)); minBtn.textContent = collapsed ? 'Expand' : 'Minimise'; });
+  closeBtn.addEventListener('click', () => { controller.end('You closed the voice panel.'); close({}); });
+  panel.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !['connecting', 'live', 'reconnecting'].includes(controller.getState().phase)) close({}); });
+  document.addEventListener('mgadi:language', (e) => { const lang = e.detail.locale; controller.languageChanged(lang, config.languages?.[lang]); refresh(); });
+  new ResizeObserver(() => document.documentElement.style.setProperty('--voice-h', panel.hidden ? '0px' : `${Math.ceil(panel.getBoundingClientRect().height)}px`)).observe(panel);
+  const header = document.querySelector('.site-header');
+  if (header) new ResizeObserver(() => document.documentElement.style.setProperty('--header-h', `${Math.ceil(header.getBoundingClientRect().height)}px`)).observe(header);
+
+  function open() {
+    opener = document.activeElement; panel.hidden = false; panel.dataset.collapsed = 'false'; minBtn.setAttribute('aria-expanded', 'true'); minBtn.textContent = 'Minimise';
+    document.documentElement.dataset.voice = 'open'; refresh(); title.focus();
+  }
+  function close({ keepFocus = false }) {
+    panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setActive(false);
+    if (!keepFocus && opener?.isConnected) opener.focus();
+  }
+  refresh();
+  return {
+    open,
+    launchButton() { const b = tr('button', 'button secondary voice-launch', 'Talk to Mgadi'); b.type = 'button'; b.addEventListener('click', open); return b; },
+    controller, dock, config,
+  };
+}

@@ -11,6 +11,7 @@ let lastTarget;
 const synth = window.speechSynthesis;
 const el = (tag, text, attrs={}) => { const n=document.createElement(tag); n.lang='en'; if(text)bindText(n,text); for(const [k,v] of Object.entries(attrs))n.setAttribute(k,v); return n; };
 const button = (text,fn) => {const n=el('button',text,{type:'button',class:'button secondary'});n.addEventListener('click',fn);return n;};
+export const getLocale = () => locale;
 export function bindText(node, source, attribute=null) {
   bindings.set(new WeakRef(node),{source,attribute});
   apply(node,source,attribute);return node;
