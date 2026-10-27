@@ -8,6 +8,7 @@ import { redactIncident } from '../public/shared/redact.js';
 import { classifyRules } from '../public/shared/rules.js';
 import { validateTriage } from '../public/shared/labels.js';
 import { createVoiceService } from './voice.js';
+import { buildPrecacheManifest } from './precache.js';
 
 const publicRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MAX_BODY_BYTES = 8 * 1024;
@@ -19,6 +20,11 @@ const contentTypes = {
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   '.vtt': 'text/vtt; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8',
 };
 const securityHeaders = {
   'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.retellai.com wss://api.retellai.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
@@ -29,7 +35,7 @@ const securityHeaders = {
 };
 
 function reply(response, status, body, type = 'application/json; charset=utf-8', extra = {}) {
-  response.writeHead(status, { ...securityHeaders, ...extra, 'Content-Type': type, 'Cache-Control': 'no-store' });
+  response.writeHead(status, { ...securityHeaders, 'Cache-Control': 'no-store', ...extra, 'Content-Type': type });
   response.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
@@ -86,12 +92,20 @@ function readJson(request) {
   });
 }
 
-function loadPlaybook() {
-  try { return JSON.parse(readFileSync(path.join(publicRoot, 'data', 'playbook.json'), 'utf8')); } catch { return { incidents: {} }; }
+function loadPlaybook(root = publicRoot) {
+  try { return JSON.parse(readFileSync(path.join(root, 'data', 'playbook.json'), 'utf8')); } catch { return { incidents: {} }; }
 }
 
-export function createHandler({ classifyWithAI = null, voice, env = process.env, fetchImpl = globalThis.fetch } = {}) {
-  const voiceService = voice ?? createVoiceService({ env, fetchImpl, playbook: loadPlaybook() });
+export function createHandler({ classifyWithAI = null, voice, env = process.env, fetchImpl = globalThis.fetch, publicDir } = {}) {
+  const root = publicDir ? path.resolve(publicDir) : publicRoot; // tests may serve a different copy of the app
+  const voiceService = voice ?? createVoiceService({ env, fetchImpl, playbook: loadPlaybook(root) });
+  let manifestMemo = { at: 0, value: null };
+  // Always computed from the files being served, so the list the service worker verifies can never drift from them.
+  async function precacheManifest() {
+    if (manifestMemo.value && Date.now() - manifestMemo.at < 3000) return manifestMemo.value;
+    manifestMemo = { at: Date.now(), value: await buildPrecacheManifest(root) };
+    return manifestMemo.value;
+  }
   const allow = createRateLimiter();
   const cache = new Map();
 
@@ -163,8 +177,9 @@ export function createHandler({ classifyWithAI = null, voice, env = process.env,
     let pathname;
     try { pathname = decodeURIComponent(new URL(request.url, 'http://mgadi.local').pathname); } catch { return reply(response, 400, 'Bad request', 'text/plain; charset=utf-8'); }
     if (pathname === '/') pathname = '/index.html';
-    const filename = path.resolve(publicRoot, `.${pathname}`);
-    if (!filename.startsWith(`${publicRoot}${path.sep}`)) return reply(response, 404, 'Not found', 'text/plain; charset=utf-8');
+    if (pathname === '/precache-manifest.json') { try { return reply(response, 200, await precacheManifest(), undefined, { 'Cache-Control': 'no-store' }); } catch { return reply(response, 500, { error: 'manifest unavailable' }); } }
+    const filename = path.resolve(root, `.${pathname}`);
+    if (!filename.startsWith(`${root}${path.sep}`)) return reply(response, 404, 'Not found', 'text/plain; charset=utf-8');
     const type = contentTypes[path.extname(filename)];
     if (!type) return reply(response, 404, 'Not found', 'text/plain; charset=utf-8');
     try { return reply(response, 200, await readFile(filename), type, { 'Cache-Control': 'no-cache' }); }

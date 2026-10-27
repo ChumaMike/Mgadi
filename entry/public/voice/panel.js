@@ -21,13 +21,20 @@ const ACTIVITY = { listening: 'Listening', speaking: 'Mgadi is speaking', 'you-s
 export async function initVoice({ bridge }) {
   let config;
   try { const response = await fetch('/api/voice/config', { cache: 'no-store' }); config = await response.json(); }
-  catch { config = { mode: 'off', languages: {}, captions: false, maxCallMs: 600000, consentVersion: '' }; }
+  catch { config = { mode: 'off', configFailed: true, languages: {}, captions: false, maxCallMs: 600000, consentVersion: '' }; }
   const params = new URLSearchParams(location.search);
   // Operator test token: typed by the person testing, kept in memory only (never stored, never in the URL), and sent only as a header.
   let operatorToken = '';
-  const adapter = config.mode === 'mock' ? createMockAdapter({ scenario: params.get('mockvoice') || '' })
-    : config.mode === 'retell' ? createRetellAdapter({ config, getOperatorToken: () => operatorToken })
-      : { captionsExpected: false, start: async () => { throw new Error('voice_unavailable'); } };
+  // The adapter follows the CURRENT mode, so voice that was unreachable at page load (for example offline) can start once the
+  // configuration is fetched again. One adapter per mode, so a scripted simulation keeps its state across a reconnect.
+  const adapters = {};
+  const makeAdapter = () => {
+    const mode = config.mode === 'mock' || config.mode === 'retell' ? config.mode : 'off';
+    adapters[mode] ??= mode === 'mock' ? createMockAdapter({ scenario: params.get('mockvoice') || '' })
+      : mode === 'retell' ? createRetellAdapter({ config, getOperatorToken: () => operatorToken })
+        : { captionsExpected: false, start: async () => { throw new Error('voice_unavailable'); } };
+    return adapters[mode];
+  };
 
   const getContext = () => {
     const journey = bridge.getJourney();
@@ -35,14 +42,14 @@ export async function initVoice({ bridge }) {
   };
   const live = { announce: null };
   const controller = createVoiceController({
-    adapterFactory: () => adapter, getContext, config,
+    adapterFactory: makeAdapter, getContext, config,
     isOnline: () => navigator.onLine,
     onEvent: (event) => {
       const text = timelineTextFor(event); if (text) bridge.log(text);
       if (event.type === 'message-final' && live.announce) live.announce.textContent = `${event.message.role === 'user' ? 'You said' : 'Mgadi assistant said'}: ${event.message.text}`;
     },
   });
-  const availability = () => config.languages?.[getLocale()] ?? { available: false, reason: 'Voice is not set up on this server.', label: getLocale() };
+  const availability = () => config.languages?.[getLocale()] ?? { available: false, label: getLocale(), reason: config.configFailed ? 'Live AI voice could not be reached. It needs an internet connection. The guide on this phone still works.' : 'Voice is not set up on this server.' };
 
   // ---- structure
   const panel = make('section', 'voice-panel'); panel.hidden = true; panel.setAttribute('aria-label', 'Talk to Mgadi');
@@ -243,6 +250,8 @@ export async function initVoice({ bridge }) {
   document.addEventListener('mgadi:language', (e) => { const lang = e.detail.locale; controller.languageChanged(lang, config.languages?.[lang]); refresh(); });
   // A live AI call cannot survive losing the internet. End it cleanly, keep everything shown, and point to the offline guide.
   window.addEventListener('offline', () => controller.networkChanged(false));
+  // Voice settings that could not be fetched (offline at load) are fetched again when the connection returns.
+  window.addEventListener('online', async () => { if (!config.configFailed) return; try { const { next } = await reloadConfig(); if (next) { applyConfig(next); operatorBox.hidden = !config.operatorAvailable; refresh(); } } catch { /* still unreachable */ } });
   new ResizeObserver(() => document.documentElement.style.setProperty('--voice-h', panel.hidden ? '0px' : `${Math.ceil(panel.getBoundingClientRect().height)}px`)).observe(panel);
   const header = document.querySelector('.site-header');
   if (header) new ResizeObserver(() => document.documentElement.style.setProperty('--header-h', `${Math.ceil(header.getBoundingClientRect().height)}px`)).observe(header);
