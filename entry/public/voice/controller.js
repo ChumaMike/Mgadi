@@ -11,6 +11,25 @@ const AUDIO_HOLD_MS = 450;
 const TEXT_ACTIVE_MS = 1300;
 const CAPTION_GRACE_MS = 7000;
 const MAX_MESSAGES = 200;
+// The transcript is untrusted text: the person's own speech, a scammer's voice on a speaker, and the assistant's reply, all passed through
+// a provider. It is only ever shown as text, and nothing in the app acts on what it says. These limits keep a hostile or broken stream from
+// flooding the screen or the screen reader.
+const MAX_TEXT = 4000;
+const MAX_ITEMS_PER_UPDATE = 100;
+const MAX_ID = 64;
+// Control characters (not tab or newline), and the bidirectional overrides and isolates that can make text DISPLAY as something it is not.
+const UNSAFE_TEXT = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+// Map and Set both iterate oldest first. Once one passes `limit` entries, drop the oldest until `keep` remain.
+export function trimOldest(collection, limit, keep) {
+  if (collection.size <= limit) return collection;
+  let drop = collection.size - keep;
+  for (const key of collection.keys()) { if (drop-- <= 0) break; collection.delete(key); }
+  return collection;
+}
+export function safeTranscriptText(value) {
+  const text = String(value).replace(UNSAFE_TEXT, '');
+  return text.length > MAX_TEXT ? `${text.slice(0, MAX_TEXT)}…` : text;
+}
 const RECONNECT_DELAYS = [1500, 4000];
 const QUICK_FAILURE_MS = 8000;
 
@@ -70,16 +89,25 @@ export function createVoiceController({
   }
 
   function upsert(items) {
-    const messages = [...state.messages];
-    for (const item of items) {
+    if (!Array.isArray(items)) return;
+    const messages = [...state.messages]; let accepted = 0;
+    for (const item of items.slice(0, MAX_ITEMS_PER_UPDATE)) {
+      if (!item || typeof item !== 'object') continue;
       if (item.role !== 'user' && item.role !== 'agent') continue;
-      const key = `${state.callIndex}:${item.id}`;
-      const text = item.content === '(unintelligible audio)' ? '(could not understand the audio)' : String(item.content ?? '');
+      if (typeof item.content !== 'string') continue;
+      const id = String(item.id ?? '').slice(0, MAX_ID);
+      if (!id) continue;
+      const key = `${state.callIndex}:${id}`;
+      const text = item.content === '(unintelligible audio)' ? '(could not understand the audio)' : safeTranscriptText(item.content);
       const role = item.role === 'agent' ? 'assistant' : 'user';
       const index = messages.findIndex((m) => m.key === key);
       if (seenText.get(key) !== text) { seenText.set(key, text); if (role === 'assistant') lastAgentTextAt = now(); else lastUserTextAt = now(); }
       if (index >= 0) messages[index] = { ...messages[index], text }; else messages.push({ key, role, text, at: now(), final: false, callIndex: state.callIndex });
+      accepted += 1;
     }
+    if (!accepted) return; // nothing usable arrived: do not claim captions are working
+    // These two only help detect changes and avoid repeats, so the oldest entries can go. They must not grow with the stream.
+    trimOldest(seenText, MAX_MESSAGES * 4, MAX_MESSAGES * 2); trimOldest(finalAnnounced, MAX_MESSAGES * 4, MAX_MESSAGES * 2);
     set({ messages: messages.slice(-MAX_MESSAGES), captions: 'on' });
     gotRealTranscript = true;
     announceFinals();

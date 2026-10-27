@@ -82,6 +82,12 @@ export async function initVoice({ bridge }) {
   const opForget = make('button', 'button secondary vp-small', 'Forget token'); opForget.type = 'button'; opForget.hidden = true;
   const opStatus = make('p', 'vp-note'); opStatus.setAttribute('role', 'status');
   operatorBox.append(make('summary', null, 'Operator test access'), make('p', 'vp-note', 'For the person testing this deployment only. It needs the operator token from the server settings. Test calls are short and limited, and they do not make a language available to the public.'), opLabel, opInput, opCheck, opForget, opStatus);
+  // A token typed on a page that is not a secure context (plain http on a network address) could be read on the way, and the server
+  // ignores it there anyway. So the field is switched off and the token is never sent.
+  if (config.operatorAvailable && globalThis.isSecureContext === false) {
+    opInput.disabled = true; opCheck.disabled = true;
+    opStatus.textContent = 'Operator test access needs a secure connection: https, or localhost on this computer. This page is not secure, so the token field is switched off and no token is sent.';
+  }
   const reloadConfig = async (headers = {}) => { const response = await fetch('/api/voice/config', { cache: 'no-store', headers }); return { response, next: response.ok ? await response.json() : null }; };
   const applyConfig = (next) => { for (const key of Object.keys(config)) delete config[key]; Object.assign(config, next); };
   opCheck.addEventListener('click', async () => {
@@ -102,8 +108,9 @@ export async function initVoice({ bridge }) {
     render(controller.getState());
   });
   const action = make('section', 'vp-action'); action.setAttribute('aria-label', 'Current action');
-  const chat = make('ol', 'vp-chat'); chat.setAttribute('role', 'log'); chat.setAttribute('aria-label', 'Conversation'); chat.tabIndex = 0;
-  const empty = tr('li', 'vp-empty', 'Your conversation will appear here as captions, kept on this screen only.');
+  // A plain container with role=log: an <ol> with role=log would lose its list semantics and orphan its items.
+  const chat = make('div', 'vp-chat'); chat.setAttribute('role', 'log'); chat.setAttribute('aria-label', 'Conversation'); chat.tabIndex = 0;
+  const empty = tr('p', 'vp-empty', 'Your conversation will appear here as captions, kept on this screen only.');
   chat.append(empty);
   const jump = tr('button', 'button secondary vp-small vp-jump', 'Latest messages'); jump.type = 'button'; jump.hidden = true;
   const progress = make('details', 'vp-progress'); progress.append(tr('summary', null, 'Steps and timeline'));
@@ -140,13 +147,13 @@ export async function initVoice({ bridge }) {
   }
   function renderMessages(s) {
     const keys = new Set(s.messages.map((m) => m.key));
-    for (const li of [...chat.querySelectorAll('li[data-key]')]) if (!keys.has(li.dataset.key)) li.remove();
+    for (const item of [...chat.querySelectorAll('[data-key]')]) if (!keys.has(item.dataset.key)) item.remove();
     empty.hidden = s.messages.length > 0;
     const nearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 48;
     for (const m of s.messages) {
-      let li = chat.querySelector(`li[data-key="${CSS.escape(m.key)}"]`);
+      let li = chat.querySelector(`[data-key="${CSS.escape(m.key)}"]`);
       if (!li) {
-        li = make('li', `msg msg-${m.role}`); li.dataset.key = m.key;
+        li = make('div', `msg msg-${m.role}`); li.dataset.key = m.key;
         if (m.role !== 'system') { li.append(make('span', 'who', m.role === 'user' ? 'You' : 'Mgadi assistant (AI)')); li.append(make('span', 'said')); li.append(make('time', 'at', timeOf(m.at))); }
         else li.append(make('span', 'said'));
         chat.append(li);
