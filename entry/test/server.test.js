@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { createApp } from '../server/app.js';
+import { createApp, clientKey } from '../server/app.js';
 
 async function start(app) {
   app.listen(0, '127.0.0.1');
@@ -35,4 +35,12 @@ test('invalid AI output falls back to rules', async (t) => {
   const base = await start(app);
   const response = await fetch(`${base}/api/triage`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'We paid after changed banking details' }) });
   assert.equal((await response.json()).source, 'rules');
+});
+
+test('rate-limit key uses the platform forwarding header only on Vercel', () => {
+  const request = { headers: { 'x-forwarded-for': '41.0.0.9, 10.0.0.1' }, socket: { remoteAddress: '10.9.9.9' } };
+  assert.equal(clientKey(request, {}), '10.9.9.9'); // locally a client could forge the header
+  assert.equal(clientKey(request, { VERCEL: '1' }), '41.0.0.9');
+  assert.equal(clientKey({ headers: {}, socket: { remoteAddress: '10.9.9.9' } }, { VERCEL: '1' }), '10.9.9.9');
+  assert.equal(clientKey({ headers: {} }, {}), 'unknown');
 });
