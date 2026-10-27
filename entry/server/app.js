@@ -28,6 +28,17 @@ function reply(response, status, body, type = 'application/json; charset=utf-8',
   response.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
+// Behind Vercel the socket address is the platform proxy, so every visitor would share one bucket.
+// Only trust forwarding headers when running on Vercel, where the platform sets them; locally they are ignorable.
+export function clientKey(request, env = process.env) {
+  if (env.VERCEL) {
+    const forwarded = request.headers?.['x-vercel-forwarded-for'] ?? request.headers?.['x-forwarded-for'];
+    const first = String(Array.isArray(forwarded) ? forwarded[0] : forwarded ?? '').split(',')[0].trim();
+    if (first) return first;
+  }
+  return request.socket?.remoteAddress ?? 'unknown';
+}
+
 function createRateLimiter(limit = 20, windowMs = 60_000) {
   const requests = new Map();
   return (key, now = Date.now()) => {
@@ -77,7 +88,7 @@ export function createHandler({ classifyWithAI = null } = {}) {
   async function triage(request, response) {
     if (request.headers['sec-fetch-site'] === 'cross-site') return reply(response, 403, { error: 'forbidden' });
     if (!String(request.headers['content-type'] ?? '').startsWith('application/json')) return reply(response, 415, { error: 'JSON only' });
-    if (!allow(request.socket.remoteAddress ?? 'unknown')) return reply(response, 429, { error: 'Too many requests. Call your bank fraud line now and try again shortly.' });
+    if (!allow(clientKey(request))) return reply(response, 429, { error: 'Too many requests. Call your bank fraud line now and try again shortly.' });
 
     let payload;
     try { payload = await readJson(request); } catch (error) {

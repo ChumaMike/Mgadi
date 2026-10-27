@@ -4,7 +4,8 @@ export const MAX_INCIDENT_CHARS = 2000;
 const patterns = [
   ['LINK', /\b(?:https?:\/\/|www\.)[^\s<>"']+/gi],
   ['EMAIL', /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi],
-  ['AMOUNT', /\bR\s?\d+(?:[\s,.]\d{3})*(?:[,.]\d{2})?\b/gi],
+  ['AMOUNT', /\bR\s?\d+(?:[\s,.]\d{3})*(?:[,.]\d{1,2})?(?:\s?(?:k|m|million|thousand))?\b/gi],
+  ['AMOUNT', /\b\d+(?:[.,]\d+)?\s?k\b/gi],
   ['PHONE', /(?:\+27|\b0)(?:[\s-]?\d){9}\b/g],
   ['NUMBER', /\b\d(?:[\s-]?\d){5,}\b/g],
 ];
