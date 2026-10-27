@@ -43,11 +43,12 @@ RETELL_PUBLIC_KEY=...           # public, allowed domain: localhost
 RETELL_AGENT_ID_EN=...
 RETELL_AGENT_VERSION=...        # the published version number
 MGADI_OPERATOR_TOKEN=...        # 24+ random characters you generate locally and keep to yourself
+HOST=127.0.0.1                  # listen on this computer only (the default also listens on your wifi)
 # Do NOT set MGADI_VOICE_VERIFIED_LANGUAGES. A language becomes public only after this test is judged a pass.
 ```
 
 Generate a token locally: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` and copy it straight into
-the file. Then: `cd entry && npm ci && npm run vendor`.
+the file. Then: `cd entry && npm ci && npm run build`.
 
 ## C. Read-only preflight (contacts Retell: one GET per agent, no call, no call charge)
 
@@ -57,6 +58,8 @@ Expected: English shows PASS for language, data storage and webhook, and `eligib
 first. Confirm the four items the script says it cannot check. **Get the go-ahead before running this and the call below.**
 
 ## D. The call (use `http://localhost:3000`: localhost counts as a secure context for the microphone)
+
+**The operator token is honoured only over https or from this same computer.** Do not open the page by your computer's wifi address (`http://192.168...`): the browser treats that as not secure, the microphone will not work, the token field is switched off, and the server would ignore the token anyway. This is deliberate: the token travels in a header and unlocks paid calls.
 
 1. `npm start`; open the page in Chrome with DevTools **Console** visible (do not copy keys from it into notes).
 2. Choose "I paid after bank details changed". Open **Talk to Mgadi**. Open **Operator test access**, paste the token, press
