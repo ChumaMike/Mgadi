@@ -1,0 +1,13 @@
+{
+  "name": "mgadi-entry",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mgadi HackSecure 2026 entry",
+  "type": "module",
+  "engines": { "node": ">=20.12" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "scoreboard": "node scripts/scoreboard.js"
+  }
+}

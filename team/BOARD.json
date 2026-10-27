@@ -1,0 +1,12 @@
+{
+  "project": "Mgadi",
+  "coordinator": "Main Claude Code tab",
+  "policy": "Coordinator is the sole board writer. Worker tabs write separate team/handoffs/<task-id>.txt reports. Read current source of truth before acting.",
+  "tasks": [
+    { "id": "interview", "owner": "Coordinator with Chuma and Dalindyebo", "status": "ready", "goal": "Agree app flow, design, MVP priorities and acceptance checks", "allowedFiles": ["team/", "entry/SOURCE-OF-TRUTH.md"], "dependencies": [], "evidence": "Both people's choices captured, including explicitly delegated decisions" },
+    { "id": "publish-baseline", "owner": "Coordinator/deployment tab", "status": "access-blocked-in-codex", "goal": "Push existing repository and verify a rules-only Vercel mgadi deployment", "allowedFiles": ["entry/api/", "entry/vercel.json", "entry/DEPLOYMENT.txt", "entry/test/deployment.test.js"], "dependencies": ["working GitHub/Vercel network and authentication"], "evidence": "Actual commit, preview/production URLs and HTTPS checks; none claimed yet" },
+    { "id": "app-flow", "owner": "Dalindyebo (confirm)", "status": "awaiting-interview", "goal": "Implement agreed mobile flow and design", "allowedFiles": ["entry/public/app.js", "entry/public/styles.css", "entry/public/index.html"], "dependencies": ["interview"], "evidence": "Agreed flow works on phone; bank action immediate; state preserved" },
+    { "id": "backend-security", "owner": "Chuma (confirm)", "status": "awaiting-interview", "goal": "Implement bounded backend needs and security checks", "allowedFiles": ["entry/server/", "entry/test/", "entry/public/shared/"], "dependencies": ["interview", "coordinator contract for shared files"], "evidence": "Tests and specific threat/failure checks pass" },
+    { "id": "pitch", "owner": "Chuma/presentation tab (confirm)", "status": "ready-for-review", "goal": "Match organiser criteria and current implementation with truthful claims", "allowedFiles": ["presentation/"], "dependencies": ["actual pitch limit and final judging rubric when available"], "evidence": "Every major claim sourced or measured; plans labelled; timed rehearsal" }
+  ]
+}

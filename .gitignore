@@ -6,3 +6,6 @@ node_modules/
 .DS_Store
 Thumbs.db
 mgadi-incident-pack-*.json
+.vercel/
+entry/.vercel/
+team/private/

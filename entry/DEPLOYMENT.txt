@@ -1,0 +1,59 @@
+MGADI: HANDOVER AND DEPLOYMENT
+
+Git root: ../ (the workspace build/ directory).
+Requested GitHub repository: https://github.com/ChumaMike/Mgadi
+Product/project root: entry/
+Requested Vercel project name: mgadi (display/product name Mgadi).
+
+STATUS
+Prepared locally, not yet verified on Vercel. The Codex terminal cannot connect to GitHub or the Vercel API. gh auth status also reports unavailable/invalid authentication; verify again from the user's unrestricted Claude terminal. No successful remote push, project link or deployment URL is established by preparing these files. Read the latest team/handoffs/publish-baseline.txt for exact results and commit.
+
+WHAT WAS PREPARED
+- api/health.js and api/triage.js: Node Vercel handlers sharing the existing response logic.
+- server/app.js exports createHandler and retains createApp for local Node HTTP use.
+- JSON handling accepts raw streams and Vercel pre-parsed bodies, preserving the 8KB limit.
+- vercel.json serves public/ and keeps the existing security headers on static responses; API responses have no-store.
+- Initial hosted triage is rules-only. This requires no Anthropic/telephony key. Local server.js still supports the existing optional AI adapter.
+- Existing per-process counters/cache do not become shared or durable on serverless instances. Distributed abuse/cost controls are required before enabling paid AI or callbacks in the hosted adapter. Do not claim production hardening.
+
+LOCAL CHECKS (from entry/)
+npm.cmd test
+npm.cmd run scoreboard
+npm.cmd start
+
+PUSH (from Git root build/; already authorised by Chuma)
+git status
+git remote -v
+gh auth status
+If authentication is actually needed, have the account holder run gh auth login interactively; never paste tokens in chat.
+The intended origin is https://github.com/ChumaMike/Mgadi.git. Do not replace a different existing remote silently. Fetch, inspect remote branches and reconcile if it has existing work; never force-push. Preserve repository visibility.
+Stage explicit reviewed files, inspect git diff --cached, commit, then git push -u origin <current-branch>. Do not assume main without inspecting. Do not include .env files, .vercel account data, victim files, private chat exports or generated incident packs.
+
+DEPLOY (from entry/; already authorised)
+vercel.cmd whoami
+If needed the account holder runs vercel.cmd login interactively.
+vercel.cmd link --project mgadi
+If the project doesn't exist, use the CLI's create-project flow with the intended account and name mgadi. Do not select a different paid team, upgrade or purchase a domain without agreement.
+vercel.cmd deploy
+Verify the preview, then:
+vercel.cmd deploy --prod
+
+Dashboard Git-import alternative: import ChumaMike/Mgadi, set Root Directory entry, Framework Other, output public and use the checked-in build command. Pick supported Node 24.x in project settings. The repository contains preparation and presentation files; only entry is the website. Do not publish the repo root as static files. The hosting project name can be mgadi; the actual available URL must be read from the deployment, not assumed to be mgadi.vercel.app.
+
+HTTPS SMOKE CHECKS
+1. Home page, CSS, JS modules and /data files load, with no browser errors.
+2. GET /api/health returns {ok:true, ai:false}.
+3. POST /api/triage with JSON {"text":"We paid after changed banking details."} returns payment_diversion, confidence and source rules.
+4. GET /api/triage returns 405. Cross-site triage and oversized bodies are rejected. Check security/no-store headers.
+5. On the exact phone, bank action is visible immediately; use synthetic data and never make a demo call to a real fraud desk.
+6. Show masked request payload, not raw contacts. Evidence bytes must not be uploaded.
+7. Hash a synthetic evidence file on HTTPS, create/download/print a pack, verify original match and changed-value mismatch.
+8. State known limitations: draft playbook review pending; incomplete redaction; current bank-directory Back returns home; no PWA/offline reopen yet; no real callback or translated/interpreter service yet; no real-world AI/speed/recovery measurements.
+9. Check access from a signed-out/incognito device before giving a judge the link. Deployment protection can otherwise require a Vercel login. Report the actual access state.
+10. Record URL, alias, project, commit, mode, date and exact checks in SOURCE-OF-TRUTH.md. Roll back through the platform to the last good deployment if the new build fails; no destructive Git reset.
+
+Official reference checked for preparation:
+https://vercel.com/docs/functions/runtimes/node-js
+https://vercel.com/docs/project-configuration
+
+This configuration is prepared for validation. Local adapter tests cannot establish that the remote Vercel build/runtime works; complete the actual preview and HTTPS checks.

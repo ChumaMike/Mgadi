@@ -1,0 +1,1 @@
+Worker reports go here as <task-id>.txt. Include owner, time, assigned scope/files, changes, verification/results, limitations, unresolved questions, and what the coordinator should integrate. Do not include secrets, real incident stories or private WhatsApp exports. This is a shared-file communication mechanism, not automatic visibility into other tabs.

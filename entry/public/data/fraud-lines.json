@@ -1,0 +1,11 @@
+{
+  "checkedOn": "2026-10-26",
+  "notice": "Confirm every number with the back of the bank card or banking app before calling. Never trust a number from a suspicious message.",
+  "banks": [
+    { "name": "Absa", "number": "0860 557 557", "tel": "+27860557557" },
+    { "name": "Capitec Business", "number": "0860 30 92 50", "tel": "+27860309250" },
+    { "name": "FNB", "number": "087 575 9444", "tel": "+27875759444" },
+    { "name": "Nedbank", "number": "0800 110 929", "tel": "+27800110929" },
+    { "name": "Standard Bank", "number": "0800 222 050", "tel": "+27800222050" }
+  ]
+}

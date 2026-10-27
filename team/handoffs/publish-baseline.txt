@@ -1,0 +1,33 @@
+Task: publish-baseline
+Owner: Codex, handed to Claude coordinator
+Date: 27 October 2026
+Branch: main
+Local commit: use git log -1 --format=%H -- team/handoffs/publish-baseline.txt for the commit containing this handover.
+
+Completed locally
+- Full two-person Claude coordinator interview/context prompt, root CLAUDE.md bootstrap and shared task board.
+- Product source of truth and pending review/callback/language/PWA requirements preserved.
+- Editable pitch and PDF/HTML/handbook/token snapshot in presentation/.
+- Vercel public asset configuration, Node API adapters, shared request handler and raw/pre-parsed-body handling.
+- Initial hosted rules-only mode, no provider key or purchase needed.
+- Persistent draft-guidance footer; secrets/account artifacts ignored.
+- Origin configured to https://github.com/ChumaMike/Mgadi.git as requested. No force push or visibility change.
+
+Verification
+- npm.cmd test: 10/10 passed, including deployment adapter POST/method checks, pre-parsed body, 8KB rejection, cross-site rejection and rules-only health/security headers.
+- npm.cmd run scoreboard: 7/7 fixed synthetic rules cases; not held-out AI or real-world accuracy.
+- Browser at 390px: home, visible draft status, no horizontal overflow, masked request and bank-first triage passed; no page errors.
+- No successful remote Vercel build, preview or physical-phone HTTPS check yet.
+
+Blocked here
+- git ls-remote to github.com failed to connect on port 443.
+- gh repo view failed with a socket access-permissions error. gh auth status reported invalid/unavailable credentials; recheck in Claude's terminal before concluding the stored login is invalid.
+- vercel whoami failed to fetch; vercel link --yes --project mgadi failed while loading teams with TypeError: fetch failed.
+- No successful push, linked Vercel project, preview URL or production alias is established. The coordinator must retry authenticated publication from an unrestricted terminal, not announce this as live.
+
+Next
+1. Read ../COORDINATOR-PROMPT.txt, ../../CLAUDE.md and ../../entry/DEPLOYMENT.txt.
+2. Verify branch/remotes and account access without printing secrets; fetch/reconcile remote history before normal push. No destructive resets or force push.
+3. Link/create mgadi in the intended Vercel account using entry/ as root; preview, inspect real HTTPS behaviour, then production deploy.
+4. Record the actual URLs/commit/mode and tests in source of truth. Continue the two-person flow/design interview and task assignment.
+5. Leave any uncommitted pre-existing BUILD-GUIDE.md edits intact; they were not staged by this handover. Do not assume those edits are your own work.
