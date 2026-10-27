@@ -2,6 +2,8 @@
 
 Branch: `feature/emergency-offline-readiness`, stacked on `feature/live-voice-companion` (PR #3) on `feature/critical-fixes` (PR #2) on `main`. **Nothing has been merged, deployed or pushed to `main`. No real voice call has ever been made.** Every number below is from a run on this branch; "not tested" means exactly that.
 
+> **Update, 28 October 2026 (written after the rest of this document).** Chuma merged PR #2, PR #3 and PR #6 on 27 October 2026 at about 23:06 UTC (01:06 SAST on 28 October). PR #6 carried this whole stack into `main`, including the supplier-check, POPIA and handoff code **up to commit `6bda84f`**. Sentences below that say nothing is merged, and the merge order in §5 item 1, describe the time they were written. I merged nothing and pushed nothing to `main`. The documentation that came after that commit (§9 in its final form, `SECURITY-REVIEW.md` §10, `SOURCE-OF-TRUTH.md`) is in PR #7. `main` as merged builds and passes the same 231 unit tests. Nothing is deployed by me.
+
 ## 1. Status at a glance
 
 | Question | Answer |
@@ -100,7 +102,7 @@ MGADI_VOICE_MODE=mock npm start     # simulated voice for the demo
 
 ## 9. Addendum: POPIA draft, supplier payment-change check, responder handoff (branch `feature/popia-supplier-check-handoff`, 28 October 2026)
 
-Stacked on `feature/emergency-offline-readiness` (PR #4, draft). **Nothing is merged, deployed or pushed to `main`; no external service, account or paid product was used or created.** The data statement is `LINKS-DATA.md`; the security addendum is `SECURITY-REVIEW.md` §10.
+Built on `feature/popia-supplier-check-handoff`, stacked on `feature/emergency-offline-readiness`. **The code and tests reached `main` through PR #6 (merged by Chuma, see the note at the top); this addendum's final documentation is PR #7. I pushed nothing to `main`. Nothing is deployed by me, and no external service, account or paid product was used or created.** The data statement is `LINKS-DATA.md`; the security addendum is `SECURITY-REVIEW.md` §10.
 
 ### 9.1 Built, mocked, not built
 
@@ -134,7 +136,7 @@ Stacked on `feature/emergency-offline-readiness` (PR #4, draft). **Nothing is me
 12. **Choose a shared store before any hosted use.** On Vercel, links are refused without one. An Upstash-style store needs an account **you** create (check its limits and any cost yourself; I have not signed up for anything). Until then a hosted preview shows the feature as unavailable, which is the intended fail-closed behaviour.
 13. **Who reviews the wording.** POPIA draft: an information officer or lawyer. Supplier-check red flags and verification questions: a fraud or payments practitioner. Both are drafts and say so. The "second person" and "helper" wording needs a usability test with real small-business owners (not done).
 14. **Decide the sharing channel guidance.** Today the screens say the link can be read by whoever carries it. Decide whether to recommend a channel.
-15. Still open from §5: items 1–10 (merge order, Vercel account, Retell, CI, practitioner review, translators, and so on).
+15. Still open from §5: items 2–10 (Vercel account, Retell, CI, practitioner review, translators, and so on). Item 1, the merge order, has been overtaken (see the note at the top).
 
 ### 9.4 The strongest truthful demo of the new features
 

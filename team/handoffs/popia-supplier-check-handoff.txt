@@ -1,6 +1,6 @@
 Task: popia-supplier-check-handoff
 Date: 28 October 2026
-Branch: feature/popia-supplier-check-handoff (from feature/emergency-offline-readiness a9ec3d5, which is PR #4 on feature/live-voice-companion, PR #3, on feature/critical-fixes, PR #2). NOT merged. NOT deployed. BOARD.json not modified (coordinator-only).
+Branch: feature/popia-supplier-check-handoff (from feature/emergency-offline-readiness a9ec3d5, which is PR #4 on feature/live-voice-companion, PR #3, on feature/critical-fixes, PR #2). The code reached main through PR #6 (merged by Chuma, 27 Oct about 23:06 UTC, before the final documentation commits); the documentation completion is PR #7. NOT deployed. BOARD.json not modified (coordinator-only).
 Direction: three features on top of the existing app, no rebuilds: (1) a POPIA notification draft built from the incident pack; (2) a supplier payment-change check with an independent-verification record and a second person who approves or rejects by link, with an audit record; (3) a responder handoff the owner approves, shared by link, that the contact acknowledges.
 
 READ FIRST: entry/LINKS-DATA.md (exactly what the server keeps, and for how long), entry/SECURITY-REVIEW.md section 10 (threats, findings, tests), entry/RELEASE-READINESS.md section 9 (built / mocked / not built, what needs your decision, a demo script).
@@ -38,6 +38,6 @@ DECISIONS WAITING FOR THE TEAM
 - Confirm proposed invariants 18-23 in SOURCE-OF-TRUTH.md section 5, and that server-held locked content (no accounts, 7 days) fits the product scope.
 - Choose and create a shared store before any hosted use (an account step for the owner; check its limits, cost, retention and logging).
 - Choose who reviews the POPIA text and the supplier-check wording.
-- Merge order, if PR #2, #3 and #4 are merged with squash, this branch's base will diverge: use merge commits or rebase this branch after each merge.
+- PR #4 is now redundant: its commits reached main through PR #6. Suggest closing it (the owner's call). PR #7 is retargeted to main and carries documentation only.
 
-What the coordinator should integrate: nothing automatically. Review the draft PR; do not merge without the owner's explicit go-ahead.
+What the coordinator should integrate: PR #7 (documentation only) when the owner is ready. I will not merge it.
