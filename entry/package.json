@@ -13,7 +13,8 @@
     "scoreboard": "node scripts/scoreboard.js",
     "dev": "node scripts/dev.js",
     "vendor": "node scripts/vendor-retell.mjs",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "test:browser": "node scripts/run-browser-suites.mjs"
   },
   "dependencies": {
     "retell-client-js-sdk": "3.0.3"

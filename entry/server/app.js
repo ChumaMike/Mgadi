@@ -32,6 +32,11 @@ const securityHeaders = {
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
   'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), payment=()',
+  // Nothing on this origin is meant to be embedded in or read by another site.
+  // Cross-Origin-Opener-Policy was tried and left out ON PURPOSE: with it, Chromium under Playwright's offline emulation kept reporting
+  // navigator.onLine = true on the offline reopen, so the offline indicator could not be verified. Revisit it only with a real phone.
+  // Framing is already blocked (frame-ancestors, X-Frame-Options), external links use noopener, and nothing opens popups.
+  'Cross-Origin-Resource-Policy': 'same-origin',
 };
 
 function reply(response, status, body, type = 'application/json; charset=utf-8', extra = {}) {
@@ -50,9 +55,15 @@ export function clientKey(request, env = process.env) {
   return request.socket?.remoteAddress ?? 'unknown';
 }
 
-function createRateLimiter(limit = 20, windowMs = 60_000) {
+// In-memory and per instance: on a serverless platform each instance has its own counters, so this slows a casual flood and no more.
+// The map is bounded so a stream of unique addresses cannot grow it without limit: expired entries go first, then the oldest.
+export function createRateLimiter(limit = 20, windowMs = 60_000, maxKeys = 10_000) {
   const requests = new Map();
-  return (key, now = Date.now()) => {
+  const allow = (key, now = Date.now()) => {
+    if (requests.size >= maxKeys && !requests.has(key)) {
+      for (const [k, v] of requests) if (now - v.startedAt >= windowMs) requests.delete(k);
+      for (const k of requests.keys()) { if (requests.size < maxKeys) break; requests.delete(k); } // Map order is oldest first
+    }
     const current = requests.get(key);
     if (!current || now - current.startedAt >= windowMs) {
       requests.set(key, { startedAt: now, count: 1 });
@@ -61,6 +72,17 @@ function createRateLimiter(limit = 20, windowMs = 60_000) {
     current.count += 1;
     return current.count <= limit;
   };
+  allow.size = () => requests.size;
+  return allow;
+}
+
+// The operator token is a credential that unlocks paid calls and travels in a header, so it is only honoured when the connection cannot
+// be read on the way: HTTPS, or the same machine. Behind a proxy the proxy says which it was; with no proxy the socket tells us.
+export function secureTransport(request) {
+  const forwarded = String(request.headers?.['x-forwarded-proto'] ?? '').split(',')[0].trim().toLowerCase();
+  if (forwarded) return forwarded === 'https';
+  if (request.socket?.encrypted) return true;
+  return ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(request.socket?.remoteAddress ?? '');
 }
 
 function readJson(request) {
@@ -154,7 +176,8 @@ export function createHandler({ classifyWithAI = null, voice, env = process.env,
 
   async function voiceRoute(request, response, pathname) {
     const clientId = clientKey(request);
-    const token = request.headers['x-mgadi-operator-token'];
+    // Over a connection that could be read, a token is ignored (answered as the public view) and is never compared or counted.
+    const token = secureTransport(request) ? request.headers['x-mgadi-operator-token'] : undefined;
     if (pathname === '/api/voice/config') {
       if (request.method !== 'GET') return reply(response, 405, { error: 'GET only' }, undefined, { Allow: 'GET' });
       const auth = await voiceService.authenticate(token, clientId);
