@@ -77,3 +77,33 @@ select { font:inherit; padding:.7rem; border:2px solid var(--mg-line); border-ra
 @media(prefers-reduced-motion:reduce) { *,*::before { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
 @media(max-width:440px) { .site-header { flex-wrap:wrap; } .sign-dialog { padding:1rem; } }
 @media print { #accessibility,.guidance-controls,.skip-link,dialog { display:none!important; } }
+
+/* Small screens and large text: let long words and labels wrap instead of forcing sideways scrolling. */
+h1, h2, p, li, label, summary, .button, .toggle, .notice, .bank, dd, dt { overflow-wrap: anywhere; }
+.button { white-space: normal; max-width: 100%; }
+.incident-choices { grid-template-columns: minmax(0, 1fr); }
+main, .card, #accessibility { min-width: 0; }
+[data-text-size] h1 { font-size: 1.35rem; }
+[data-text-size="large"] h1 { font-size: 1.6rem; }
+[data-text-size="normal"] h1 { font-size: clamp(1.7rem, 5vw, 2.15rem); }
+[data-text-size="larger"] main, [data-text-size="largest"] main { padding-inline: .6rem; }
+[data-text-size="larger"] .card, [data-text-size="largest"] .card { padding: .9rem; }
+[data-text-size="largest"] .site-header { padding-inline: .6rem; }
+
+/* Review status, privacy preview and readable incident summary. */
+.review-status { font-size: .88rem; }
+.preview-box { background: #f1f4ec; border: 1px solid var(--mg-line); border-radius: 10px; padding: 1rem; margin: .8rem 0; }
+.preview-box blockquote { margin: .4rem 0 0; padding-left: .8rem; border-left: 4px solid var(--mg-amber); }
+.check { display: flex; gap: .7rem; align-items: flex-start; font-weight: 600; }
+.check input { width: 1.4rem; height: 1.4rem; flex-shrink: 0; margin-top: .2rem; }
+.pack-summary h2 { border-bottom: 1px solid var(--mg-line); padding-bottom: .3rem; }
+.pack-summary dl { margin: 0; }
+.pack-summary dt { font-weight: 700; margin-top: .6rem; }
+.pack-summary dd { margin: 0; }
+.hash { font-family: ui-monospace, Consolas, monospace; font-size: .78rem; }
+@media print {
+  .pack-technical, .pack-actions, .review-status:not(.print-keep) { display: none !important; }
+  .pack-summary, .pack-summary * { color: #000; }
+  .pack-summary h2 { page-break-after: avoid; }
+  .pack-summary li, .pack-summary dt { page-break-inside: avoid; }
+}

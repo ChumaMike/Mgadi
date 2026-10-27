@@ -1,20 +1,31 @@
 {
   "reviewed": false,
   "reviewNote": "Draft steps based on bank and regulator guidance. Practitioner review pending.",
+  "clarify": {
+    "title": "One quick question",
+    "intro": "We could not tell what happened from your description. Your bank fraud line stays at the top of every screen.",
+    "question": "Has any money already been paid out?",
+    "options": [
+      { "id": "paid", "text": "Yes, money has been paid", "route": "payment_diversion" },
+      { "id": "not_paid", "text": "No, nothing has been paid yet", "route": "suspicious_message" },
+      { "id": "mailbox", "text": "Someone may have got into my email", "route": "mailbox_compromise" },
+      { "id": "unsure", "text": "I am not sure", "route": "unsure" }
+    ]
+  },
   "incidents": {
     "payment_diversion": {
       "title": "Possible payment diversion",
       "summary": "Money may have been paid to a criminal after banking details changed. Act on step one now.",
       "steps": [
-        { "id": "bank", "title": "Call your bank's fraud line now", "why": "Only your bank can try to stop or recall the payment. Minutes count.", "do": ["Choose your bank and call its official fraud line.", "Say: I made a payment to a fraudulent account. Please try to stop or recall it.", "Write down the reference number."], "done": "I've called the bank" },
+        { "id": "bank", "title": "Call your bank's fraud line now", "why": "Only your bank can try to stop or recall the payment. Minutes count.", "do": ["Choose your bank and call its official fraud line.", "Say: I made a payment to a fraudulent account. Please try to stop or recall it.", "Write down the reference number."], "done": "I've called the bank", "skip": "I haven't called yet — continue" },
         { "id": "supplier", "title": "Confirm with your supplier on a number you already had", "why": "Do not reply to the suspicious email or call a number in it.", "do": ["Use a number from an old invoice, your contacts or the supplier's official website.", "Ask if they genuinely changed their banking details."], "done": "I've spoken to the supplier" },
         { "id": "mailbox", "title": "Check your mailbox", "why": "Criminals may hide or forward messages so they can watch payment conversations.", "do": ["Look for forwarding and inbox rules you did not create.", "Check recent sign-ins and change your password from a clean device.", "Turn on two-step verification."], "done": "I've checked the mailbox" },
-        { "id": "evidence", "title": "Keep the evidence", "why": "Your bank, SAPS and insurer may ask for the message and proof of payment.", "do": ["Do not delete the email or message.", "Save the proof of payment and screenshots.", "The evidence pack feature is next in this build."], "done": "I've kept the evidence" }
+        { "id": "evidence", "title": "Keep the evidence", "why": "Your bank, SAPS and insurer may ask for the message and proof of payment.", "do": ["Do not delete the email or message.", "Save the proof of payment and screenshots.", "Next you can fingerprint your files on this phone and make an incident pack."], "done": "I've kept the evidence" }
       ]
     },
     "mailbox_compromise": { "title": "Possible hacked mailbox", "summary": "Lock the mailbox before it is used to send fraudulent invoices.", "steps": [{ "id": "secure", "title": "Lock the account", "why": "This can stop further access.", "do": ["Change the password from a clean device.", "Turn on two-step verification and sign out other sessions."], "done": "I've locked the account" }, { "id": "rules", "title": "Remove unknown rules", "why": "Forwarding rules can keep leaking email after a password change.", "do": ["Remove rules and forwarding you did not create.", "Keep screenshots for IT support."], "done": "I've checked the rules" }] },
     "suspicious_message": { "title": "Suspicious message — no money moved", "summary": "Good: you may be able to stop the scam before money leaves.", "steps": [{ "id": "stop", "title": "Don't pay, click or reply", "why": "A changed-bank-details message is a common payment-diversion tactic.", "do": ["Do not change any banking details from the message.", "Confirm the request on a trusted number."], "done": "I've stopped the payment" }] },
     "not_cyber": { "title": "This may not be a cyber incident", "summary": "It sounds like a normal payment or admin problem, but stay cautious.", "steps": [{ "id": "check", "title": "Double-check before you relax", "why": "Scams can look like an ordinary late payment.", "do": ["If details changed, start again and treat it as suspicious.", "If money left for an unfamiliar account, call your bank."], "done": "Understood" }] },
-    "unsure": { "title": "Let's be safe", "summary": "We could not tell what happened. Start with the safest action if money moved.", "steps": [{ "id": "bank", "title": "If money moved, call your bank now", "why": "The bank may be able to stop the payment.", "do": ["Choose your bank below and call its official fraud number."], "done": "I've called the bank" }] }
+    "unsure": { "title": "Let's be safe", "summary": "We could not tell what happened. Take the safest steps while you find out.", "steps": [{ "id": "bank", "title": "If money may have moved, call your bank now", "why": "The bank may be able to stop the payment. If no money has moved, you can continue.", "do": ["Choose your bank below and call its official fraud number.", "Only press the button when you have actually called."], "done": "I've called the bank", "skip": "I haven't called yet — continue" }, { "id": "pause", "title": "Pause before you pay or change anything", "why": "Criminals rely on speed. A short check can stop a loss.", "do": ["Do not pay, or change a supplier's banking details, until you have checked.", "Phone the supplier on a number you already had, not one from the message.", "Keep the message; you can add it to an incident pack."], "done": "I've understood" }] }
   }
 }
