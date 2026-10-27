@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -6,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { redactIncident } from '../public/shared/redact.js';
 import { classifyRules } from '../public/shared/rules.js';
 import { validateTriage } from '../public/shared/labels.js';
+import { createVoiceService } from './voice.js';
 
 const publicRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MAX_BODY_BYTES = 8 * 1024;
@@ -14,13 +16,16 @@ const contentTypes = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.vtt': 'text/vtt; charset=utf-8',
 };
 const securityHeaders = {
-  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.retellai.com wss://api.retellai.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), payment=()',
 };
 
 function reply(response, status, body, type = 'application/json; charset=utf-8', extra = {}) {
@@ -81,7 +86,12 @@ function readJson(request) {
   });
 }
 
-export function createHandler({ classifyWithAI = null } = {}) {
+function loadPlaybook() {
+  try { return JSON.parse(readFileSync(path.join(publicRoot, 'data', 'playbook.json'), 'utf8')); } catch { return { incidents: {} }; }
+}
+
+export function createHandler({ classifyWithAI = null, voice, env = process.env, fetchImpl = globalThis.fetch } = {}) {
+  const voiceService = voice ?? createVoiceService({ env, fetchImpl, playbook: loadPlaybook() });
   const allow = createRateLimiter();
   const cache = new Map();
 
@@ -118,6 +128,21 @@ export function createHandler({ classifyWithAI = null } = {}) {
     return reply(response, 200, result);
   }
 
+  async function voiceRoute(request, response) {
+    if (request.url === '/api/voice/config') {
+      if (request.method !== 'GET') return reply(response, 405, { error: 'GET only' }, undefined, { Allow: 'GET' });
+      const result = await voiceService.config();
+      return reply(response, result.status, result.body);
+    }
+    if (request.method !== 'POST') return reply(response, 405, { error: 'POST only' }, undefined, { Allow: 'POST' });
+    if (request.headers['sec-fetch-site'] === 'cross-site') return reply(response, 403, { error: 'forbidden' });
+    if (!String(request.headers['content-type'] ?? '').startsWith('application/json')) return reply(response, 415, { error: 'JSON only' });
+    let payload;
+    try { payload = await readJson(request); } catch (error) { return reply(response, error.status ?? 400, { error: error.status ? 'too large' : 'bad JSON' }); }
+    const result = await voiceService.createSession({ payload, consent: request.headers['x-mgadi-voice-consent'], clientId: clientKey(request) });
+    return reply(response, result.status, result.body);
+  }
+
   async function staticFile(request, response) {
     let pathname;
     try { pathname = decodeURIComponent(new URL(request.url, 'http://mgadi.local').pathname); } catch { return reply(response, 400, 'Bad request', 'text/plain; charset=utf-8'); }
@@ -133,6 +158,7 @@ export function createHandler({ classifyWithAI = null } = {}) {
   return async (request, response) => {
     try {
       if (request.url === '/api/health') return reply(response, 200, { ok: true, ai: Boolean(classifyWithAI) });
+      if (request.url === '/api/voice/config' || request.url === '/api/voice/session') return await voiceRoute(request, response);
       if (request.url === '/api/triage') {
         if (request.method !== 'POST') return reply(response, 405, { error: 'POST only' }, undefined, { Allow: 'POST' });
         return await triage(request, response);

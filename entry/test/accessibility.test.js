@@ -18,13 +18,13 @@ test('signing fails closed for unknown, inherited and arbitrary user text', () =
   for(const value of ['payment_diversion.bank','constructor','__proto__','Call my bank','',null])assert.equal(findReviewedSign(value),null);
 });
 
-test('accessibility assets are available under existing CSP without opening camera or microphone', async t => {
+test('accessibility assets are available under the CSP; camera stays blocked and the microphone is limited to our own origin', async t => {
   const server=createApp();server.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>server.close());
   const base=`http://127.0.0.1:${server.address().port}`;
   for(const file of ['catalog.js','avatar.js','accessibility.js','signs.js']){
     const response=await fetch(`${base}/accessibility/${file}`);assert.equal(response.status,200);
     assert.match(response.headers.get('content-type'),/javascript/);
     assert.match(response.headers.get('content-security-policy'),/script-src 'self'/);
-    assert.match(response.headers.get('permissions-policy'),/camera=\(\), microphone=\(\)/);
+    assert.match(response.headers.get('permissions-policy'),/camera=\(\), microphone=\(self\)/);
   }
 });
