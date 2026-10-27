@@ -1,0 +1,31 @@
+Task: live-voice-companion
+Date: 27 October 2026
+Branch: feature/live-voice-companion (from feature/critical-fixes 6280f81). Not merged. Not deployed. BOARD.json not modified.
+Chuma's direction: browser voice with Retell is the primary experience (not a phone callback); live transcript; floating avatar; reviewed SASL only; languages only where the provider supports them; connected to the incident journey.
+
+BUILT
+- server/voice.js + /api/voice/config + /api/voice/session (+ Vercel adapters): Retell v3 proxy. Private key server-only; the request is built from validated inputs (agent, overrides, prompt text cannot be chosen by a visitor); basic_attributes_only + max duration + no webhook enforced per call; consent header required; per-visitor and hourly limits; generic provider errors; language gating (isiZulu/isiXhosa never; each language needs agent + operator verification + passing privacy preflight; guide must be fully translated).
+- public/voice/: controller (pure state machine), retell-adapter (official v3 RetellClient via same-origin bundle), mock-adapter (labelled SIMULATION), panel (transcript, states, consent, privacy chips, current action, tasks, timeline, controls), avatar-dock (reuses the original 3D avatar; idle/listening/speaking), guidance (shared builder).
+- Journey state in app.js is now shared (text screens and voice panel). Only the person's taps confirm steps.
+- signs.js: reviewed-SASL gate tightened (reviewer, date, rights, captions); registry still empty.
+- Security headers: microphone=(self) and connect-src + api.retellai.com https/wss. Nothing else.
+- scripts: vendor-retell.mjs (esbuild bundle of the pinned SDK, LiveKit transport stubbed out), voice-smoke.mjs, retell-sdk-smoke.mjs, voice-preflight.mjs (read-only, contacts Retell; not run).
+
+RESULTS (actual)
+- npm test 93/93 (was 50 at the start of this branch; 44 on critical-fixes). Voice server tests mutation-checked (4 mutations caught).
+- voice-smoke 78/78 (simulation, Chromium, 320 to 1280 px). A deliberate CSS mutation (no avatar gutter) fails 5 overlap checks.
+- retell-sdk-smoke 20/20: the real SDK bundle, a fake Retell REST upstream, mocked gateway signalling (a real WebRTC offer/answer between two peer connections in the page) and a mocked transcript WebSocket. All other hosts blocked.
+- browser-smoke (critical fixes) still 37/37.
+- Layout bugs found and fixed by looking at screenshots/overlap checks: avatar over controls, chat below the fold, controls clipped, bank list covered by the panel (panel now minimises when bank numbers open), sticky header hiding focused controls (scroll-padding), 200% text on 320px squeezing the panel.
+
+NOT DONE / NOT VERIFIED
+- No real Retell call, microphone, speaker, phone, native screen reader. No WCAG claim.
+- The transcript socket's authorization with a real public key is unverified (SDK says it may need broader permission); the app detects and reports missing captions.
+- Afrikaans voice blocked until the Afrikaans catalog covers the whole guide. Consent text, playbook, translations: unreviewed drafts.
+- No SASL clip. Callback not built (stretch). No shared-store rate limit; no reCAPTCHA.
+- New UI strings are English only (marked lang=en).
+
+PROVIDER CONFIGURATION STILL REQUIRED: see VOICE-COMPANION.md ("Provider configuration still required"), including the agent prompt with exact variable names.
+
+INTEGRATION NOTES
+- Touches app.js, styles.css, accessibility.js, avatar.js (shared files). New dependency: retell-client-js-sdk 3.0.3 (exact) and devDependency esbuild; package-lock.json included. public/vendor/ is generated and git-ignored.
