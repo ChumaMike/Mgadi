@@ -78,7 +78,7 @@ try {
   await page.waitForSelector('text=One quick question');
   check('unclear text asks one question', (await page.locator('.incident-choices button').count()) === 4);
   await page.click('button:has-text("I am not sure")'); await page.waitForSelector('text=Step 1 of');
-  check('unsure route lets the owner continue without claiming a call', (await page.locator('button:has-text("I haven\'t called yet")').count()) === 1);
+  check('unsure route lets the owner continue without claiming a call', (await page.locator('#app button:has-text("I haven\'t called yet")').count()) === 1);
   await page.click('button:has-text("I haven\'t called yet")');
   check('unsure route has a second "pause and verify" step', (await h1(page)).includes('Pause before you pay'));
   page = await fresh(); await page.click('.incident-choices button:has-text("I am not sure")'); await page.waitForSelector('text=One quick question');

@@ -70,3 +70,13 @@ Confirm these with Chuma BEFORE any deploy (answers go in SOURCE-OF-TRUTH.md):
 5. Cost: confirm the plan has no charge; no paid add-ons.
 
 After a preview exists, run the HTTPS smoke checks above on the exact phone with synthetic data, plus: clarify question, "I haven't called yet" path, pack preview (masked by default), summary print, and file fingerprinting over HTTPS (Web Crypto). Record URL, commit, date, results and any failures in SOURCE-OF-TRUTH.md.
+
+
+VOICE COMPANION (branch feature/live-voice-companion; OFF unless configured; nothing here has been deployed or tested against a real Retell account)
+Full details and the provider checklist are in VOICE-COMPANION.md. For a Vercel project:
+1. Install/build: vercel.json now runs `npm run vendor` (builds public/vendor/retell-client.js from the pinned retell-client-js-sdk). The build needs npm install to have run.
+2. Environment variables (Vercel project settings, never in Git): MGADI_VOICE_MODE=retell, RETELL_API_KEY (private), RETELL_PUBLIC_KEY, RETELL_AGENT_ID_EN, and MGADI_VOICE_VERIFIED_LANGUAGES only after speaker tests. Leave MGADI_VOICE_MODE unset to keep voice off.
+3. The Retell public key must allow the deployed domain. Preview deployment URLs change each time, so a preview needs its domain added too.
+4. Security headers changed only by: Permissions-Policy microphone=(self); CSP connect-src adds https://api.retellai.com and wss://api.retellai.com.
+5. Voice rate limits are in memory and therefore per serverless instance. Add a shared store before public launch, and set a Retell spend limit.
+6. Smoke checks after a preview exists: on a real phone over HTTPS with synthetic speech only: consent, mic prompt, connect, live captions, mute, end, bank button during a call, reconnect after toggling flight mode, and confirm in the Retell dashboard that no transcript or recording was stored.

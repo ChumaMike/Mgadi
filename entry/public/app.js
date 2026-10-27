@@ -4,6 +4,7 @@ import { routeTriage } from './shared/labels.js';
 import { sha256Hex } from './shared/sha256.js';
 import { makePack, verifyPack } from './shared/pack.js';
 import { triageWithFallback } from './shared/triage-client.js';
+import { initVoice } from './voice/panel.js';
 import { buildPackData, defaultPackOptions, previewItems, summarySections, formatTime } from './shared/summary.js';
 
 const app = document.querySelector('#app');
@@ -11,6 +12,8 @@ const emergencyButton = document.querySelector('#emergency-button');
 let playbook;
 let fraudLines;
 let incident = { timeline: [], evidence: [], outcomes: {} };
+// Placeholder until the voice panel is ready; the launch button is created through it so every screen shares one panel.
+let voice = { launchButton: () => document.createDocumentFragment() };
 
 function element(tag, text, attributes = {}) {
   const node = document.createElement(tag);
@@ -76,7 +79,7 @@ function showHome() {
     await triage(redacted.text);
   }));
   const intro=card.querySelector('p');
-  card.append(guidanceControls([intro], 'welcome'), button('Call experience — prototype',()=>callWalkthrough([intro]),'button secondary'));
+  card.append(guidanceControls([intro], 'welcome'), button('Call experience — prototype',()=>callWalkthrough([intro]),'button secondary'), voice.launchButton());
   app.append(card);
 }
 
@@ -111,31 +114,53 @@ function showClarify() {
       showIncident(option.route);
     }, 'button secondary'));
   }
-  card.append(choices, guidanceControls([intro, question], 'clarify'), button('Start again', showHome, 'button secondary'));
+  card.append(choices, guidanceControls([intro, question], 'clarify'), voice.launchButton(), button('Start again', showHome, 'button secondary'));
   app.append(card);
 }
+
+// The journey is shared state: the text screens and the voice panel both read and change it, so switching between them
+// never loses progress. A step is "confirmed" only when the person taps it. Nothing the assistant says can do that.
+let journey = null; // { label, flow, position, status: { [stepId]: { state: 'confirmed' | 'skipped', at } } }
+const journeyListeners = new Set();
+const emitJourney = () => journeyListeners.forEach((fn) => fn());
 
 function showIncident(label) {
   const flow = playbook.incidents[label] ?? playbook.incidents.unsure;
   incident.title = flow.title;
-  let position = 0;
-  const next = () => { if (position < flow.steps.length - 1) { position += 1; renderStep(); } else showEvidencePack(flow); };
-  const renderStep = () => {
-    clear(); const step = flow.steps[position]; const card = element('section', '', { className: 'card' });
-    card.append(element('p', `${flow.title} · Step ${position + 1} of ${flow.steps.length}`, { className: 'step-count' }), reviewBadge(), element('h1', step.title), element('p', flow.summary), element('h2', 'Why this matters'), element('p', step.why), element('h2', 'Do this now'));
-    const list = element('ul'); step.do.forEach((item) => list.append(element('li', item))); card.append(list);
-    const guidance=[...card.querySelectorAll('h1, p:not(.step-count):not(.review-status), li')];
-    card.append(guidanceControls(guidance, `${label}.${step.id}`), button('Call experience — prototype',()=>callWalkthrough(guidance),'button secondary'));
-    if (step.id === 'bank') card.append(button('Choose a bank fraud line', showBankLines, 'button danger'));
-    // A button press is the owner's own report. It is never proof that the bank answered or acted.
-    card.append(button(step.done, () => {
-      log(`Owner reported: ${step.done}`);
-      if (step.id === 'bank') incident.bankReportedAt = new Date().toISOString();
-      next();
-    }));
-    if (step.skip) card.append(button(step.skip, () => { log(`Owner continued without reporting this step: ${step.title}`); next(); }, 'button secondary'));
-    card.append(button('Start again', showHome, 'button secondary')); app.append(card);
-  }; renderStep();
+  journey = { label, flow, position: 0, status: {} };
+  emitJourney(); renderStep();
+}
+
+function advance() {
+  if (journey.position < journey.flow.steps.length - 1) { journey.position += 1; emitJourney(); renderStep(); }
+  else { emitJourney(); showEvidencePack(journey.flow); }
+}
+function confirmCurrentStep() {
+  const step = journey?.flow.steps[journey.position]; if (!step) return;
+  log(`Owner reported: ${step.done}`);
+  if (step.id === 'bank') incident.bankReportedAt = new Date().toISOString();
+  journey.status[step.id] = { state: 'confirmed', at: new Date().toISOString() };
+  advance();
+}
+function skipCurrentStep() {
+  const step = journey?.flow.steps[journey.position]; if (!step?.skip) return;
+  log(`Owner continued without reporting this step: ${step.title}`);
+  journey.status[step.id] = { state: 'skipped', at: new Date().toISOString() };
+  advance();
+}
+
+function renderStep() {
+  const { label, flow, position } = journey;
+  clear(); const step = flow.steps[position]; const card = element('section', '', { className: 'card' });
+  card.append(element('p', `${flow.title} · Step ${position + 1} of ${flow.steps.length}`, { className: 'step-count' }), reviewBadge(), element('h1', step.title), element('p', flow.summary), element('h2', 'Why this matters'), element('p', step.why), element('h2', 'Do this now'));
+  const list = element('ul'); step.do.forEach((item) => list.append(element('li', item))); card.append(list);
+  const guidance=[...card.querySelectorAll('h1, p:not(.step-count):not(.review-status), li')];
+  card.append(guidanceControls(guidance, `${label}.${step.id}`), button('Call experience — prototype',()=>callWalkthrough(guidance),'button secondary'), voice.launchButton());
+  if (step.id === 'bank') card.append(button('Choose a bank fraud line', showBankLines, 'button danger'));
+  // A button press is the owner's own report. It is never proof that the bank answered or acted.
+  card.append(button(step.done, confirmCurrentStep));
+  if (step.skip) card.append(button(step.skip, skipCurrentStep, 'button secondary'));
+  card.append(button('Start again', showHome, 'button secondary')); app.append(card);
 }
 
 function showEvidencePack(flow) {
@@ -225,6 +250,19 @@ function showPack(pack) {
 
 installAccessibility();
 emergencyButton.addEventListener('click', showBankLines);
+// What the voice panel may see and do. It can read progress and show the bank list; only the person's own taps confirm steps.
+const voiceBridge = {
+  getJourney: () => (journey ? {
+    label: journey.label, title: journey.flow.title, position: journey.position,
+    steps: journey.flow.steps.map((step) => ({ id: step.id, title: step.title, why: step.why, do: step.do, done: step.done, skip: step.skip, state: journey.status[step.id]?.state ?? 'pending', at: journey.status[step.id]?.at ?? null })),
+  } : null),
+  getTimeline: () => incident.timeline,
+  subscribe: (fn) => { journeyListeners.add(fn); return () => journeyListeners.delete(fn); },
+  confirmCurrent: confirmCurrentStep, skipCurrent: skipCurrentStep,
+  showBank: showBankLines, log,
+  showText: () => { const heading = app.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus(); } },
+};
+const voiceReady = initVoice({ bridge: voiceBridge }).catch(() => ({ launchButton: () => document.createDocumentFragment() }));
 Promise.all([fetch('/data/playbook.json').then((response) => response.json()), fetch('/data/fraud-lines.json').then((response) => response.json())])
-  .then(([loadedPlaybook, loadedLines]) => { playbook = loadedPlaybook; fraudLines = loadedLines; showHome(); })
+  .then(async ([loadedPlaybook, loadedLines]) => { playbook = loadedPlaybook; fraudLines = loadedLines; voice = await voiceReady; showHome(); })
   .catch(() => { clear(); app.append(element('p', 'Mgadi could not load its local safety guide. Please call the fraud number on the back of your bank card.')); });
