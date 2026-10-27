@@ -217,3 +217,6 @@ html { scroll-padding-top: calc(var(--header-h) + .75rem); scroll-padding-bottom
 .vp-operator summary { min-height: 40px; display: flex; align-items: center; cursor: pointer; font-size: .9rem; }
 .vp-operator input { width: 100%; margin: .3rem 0; }
 @media print { .offline-status { display: none !important; } }
+
+/* WCAG 2.2 target size: checkboxes were 22px, below the 24px minimum. */
+.toggle input, .check input { width: 1.75rem; height: 1.75rem; min-width: 1.75rem; }
