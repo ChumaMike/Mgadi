@@ -3,6 +3,7 @@ export const LABELS = Object.freeze([
   'payment_diversion',
   'mailbox_compromise',
   'suspicious_message',
+  'ransomware_suspected',
   'not_cyber',
   'unsure',
 ]);
