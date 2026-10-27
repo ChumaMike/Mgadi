@@ -29,7 +29,7 @@ The primary incident is **payment diversion / business email compromise**. We su
 | `mailbox_compromise` | A business email account may be accessed by someone else | Mailbox protection steps |
 | `suspicious_message` | Suspicious request, but no money moved yet | Stop-and-verify steps |
 | `not_cyber` | Ordinary payment/admin problem | Cautious double-check guidance |
-| `unsure` | Not enough reliable detail | Bank-first caution route; interactive clarification is still to build |
+| `unsure` | Not enough reliable detail | Bank-first caution route, reached through a one-question clarification (built on `feature/critical-fixes`) |
 
 ### Explicitly out of scope for this MVP
 
@@ -92,6 +92,10 @@ flowchart TD
 | Incident pack / JSON download / print | Built | `public/shared/pack.js`, `public/app.js` |
 | Tamper verifier | Built | `public/shared/pack.js`, `public/app.js` |
 | Scoreboard | Built | `scripts/scoreboard.js` |
+| Triage timeout and skip | Built (branch `feature/critical-fixes`) | `public/shared/triage-client.js`: 5 s limit, validated response, local rules on any failure, "Use the guide on this phone now" button |
+| Clarifying question for unclear cases | Built (branch) | `playbook.json` `clarify`; owner's answer picks a reviewed route. Free-text intake still English-first |
+| Privacy-first pack preview and readable summary | Built (branch) | `public/shared/summary.js`, `app.js`. Masked story by default; original words, business name and amount are the owner's choice. Pack format `mgadi-incident-pack/2` |
+| Visible draft status and bank-directory date | Built (branch) | `reviewBadge()` in `app.js`; driven by `playbook.reviewed` |
 | Real AI evaluation score | Not done | Needs API key and fresh held-out cases |
 | Full phone evidence test | Not done | Needs HTTPS because Web Crypto is restricted on HTTP LAN addresses |
 | Practitioner review of playbook | Not done | Ask Track 3 mentor; keep draft badge until done |
@@ -99,7 +103,7 @@ flowchart TD
 | Real phone callback to reporter | Approved scope; not implemented | Retell AI is the assumed candidate from Chuma's reply; South African routing/account setup unverified. See `VOICE-CALLS.md` |
 | Vercel HTTPS deployment / PWA offline reopen | Vercel adapters/config prepared and locally tested; cloud deployment blocked by network access. PWA not implemented | `api/`, `vercel.json`, `DEPLOYMENT.txt`; service worker/manifest/icons and actual HTTPS checks remain pending |
 | Elapsed time / outcomes / bank reference | Approved; not implemented | Existing timestamps cannot establish faster help or recovery |
-| Redaction preview / readable pack / privacy demo view | Approved; not implemented | See §11 and `REVIEW-AND-TEST-CHECKLIST.md` |
+| Redaction preview / readable pack / privacy demo view | Readable summary and pack sharing preview built (branch). Redaction preview before sending and the privacy demo view are not implemented | See §11 and `REVIEW-AND-TEST-CHECKLIST.md` |
 | Language choice / translated interview / accessible assistance | Approved; not implemented | All requested text languages are a coverage goal; release per reviewed language. SASL needs distinct content |
 | Default referrals / preferred contacts / task tracking | Approved; not implemented | No registration prerequisite; referral is not accepted dispatch |
 
@@ -110,10 +114,13 @@ flowchart TD
 3. Fraud-line entries were checked online on 2026-10-26; phone-check them before a live demo.
 4. Playbook wording is a draft until a practitioner reviews it.
 5. AI triage is optional and must be tested against a fresh held-out set; never claim performance not measured by the team.
-6. Local rules run when an API request fails, but there is no service worker for offline reopening and no request timeout yet. Do not call this fully offline-ready.
-7. Bank-directory Back currently returns home rather than resuming the step. Fix before measuring completion times.
-8. Redaction is pattern based; names are hidden only when supplied in the optional names field. It is not guaranteed anonymisation. The pack contains the original description and optional business details; add a clear sharing preview.
-9. The draft review note exists in the playbook data but is not rendered in the UI. Add a visible status; do not describe the guide as practitioner-reviewed yet.
+6. Local rules run when an API request fails or takes longer than 5 seconds (built on `feature/critical-fixes`), but there is still no service worker for offline reopening. Do not call this offline-ready.
+7. ~~Bank-directory Back returns home~~ Fixed on `feature/accessibility`; on `feature/critical-fixes` a triage result that arrives while the bank directory is open now waits until the owner presses Back.
+8. Redaction is pattern based; names are hidden only when supplied in the optional names field. It is not guaranteed anonymisation. The pack now holds the masked description by default; the original words, business name and amount are opt-in after a preview (built on `feature/critical-fixes`).
+9. The draft status is now rendered on guidance, clarify and summary screens (from `playbook.reviewed`). It is still a draft: do not describe the guide or any translation as practitioner-reviewed.
+10. Rules accuracy: 100% on the sets the rules were written against is a regression guard only. The one sealed set (`prep/heldout-3.json`) scored 9/17 with 0 unsafe diversion misses; every miss but one went to the clarifying question. Free text in isiZulu, isiXhosa and Afrikaans is not verified.
+11. Redaction preview before sending is still not built. The pack now defaults to the masked story, but masking is pattern based and names are only hidden when listed.
+12. Translations: only the payment-diversion route is drafted in isiZulu, isiXhosa and Afrikaans, and the new clarify, unsure, evidence and pack screens fall back to English (marked `lang="en"`). All of it is unreviewed.
 
 ---
 
@@ -269,6 +276,7 @@ npm.cmd run scoreboard
 
 | Time (SAST) | Owner | Files / area | Change | Verification / decision |
 |---|---|---|---|---|
+| 2026-10-27 (evening) | Claude with Chuma | `entry/public/shared/{rules,redact,triage-client,summary}.js`, `public/app.js`, `public/data/playbook.json`, `public/styles.css`, `public/accessibility/accessibility.js`, `server/app.js`, `scripts/`, tests, `prep/heldout-{2,3}.json`, docs | Branch `feature/critical-fixes`: triage timeout + skip; broader rules (negation, conflict, scam-word guard, more phrasings); redaction of `R70k`/`70k`/`R1.5m`; clarifying question; honest bank "haven't called yet" option; stale text removed; draft status and directory date shown; privacy-first pack preview and readable summary (pack format /2); no repeated "Audio stopped." announcements; no sideways scroll at 320px/200% text; late triage no longer replaces the bank directory; Vercel rate-limit key. | `npm test`: 44/44 (was 13). Browser smoke (Chromium, 390px and 320px, synthetic data): 37/37. Scoreboard: used sets 100% (regression only); sealed set `heldout-3` 9/17, 0 unsafe. Physical phone, screen reader, HTTPS deployment, practitioner and translation review NOT done. Not merged or deployed. |
 | 2026-10-27 11:32 | Codex with Chuma | `CLAUDE.md`, `team/`, `presentation/`, `entry/api/`, `entry/vercel.json`, `entry/server/app.js`, `entry/test/deployment.test.js`, deployment/readme/ignore files, `public/index.html` | Prepared the full Claude coordinator/interview handover, shared task board, pitch snapshot and Vercel rules-only Node adapters. Shared request handler preserves local server support; accepts raw and pre-parsed JSON with size checks. Added visible draft footer. Chuma authorised GitHub push and Vercel publication in this conversation. | `npm.cmd test`: 10/10; scoreboard: 7/7 fixed synthetic rules cases. No provider keys added. GitHub network check and Vercel link failed in this session; no live URL or successful push claimed. Actual publication checks and commit status are in `team/handoffs/publish-baseline.txt`. |
 | 2026-10-27 10:41 | Codex with Chuma | `SOURCE-OF-TRUTH.md`, `VOICE-CALLS.md`, `PLAYBOOK-REVIEW.md`, `REVIEW-AND-TEST-CHECKLIST.md`, `README.md` | Documented approved Vercel/PWA, timer/outcomes, privacy/pack, multilingual assistance, real reporter callbacks (Retell candidate), SASL and contacts/tasks. Added review source map, reviewer sheet and comparison-test book. Corrected built-versus-planned descriptions. | Documentation only; `npm.cmd test`: 7/7 passed. No public deployment, live calls, translations or practitioner sign-off created. +27 provider route remains unverified. |
 | 2026-10-27 09:31 | Codex with Chuma | `entry/` | Created initial runnable MVP: redaction, fixed-label rules, protected API, phone flow, official bank links, evidence fingerprinting, pack, verifier, optional AI adapter and scoreboard. | `npm.cmd test`: 7 passed. `npm.cmd run scoreboard`: 7/7 synthetic cases, 0 unsafe payment-diversion misses. |

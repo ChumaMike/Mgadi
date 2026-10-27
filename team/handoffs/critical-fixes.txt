@@ -1,0 +1,31 @@
+Task: critical-fixes (audit follow-up)
+Date: 27 October 2026
+Branch: feature/critical-fixes (from main 6836e87). Not merged. Not deployed. BOARD.json not modified.
+Approved by Chuma: timeout/fallback, classification + regression tests, safer "unsure" journey, stale text and review status, privacy-first pack, accessibility bugs. Vercel preview prepared only.
+
+CHANGES
+1. Triage timeout (public/shared/triage-client.js): 5 s limit via AbortController plus a promise race, response re-validated to exactly {label, confidence}, any failure -> local rules (source "offline rules"). Owner can press "Use the guide on this phone now". After 2 s a calm "taking longer" note appears. A late result no longer replaces the bank directory if the owner has it open.
+2. Rules (public/shared/rules.js): general families for paid / changed details / not-paid negation; contradictory text and scam words with no clear route go to the clarifying question; a narrow "no ... changed" negation. Redaction (public/shared/redact.js) now masks R70k, 70k, R1.5m, R2 million (prep/redaction-notes.md already claimed this).
+3. Unsure journey (public/data/playbook.json, app.js): one plain question ("Has any money already been paid out?") whose answer picks an existing reviewed route. Bank steps (payment_diversion, unsure) have a "I haven't called yet - continue" option; a call is recorded only when the owner presses "I've called the bank". The unsure route gained a "pause and verify" step. Wording is DRAFT.
+4. Stale text removed; draft review status (from playbook.reviewed) and bank-directory checked date are visible.
+5. Pack (public/shared/summary.js, app.js): preview screen before making the pack; masked story by default; original words, business name and amount are the owner's choice; readable on-screen/printable summary; JSON, checksum and verifier moved into a "Technical data" section. Format mgadi-incident-pack/2 (adds story.version, bank status; removes ownerDescription).
+6. Accessibility: "Audio stopped." is announced only when the person presses Stop audio (was on every navigation); sideways scrolling at 320px with 200% text fixed (h1 was 64px, buttons and the choice grid could not wrap).
+7. Server: rate-limit key uses the platform forwarding header only when VERCEL is set (the socket address is the proxy there).
+8. Tests: 44 (was 13): rules.test.js, triage-client.test.js, pack.test.js, playbook.test.js, plus clientKey. scripts/browser-smoke.mjs (optional, Playwright, no dependency added) 37 checks. scripts/scoreboard.js now reports every prep set and labels used versus sealed.
+9. Docs: SOURCE-OF-TRUTH.md (table, limitations, change log), DEPLOYMENT.txt (stale step fixed; Vercel preview readiness list), REVIEW-AND-TEST-CHECKLIST.md (items ticked with notes).
+
+RESULTS (actual)
+- npm test: 44/44. Mutation check: against main's rules/redact/playbook, 11 of the new tests fail.
+- Browser smoke, headless Chromium, synthetic data, 390px and 320px/200% text: 37/37 on repeat runs. Putting back the old CSS or accessibility.js makes the matching checks fail. One unexplained transient failure ("pack JSON has masked story") appeared once in a run that had both old files swapped in; it did not recur in later runs. 
+- Rules: test-cases 20/20, heldout-cases 10/10, heldout-2 22/22 (all seen while tuning: regression guard only). SEALED prep/heldout-3.json: 9/17, 0 unsafe; seven misses go to the clarifying question (safe), one arguable over-escalation (s17). Baseline before tuning: test-cases 12/20, heldout-cases 4/10, heldout-2 8/22, all 0 unsafe.
+
+NOT DONE / NOT VERIFIED
+- No physical phone, no native screen reader, no real device voice, no WCAG claim.
+- No HTTPS deployment; Vercel build/runtime unverified. Phone file fingerprinting still needs HTTPS or localhost.
+- Playbook, clarify wording and all translations are UNREVIEWED drafts. New screens are English-only (fall back with lang="en").
+- Redaction preview before sending: not built. Elapsed time/outcomes/bank reference fields: not built. PWA/service worker: not built.
+- AI mode with a real key not tested. Callback, SASL media, more languages: untouched, still objectives.
+- Judging criteria not yet incorporated; roadmap beyond this branch is deliberately not final.
+
+INTEGRATION NOTES
+- Touches app.js, styles.css, accessibility.js, playbook.json (shared files): merge deliberately, no force-push. New hooks: reviewBadge(), showClarify(), showPackReview(); the accessibility modules are otherwise unchanged.

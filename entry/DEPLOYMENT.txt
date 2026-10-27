@@ -48,7 +48,7 @@ HTTPS SMOKE CHECKS
 5. On the exact phone, bank action is visible immediately; use synthetic data and never make a demo call to a real fraud desk.
 6. Show masked request payload, not raw contacts. Evidence bytes must not be uploaded.
 7. Hash a synthetic evidence file on HTTPS, create/download/print a pack, verify original match and changed-value mismatch.
-8. State known limitations: draft playbook review pending; incomplete redaction; current bank-directory Back returns home; no PWA/offline reopen yet; no real callback or translated/interpreter service yet; no real-world AI/speed/recovery measurements.
+8. State known limitations: draft playbook review pending; incomplete redaction; no PWA/offline reopen yet; no real callback or translated/interpreter service yet; no real-world AI/speed/recovery measurements.
 9. Check access from a signed-out/incognito device before giving a judge the link. Deployment protection can otherwise require a Vercel login. Report the actual access state.
 10. Record URL, alias, project, commit, mode, date and exact checks in SOURCE-OF-TRUTH.md. Roll back through the platform to the last good deployment if the new build fails; no destructive Git reset.
 
@@ -57,3 +57,16 @@ https://vercel.com/docs/functions/runtimes/node-js
 https://vercel.com/docs/project-configuration
 
 This configuration is prepared for validation. Local adapter tests cannot establish that the remote Vercel build/runtime works; complete the actual preview and HTTPS checks.
+
+
+VERCEL PREVIEW READINESS (prepared 27 October 2026 on branch feature/critical-fixes; NOTHING HAS BEEN DEPLOYED)
+Local checks done: npm test (44/44) includes the Vercel-style adapter tests (pre-parsed body, 8KB limit, method and cross-site checks, rules-only health) and a test that the rate-limit key uses the platform forwarding header only when VERCEL is set. The browser smoke script (scripts/browser-smoke.mjs) passed against the local server. None of this proves a Vercel build or runtime works.
+
+Confirm these with Chuma BEFORE any deploy (answers go in SOURCE-OF-TRUTH.md):
+1. Target: which Vercel account/team, and is the project to be named mgadi? (No project is linked; no URL exists.)
+2. Source: deploy the feature/critical-fixes branch as a PREVIEW only. Production deploy is a separate decision after the smoke checks below.
+3. Configuration to confirm: Root Directory entry; Framework Other; Output Directory public; Build Command from vercel.json (node --version); no environment variables (rules-only mode, no ANTHROPIC_API_KEY, no telephony keys); Node 24.x or the newest supported.
+4. Access: preview URLs are usually behind Vercel login (Deployment Protection). A phone test needs either a logged-in browser or a deliberately chosen protection setting. Chuma decides; do not change protection silently.
+5. Cost: confirm the plan has no charge; no paid add-ons.
+
+After a preview exists, run the HTTPS smoke checks above on the exact phone with synthetic data, plus: clarify question, "I haven't called yet" path, pack preview (masked by default), summary print, and file fingerprinting over HTTPS (Web Crypto). Record URL, commit, date, results and any failures in SOURCE-OF-TRUTH.md.

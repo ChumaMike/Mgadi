@@ -7,11 +7,11 @@ Created 27 October 2026. Canonical scope: `SOURCE-OF-TRUTH.md`. Add owner/date/r
 - [ ] Chuma compares bank numbers against banking app/card or official page; record segment, source and date in `../prep/fraud-lines.md`. If a call is needed, use a suitable published enquiry channel and explain the directory check. Do not create a fictitious fraud report or occupy emergency lines for a demo.
 - [ ] Reviewer identified; exact JSON/screens reviewed using `PLAYBOOK-REVIEW.md`.
 - [ ] Revised wording confirmed, including recall request, supplier, mailbox, evidence and reporting/referrals.
-- [ ] Draft/review status visible; stale “pack feature is next” text corrected.
-- [ ] Bank directory returns to current step without losing progress.
-- [ ] Empty/long/unclear/not-paid input tested; unsure users are not forced to claim “I've called”.
-- [ ] Hung API times out into local rules; immediate bank action works.
-- [ ] Fresh held-out cases written before tuning; negation and injection tested. Bundled seven cases labelled smoke checks.
+- [x] Draft/review status visible; stale “pack feature is next” text corrected. _Done 27 Oct on feature/critical-fixes (browser-checked); still a draft until a reviewer signs off._
+- [x] Bank directory returns to current step without losing progress. _Done on feature/accessibility; verified again 27 Oct. A late triage result now waits while the directory is open._
+- [x] Empty/long/unclear/not-paid input tested; unsure users are not forced to claim “I've called”. _Unclear and not-paid paths tested 27 Oct; "I haven't called yet" option added. Very long input not re-tested._
+- [x] Hung API times out into local rules; immediate bank action works. _Done 27 Oct: 5 s limit, skip button, unit and browser tests._
+- [ ] Fresh held-out cases written before tuning; negation and injection tested. Bundled seven cases labelled smoke checks. _Partly done 27 Oct: `prep/heldout-2.json` (written before tuning, now used) and `prep/heldout-3.json` (sealed, scored once: 9/17, 0 unsafe). Negation and injection are tested in `test/rules.test.js`. Write a new sealed set before the next accuracy claim._
 
 ## 2. Vercel, PWA and brand
 
@@ -36,7 +36,7 @@ Created 27 October 2026. Canonical scope: `SOURCE-OF-TRUTH.md`. Add owner/date/r
 - [ ] Separate payment prevented, further access contained, recall requested and recovered money. Recovery needs amount/date/source; unknown stays unknown.
 - [ ] Redaction preview/counts with editable masking and honest limits before sending; names are not auto-detected today.
 - [ ] Readable one-page pack includes useful times, reference, outcomes and next steps alongside JSON/checksum.
-- [ ] Sharing preview for original description/business/contact details; user chooses sensitive content. Evidence stays local.
+- [x] Sharing preview for original description/business/contact details; user chooses sensitive content. Evidence stays local. _Done 27 Oct: preview screen, original words opt-in. Contact details are not collected yet._
 - [ ] Privacy/demo indicators reflect actual traffic; voice disclosure covers number/audio processing.
 - [ ] Explain session-only state/refresh loss. Any optional device save/resume needs retention and clear controls before claiming support.
 
