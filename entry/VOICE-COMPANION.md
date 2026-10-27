@@ -86,7 +86,7 @@ browser; they cannot stop scripts, which is why the quotas exist. Set a Retell s
 - `Permissions-Policy`: `microphone=()` became `microphone=(self)`. Camera, geolocation and payment stay blocked.
 - CSP `connect-src`: added `https://api.retellai.com wss://api.retellai.com`. Scripts, styles, framing and everything else
   are unchanged. No LiveKit hosts: v3 uses the gateway transport. The SDK is served from our own origin
-  (`npm run vendor` builds `public/vendor/retell-client.js`), so there is no CDN script.
+  (`npm run build` builds `public/vendor/retell-client.js`, the icons and the offline manifest; `npm run vendor` builds only the engine bundle), so there is no CDN script.
 
 ## Languages
 
@@ -162,7 +162,7 @@ guardrail input topic *platform integrity (jailbreaking)* on; Conversational and
 ## Commands
 
 ```
-npm install && npm run vendor          # builds public/vendor/retell-client.js (required for real voice)
+npm ci && npm run build               # builds public/vendor/retell-client.js (required for real voice), icons and the offline manifest
 MGADI_VOICE_MODE=mock npm start        # labelled simulation: ?mockvoice=fast,fail-mic,fail-provider,drop,nocaptions
 npm test                               # provider mocked
 MGADI_PLAYWRIGHT=... node scripts/voice-smoke.mjs        # browser checks (simulation)
