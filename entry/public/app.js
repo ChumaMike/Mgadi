@@ -5,12 +5,14 @@ import { sha256Hex } from './shared/sha256.js';
 import { makePack, verifyPack } from './shared/pack.js';
 import { triageWithFallback } from './shared/triage-client.js';
 import { initVoice } from './voice/panel.js';
+import { initOffline } from './offline/register.js';
 import { buildPackData, defaultPackOptions, previewItems, summarySections, formatTime } from './shared/summary.js';
 
 const app = document.querySelector('#app');
 const emergencyButton = document.querySelector('#emergency-button');
 let playbook;
 let fraudLines;
+let resources = null; // external links live apart from the guidance text, and only reviewed hosts may be linked
 let incident = { timeline: [], evidence: [], outcomes: {} };
 // Placeholder until the voice panel is ready; the launch button is created through it so every screen shares one panel.
 let voice = { launchButton: () => document.createDocumentFragment() };
@@ -32,11 +34,34 @@ function log(text) { incident.timeline.push({ at: new Date().toISOString(), text
 let inBank = false;
 let afterBank = null;
 
-function reviewBadge() {
-  const text = playbook.reviewed ? (playbook.reviewNote || 'Guidance reviewed.') : 'Draft guidance: not yet reviewed by a qualified practitioner. Translations are unreviewed drafts too.';
+function reviewBadge(flow) {
+  const base = playbook.reviewed ? (playbook.reviewNote || 'Guidance reviewed.') : 'Draft guidance: not yet reviewed by a qualified practitioner. Translations are unreviewed drafts too.';
+  // A guide can carry its own, stricter note. The ransomware guide was written from public CISA and No More Ransom material.
+  const text = flow?.reviewed === false && flow.title.toLowerCase().includes('ransomware')
+    ? `${base} This ransomware guide was written from public CISA and No More Ransom guidance and has not been checked by a practitioner.`
+    : base;
   return element('p', text, { className: 'notice review-status print-keep' });
 }
 function plain(tag, text, className) { const node = document.createElement(tag); node.textContent = text; if (className) node.className = className; return node; }
+
+// Only https links to hosts listed in resources.json are ever rendered. Link text is set as text, never parsed as HTML.
+function resourceLinks(route) {
+  const items = (resources?.routes?.[route] ?? []).filter((item) => {
+    try { const url = new URL(item.url); return url.protocol === 'https:' && resources.allowedHosts.includes(url.hostname); } catch { return false; }
+  });
+  if (!items.length) return null;
+  const box = element('details', '', { className: 'resources' });
+  box.append(element('summary', 'Trusted resources (open outside Mgadi)'), element('p', resources.note, { className: 'notice' }), plain('p', `Links last checked on ${resources.checkedOn}. They need an internet connection.`, 'privacy'));
+  const list = element('ul');
+  for (const item of items) {
+    const li = document.createElement('li');
+    const link = document.createElement('a'); link.href = item.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = item.title;
+    li.append(link, plain('span', ` ${item.publisher}. ${item.purpose}`));
+    list.append(li);
+  }
+  box.append(list);
+  return box;
+}
 
 function showBankLines() {
   const previous = [...app.childNodes];
@@ -58,14 +83,8 @@ function showHome() {
   clear(); const card = element('section', '', { className: 'card' });
   card.append(element('h1', 'What happened?'), element('p', 'Describe the incident in your own words. Mgadi will guide you to one safe next step.'));
   const choices=element('div', '', {className:'incident-choices'});
-  choices.append(element('p', 'Choose what happened, or describe it below.'));
-  for (const [text,label] of [['I paid after bank details changed','payment_diversion'],['I have not paid a suspicious request','suspicious_message'],['I am not sure','clarify']]) {
-    choices.append(button(text,()=>{
-      incident={timeline:[],evidence:[],outcomes:{},description:'',triage:{label:label==='clarify'?'unsure':label,confidence:0},source:'user-selected route'};
-      log('Owner chose a situation from the buttons');
-      if (label === 'clarify') showClarify(); else showIncident(label);
-    }, 'button secondary'));
-  }
+  choices.append(element('p', playbook.entry.intro));
+  for (const option of playbook.entry.options) choices.append(button(option.text, () => chooseEntry(option), 'button secondary'));
   card.append(choices);
   const description = element('textarea', '', { id: 'incident-description', placeholder: 'Example: We paid a supplier after an email said their banking details changed. They say they never got the money.' });
   const names = element('input', '', { id: 'names-to-hide', placeholder: 'Optional: names to hide, separated by commas' });
@@ -98,6 +117,26 @@ async function triage(redactedText) {
   const route = routeTriage(schema);
   const proceed = () => (route === 'clarify' ? showClarify() : showIncident(route));
   if (inBank) afterBank = proceed; else proceed();
+}
+
+// An entry choice either goes straight to a reviewed guide, asks a second plain question, or opens the one-question screen.
+function startFromChoice(route) {
+  incident = { timeline: [], evidence: [], outcomes: {}, description: '', triage: { label: route === 'clarify' ? 'unsure' : route, confidence: 0 }, source: 'user-selected route' };
+  log('Owner chose a situation from the buttons');
+}
+function chooseEntry(option) {
+  if (option.route) { startFromChoice(option.route); showIncident(option.route); }
+  else if (option.next === 'payment') showPaymentChoice();
+  else { startFromChoice('clarify'); showClarify(); }
+}
+function showPaymentChoice() {
+  const flow = playbook.entry.payment;
+  clear(); const card = element('section', '', { className: 'card' });
+  card.append(element('h1', flow.title), element('p', 'Your bank fraud line stays at the top of every screen.', { className: 'notice' }));
+  const choices = element('div', '', { className: 'incident-choices' });
+  for (const option of flow.options) choices.append(button(option.text, () => chooseEntry(option), 'button secondary'));
+  card.append(choices, button('Back', showHome, 'button secondary'));
+  app.append(card);
 }
 
 // Low confidence or "I am not sure": ask one plain question. The owner's answer picks a reviewed route.
@@ -152,9 +191,10 @@ function skipCurrentStep() {
 function renderStep() {
   const { label, flow, position } = journey;
   clear(); const step = flow.steps[position]; const card = element('section', '', { className: 'card' });
-  card.append(element('p', `${flow.title} · Step ${position + 1} of ${flow.steps.length}`, { className: 'step-count' }), reviewBadge(), element('h1', step.title), element('p', flow.summary), element('h2', 'Why this matters'), element('p', step.why), element('h2', 'Do this now'));
+  card.append(element('p', `${flow.title} · Step ${position + 1} of ${flow.steps.length}`, { className: 'step-count' }), reviewBadge(flow), element('h1', step.title), element('p', flow.summary), ...(flow.orgNote ? [element('p', flow.orgNote, { className: 'notice org-note' })] : []), element('h2', 'Why this matters'), element('p', step.why), element('h2', 'Do this now'));
   const list = element('ul'); step.do.forEach((item) => list.append(element('li', item))); card.append(list);
   const guidance=[...card.querySelectorAll('h1, p:not(.step-count):not(.review-status), li')];
+  const links = resourceLinks(label); if (links) card.append(links);
   card.append(guidanceControls(guidance, `${label}.${step.id}`), button('Call experience — prototype',()=>callWalkthrough(guidance),'button secondary'), voice.launchButton());
   if (step.id === 'bank') card.append(button('Choose a bank fraud line', showBankLines, 'button danger'));
   // A button press is the owner's own report. It is never proof that the bank answered or acted.
@@ -250,6 +290,8 @@ function showPack(pack) {
 
 installAccessibility();
 emergencyButton.addEventListener('click', showBankLines);
+// The offline copy is saved in the background. It must never delay or break the emergency screens, so failures are swallowed.
+initOffline({ statusEl: document.querySelector('#offline-status') }).catch(() => {});
 // What the voice panel may see and do. It can read progress and show the bank list; only the person's own taps confirm steps.
 const voiceBridge = {
   getJourney: () => (journey ? {
@@ -263,6 +305,6 @@ const voiceBridge = {
   showText: () => { const heading = app.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus(); } },
 };
 const voiceReady = initVoice({ bridge: voiceBridge }).catch(() => ({ launchButton: () => document.createDocumentFragment() }));
-Promise.all([fetch('/data/playbook.json').then((response) => response.json()), fetch('/data/fraud-lines.json').then((response) => response.json())])
-  .then(async ([loadedPlaybook, loadedLines]) => { playbook = loadedPlaybook; fraudLines = loadedLines; voice = await voiceReady; showHome(); })
+Promise.all([fetch('/data/playbook.json').then((response) => response.json()), fetch('/data/fraud-lines.json').then((response) => response.json()), fetch('/data/resources.json').then((response) => response.json()).catch(() => null)])
+  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; showHome(); })
   .catch(() => { clear(); app.append(element('p', 'Mgadi could not load its local safety guide. Please call the fraud number on the back of your bank card.')); });
