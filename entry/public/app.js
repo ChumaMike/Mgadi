@@ -6,7 +6,7 @@ import { makePack, verifyPack } from './shared/pack.js';
 import { triageWithFallback } from './shared/triage-client.js';
 import { initVoice } from './voice/panel.js';
 import { initOffline } from './offline/register.js';
-import { buildPackData, defaultPackOptions, previewItems, summarySections, formatTime } from './shared/summary.js';
+import { buildPackData, defaultPackOptions, previewItems, summarySections, formatTime, sanitizeHandoff, AFFECTED } from './shared/summary.js';
 
 const app = document.querySelector('#app');
 const emergencyButton = document.querySelector('#emergency-button');
@@ -27,7 +27,10 @@ function element(tag, text, attributes = {}) {
   return node;
 }
 function button(text, onClick, className = 'button') { const node = element('button', text, { className, type: 'button' }); node.addEventListener('click', onClick); return node; }
-function clear() { stopSpeech(); app.replaceChildren(); requestAnimationFrame(() => { const heading = app.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus(); } }); }
+// Focus moves to the new screen's heading so a screen reader says where you are, but NOT on the very first screen: stealing focus
+// on load would leave the header (the bank button) behind a keyboard user.
+let hasRendered = false;
+function clear() { stopSpeech(); app.replaceChildren(); const moveFocus = hasRendered; hasRendered = true; if (moveFocus) requestAnimationFrame(() => { const heading = app.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus(); } }); }
 function log(text) { incident.timeline.push({ at: new Date().toISOString(), text }); }
 
 // While the owner has the bank numbers open, a late triage result must not replace that screen.
@@ -227,11 +230,54 @@ function showEvidencePack(flow) {
   business.value = incident.business ?? ''; amount.value = incident.amount ?? '';
   business.addEventListener('input', () => { incident.business = business.value; });
   amount.addEventListener('input', () => { incident.amount = amount.value; });
-  card.append(element('h1', 'Keep evidence and make your incident pack'), element('p', 'Choose screenshots, emails or proof of payment. Files stay on this device; only their fingerprints go into the pack.'), element('label', 'Evidence files', {for:'evidence-files'}), files, feedback, list, element('label', 'Business', {for:'business-name'}), business, element('label', 'Amount paid', {for:'amount-paid'}), amount, button('Review what goes in the pack', () => showPackReview(flow)), button('Start a new incident', showHome, 'button secondary'));
+  card.append(element('h1', 'Keep evidence and make your incident pack'), element('p', 'Choose screenshots, emails or proof of payment. Files stay on this device; only their fingerprints go into the pack.'), element('label', 'Evidence files', {for:'evidence-files'}), files, feedback, list, element('label', 'Business', {for:'business-name'}), business, element('label', 'Amount paid', {for:'amount-paid'}), amount, handoffForm(), button('Review what goes in the pack', () => showPackReview(flow)), button('Start a new incident', showHome, 'button secondary'));
   app.append(card);
 }
 
-function packState() { return { ...incident, guideReviewed: playbook.reviewed }; }
+// Optional details for whoever helps next: a bank, an IT specialist or the police. Everything stays on this device until the owner
+// chooses to share the pack. It is collapsed so it never lengthens the emergency path, and every field may be left empty.
+function handoffForm() {
+  const box = element('details', '', { className: 'handoff-form' });
+  box.append(element('summary', 'Add details for your bank or a specialist (optional)'));
+  box.append(element('p', 'Do not type passwords, PINs, one-time codes or full card or account numbers here. Anything you type is hidden the same way as your description, but only patterns are caught.', { className: 'notice' }));
+  const saved = incident.handoff ?? (incident.handoff = {});
+  const field = (id, label, node, key, help) => {
+    const row = element('div', '', { className: 'field' });
+    node.id = id; if (help) node.setAttribute('aria-describedby', `${id}-help`);
+    const handler = () => { saved[key] = node.value; };
+    node.addEventListener('input', handler); node.addEventListener('change', handler);
+    row.append(element('label', label, { for: id }), node);
+    if (help) row.append(element('p', help, { id: `${id}-help`, className: 'privacy' }));
+    box.append(row);
+  };
+  const text = (max, extra = {}) => { const node = element('input', '', { type: 'text', maxlength: String(max), autocomplete: 'off', ...extra }); return node; };
+  const choice = (entries, firstLabel) => {
+    const node = element('select'); if (firstLabel) node.append(plain('option', firstLabel));
+    for (const [value, label] of entries) { const option = plain('option', label); option.value = value; node.append(option); }
+    return node;
+  };
+  const affected = choice(Object.entries(AFFECTED), 'Choose one'); affected.options[0].value = '';
+  // First-person wording for the form. The pack itself carries the third-person wording in OUTCOMES.
+  const outcome = choice([['unknown', 'Unknown: I have not heard back'], ['pending', 'Pending: I am waiting to hear back'], ['confirmed', 'I have been told the outcome']]);
+  field('handoff-discovered', 'When did you first notice? (as you remember it)', text(60), 'discoveredAt');
+  field('handoff-affected', 'What was affected?', affected, 'affected');
+  field('handoff-affected-note', 'Short note about what was affected', text(120), 'affectedNote');
+  field('handoff-reference', 'Reference number from a bank or specialist', text(40), 'reference', 'Only type a number you were actually given. Mgadi cannot check it, and it is not hidden in the pack.');
+  field('handoff-outcome', 'How do things stand with the bank or specialist?', outcome, 'outcome', 'Unknown is not the same as a good result.');
+  field('handoff-followup', 'Next follow-up you plan', text(120), 'followUp');
+  for (const [id, key] of [['handoff-discovered', 'discoveredAt'], ['handoff-affected', 'affected'], ['handoff-affected-note', 'affectedNote'], ['handoff-reference', 'reference'], ['handoff-outcome', 'outcome'], ['handoff-followup', 'followUp']]) {
+    const node = box.querySelector(`#${id}`); if (saved[key] != null) node.value = saved[key];
+  }
+  if (sanitizeHandoff(saved)) box.open = true;
+  return box;
+}
+
+// What each step looked like when the pack was made: only the owner's taps, never anything an assistant said.
+function journeySteps() {
+  if (!journey) return [];
+  return journey.flow.steps.map((step) => ({ id: step.id, title: step.title, state: journey.status[step.id]?.state ?? 'pending', at: journey.status[step.id]?.at ?? null }));
+}
+function packState() { return { ...incident, steps: journeySteps(), guideReviewed: playbook.reviewed }; }
 
 // Privacy-first preview: the owner sees exactly what will be in the pack before it is made.
 function showPackReview(flow) {
@@ -255,6 +301,7 @@ function showPackReview(flow) {
   check('include-original', 'Also include my own words exactly as I typed them. They may contain names or numbers.', 'includeOriginal', Boolean(String(state.description ?? '').trim()));
   check('include-business', 'Include the business name', 'includeBusiness', Boolean(String(state.business ?? '').trim()));
   check('include-amount', 'Include the amount paid', 'includeAmount', Boolean(String(state.amount ?? '').trim()));
+  check('include-handoff', 'Include handoff details: the steps you reported, what is still open and anything you typed for a bank or specialist', 'includeHandoff', true);
   card.append(element('h2', 'What will be in the pack'), preview, element('p', 'Hiding is pattern based: names are only hidden if you listed them, so read the text above before sharing.', { className: 'privacy' }));
   render();
   card.append(button('Make incident pack', async () => {
