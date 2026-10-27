@@ -35,7 +35,7 @@ for (const [name, status] of catalogue) {
     const actual = createHash('sha256').update(raw).digest('hex');
     integrity = !recorded ? ' [no recorded hash]' : recorded === actual ? ' [hash matches the sealed record]' : ' [HASH MISMATCH: the sealed set was edited]';
   }
-  const label = sealed ? `sealed: scored once, not tuned on${integrity}` : status;
+  const label = sealed ? `sealed: first score kept, never tuned on${integrity}` : status;
   sets.push([`prep/${name}.json`, label, JSON.parse(raw.toString('utf8')).cases.map((c) => [c.id, c.text, c.expect, c.also_ok ?? [], c.kind ?? '']), integrity.includes('MISMATCH') ? 'tampered' : null]);
 }
 
