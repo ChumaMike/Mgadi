@@ -1,0 +1,4 @@
+{
+  "about": "SHA-256 of each sealed evaluation set at the moment it was sealed. A sealed set is scored once and never tuned on. If a file changes, its hash here must change in the same commit, which makes the edit visible in review. heldout-4 was sealed in commit 1287038 before any ransomware rule was written and scored once; a later one-pattern fix to credential-request detection was shown to leave all 46 of its outputs unchanged. heldout-3 was REOPENED on 27 Oct 2026: narrowing the bare-PIN pattern regressed case s07, and the fix (a general 'asked for my PIN/OTP/password' family) was made after looking at s07, so heldout-3 is a used set from now on and is no longer in this record.",
+  "heldout-4.json": "906406f779ecd3a283116abd2f37a0f54b3cc3df488400f3df987fee7d332b8c"
+}
