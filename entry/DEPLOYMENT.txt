@@ -102,3 +102,19 @@ Preview plan (ask first for items 1-4; answers go in SOURCE-OF-TRUTH.md)
 7. Roll back through the platform to the last good deployment if a build fails. If a bad service worker ever shipped: ship a fixed /sw.js (the previous working copy stays in use until the new one installs fully; a REPAIR message re-saves a damaged copy). No destructive Git reset.
 
 CI: the workflow is written but NOT ACTIVE. It is at entry/ci/github-actions-ci.yml because the connection used to publish this branch was refused permission to write under .github/workflows/. To switch it on, copy it to .github/workflows/ci.yml on the branch with an account that has workflow permission, and enable Actions if it is off. When active it runs on pull requests (unit, scoreboard, reproducible build, every browser suite with skips counted as failures, audit); it uses no secrets and never deploys or calls a provider. It has never run on GitHub.
+
+
+LINKS: SUPPLIER CHECK AND RESPONDER HANDOFF (branch feature/popia-supplier-check-handoff; NOTHING HAS BEEN DEPLOYED; every step needs the owner's go-ahead)
+What the server keeps, for how long, and the limits: LINKS-DATA.md. Risks and tests: SECURITY-REVIEW.md section 10. Status: RELEASE-READINESS.md section 9.
+
+What changes for a deployment
+- One new function: api/links.js (POST /api/links). vercel.json already covers it: the api/*.js function settings include server/** and public/shared/**, and /api/* answers are no-store. No header or CSP change was needed (the route is same-origin).
+- ON VERCEL, LINKS NEED A SHARED STORE. Without one the route answers 503 links_unavailable and the screens say sharing is not available (fail closed), because a serverless instance's memory is not shared and links would vanish at random. The same variables the voice quota uses work here: UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN, or KV_REST_API_URL + KV_REST_API_TOKEN. The URL must be https. Set them in the project settings only, never in Git or chat.
+- MGADI_LINK_TTL_HOURS (optional): how long a link lives. Default 168 (7 days). Clamped to 1-168 hours, so it cannot be set longer.
+- Creating a store is an account step for the owner (an Upstash-style store or Vercel KV). It may have a free tier; check limits, cost, data location, retention and request logging yourself. Nothing was created or paid for in this work. The store code has only ever been run against a FAKE that speaks the same protocol, never a real store.
+- Locally (npm start) and on a single always-on Node host, a memory store is used: links disappear on restart, and nothing leaves the machine.
+- Everything in the store is locked content the server cannot read, two one-way fingerprints, a status and times. Deleted automatically after the lifetime. There is no "delete now".
+- The browser needs https or localhost to lock the content (WebCrypto). A phone opening a laptop's http address will see sharing switched off.
+
+Checks after a preview exists (none done): the first supplier check on two real devices over https; approve from the second device; confirm the owner's screen updates; confirm the link stops working after its lifetime (shorten MGADI_LINK_TTL_HOURS to 1 for the test); confirm a store outage shows "not available" rather than a false success; read the host's and the store's own log settings, which are outside Mgadi's control.
+

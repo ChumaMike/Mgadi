@@ -1,0 +1,43 @@
+Task: popia-supplier-check-handoff
+Date: 28 October 2026
+Branch: feature/popia-supplier-check-handoff (from feature/emergency-offline-readiness a9ec3d5, which is PR #4 on feature/live-voice-companion, PR #3, on feature/critical-fixes, PR #2). NOT merged. NOT deployed. BOARD.json not modified (coordinator-only).
+Direction: three features on top of the existing app, no rebuilds: (1) a POPIA notification draft built from the incident pack; (2) a supplier payment-change check with an independent-verification record and a second person who approves or rejects by link, with an audit record; (3) a responder handoff the owner approves, shared by link, that the contact acknowledges.
+
+READ FIRST: entry/LINKS-DATA.md (exactly what the server keeps, and for how long), entry/SECURITY-REVIEW.md section 10 (threats, findings, tests), entry/RELEASE-READINESS.md section 9 (built / mocked / not built, what needs your decision, a demo script).
+
+WHAT THE SERVER KEEPS (short version; the long one is LINKS-DATA.md)
+Per link, for at most 7 days (default 168 hours, clamped to 1-168): locked content it cannot read (AES-GCM, done in the browser; the key lives only after the # in the link), two SHA-256 fingerprints of link codes, a kind, a status (approved / rejected / acknowledged), and server times. Nothing else: no plaintext, key, raw code, account, name, address or log from Mgadi's code. The rate limiter holds a caller's address in process memory for up to an hour. The host and the store provider may log on their own. No "delete now".
+
+BUILT
+- public/shared/seal.js, text.js, supplier-check.js, responder.js, popia.js; public/tools/tools.js (screens); server/links.js; api/links.js; one route in server/app.js; three small wiring edits in public/app.js; CSS appended.
+- On a hosted Vercel site, links need a shared store; without one the route answers 503 and the screens say sharing is unavailable. Local use keeps links in memory.
+
+RESULTS (actual, this branch, desktop Chromium, synthetic data, local server, no external hosts)
+- npm test 231/231 (175 existing + 56 new). npm audit 0 vulnerabilities. Scoreboard unchanged (0 unsafe; heldout-3 9/17 reopened; heldout-4 46/46 with the author-bias caveat).
+- Browser: browser-smoke 37/37, emergency-smoke 59/59, voice-smoke 88/88, retell-sdk-smoke 37/37 (real SDK, MOCKED provider), pwa-smoke 34/34, a11y-smoke 76/76 (was 49; 27 new checks on the new screens), tools-smoke 63/63 (new; two separate browser contexts play the owner and the second person; four checks run with the server shut down). 394 browser checks in all.
+- One unexplained intermittent failure: tools-smoke passed 63/63 in 12 consecutive runs, but one run (the first after I edited three of its checks) timed out waiting for the "This link cannot be used" screen when opening a tampered link in a fresh browser context. Not reproduced in 12 further runs; I did not keep that run's full output. Unknown whether it was a slow start-up on this machine or a real start-up race in openFromHash. If it recurs in CI, look there first.
+- Mutation checks on the new tests: 67 runs including re-runs. Eight survived at first: the service's own expiry check, prototype names accepted as a choice, five phrasings that implied Mgadi holds/protects/approves/verifies a payment (the wording guard was weak), and one vacuous mutation of mine. All closed.
+
+FOUND AND FIXED ON THE WAY (details in SECURITY-REVIEW.md section 10.4)
+- A retry after a lost reply re-locked the content with a new IV, so the server saw a conflicting record (owner stuck).
+- The memory store never removed expired entries.
+- The handoff payload accepted non-string lines.
+- A screen text and a code comment said "never keeps your address or any log"; the rate limiter does hold the address in memory for up to an hour. Wording corrected everywhere.
+- The wording guard was weak (see above); strengthened, judged one sentence at a time, with a self-test.
+- A first browser check claimed the server never received a raw code. False: the owner's page presents its own code to read the answer. Narrowed to what is true.
+- The translation report only saw single-quoted strings in the screens file; the new row now scans every sentence-like literal in the screens and the shared texts (2% translated, not 4%).
+- The POPIA draft followed the older SCN1 form. I read the Regulator's own eServices portal guide (28 Oct) and the draft now follows both structures, says registration is needed, adds Potential status, an impact section and the sample-notice upload, and still tells the information officer to confirm which route applies today. I could not confirm from the Regulator a claim in one commercial blog that portal filing became compulsory on 1 April 2025.
+
+NOT DONE / NOT VERIFIED
+- No deployment, no URL, no real shared store (the REST store has only met a fake that speaks the same protocol), no phone, no second real device (the second person is a second browser profile on this machine), no screen reader.
+- No lawyer or information officer has reviewed the POPIA text. No fraud or payments practitioner has reviewed the red flags or the verification wording. No usability test of "second person", "helper" or "acknowledge", or of the warning on links someone else made.
+- Not built: delivery of links (email, SMS, WhatsApp), approver identity, a server-signed audit attestation, deleting or revoking a link, a notification when an answer arrives, a global quota, translations of the new screens, a penetration test.
+- CI is still NOT ACTIVE (workflow files cannot be published with the connection used here).
+
+DECISIONS WAITING FOR THE TEAM
+- Confirm proposed invariants 18-23 in SOURCE-OF-TRUTH.md section 5, and that server-held locked content (no accounts, 7 days) fits the product scope.
+- Choose and create a shared store before any hosted use (an account step for the owner; check its limits, cost, retention and logging).
+- Choose who reviews the POPIA text and the supplier-check wording.
+- Merge order, if PR #2, #3 and #4 are merged with squash, this branch's base will diverge: use merge commits or rebase this branch after each merge.
+
+What the coordinator should integrate: nothing automatically. Review the draft PR; do not merge without the owner's explicit go-ahead.
