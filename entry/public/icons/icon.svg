@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mgadi">
+  <rect width="512" height="512" fill="#123c35"/>
+  <path d="M133 379V143l123 143 123-143v236" fill="none" stroke="#f7f4ec" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="256" cy="410" r="23" fill="#e9b44c"/>
+</svg>
