@@ -47,6 +47,34 @@ No South African ransomware source is cited, because I did not verify one. Pleas
 8. **Mixed incidents.** A story that mentions both a payment problem and locked files asks one question and keeps the bank step. Is that the right priority?
 9. **Entry screen.** Are the five plain choices and the "what happened with the money?" sub-question understandable and complete for a small-business owner?
 
+## Supplier payment-change check, POPIA draft and helper summary (added 28 October 2026)
+
+**These are drafts. No practitioner, lawyer or information officer has reviewed them.** They sit beside the emergency flow and never replace the bank-first steps.
+
+**What the owner sees:**
+- **Supplier payment-change check** (a separate button, for *before* paying). The owner logs the request and gets red flags with a written level (High / Medium) and "VERIFY BEFORE PAYING". They record an independent check: who they spoke to, where the phone number came from, and what the supplier said. Only "an old invoice or contract", "the records of an earlier payment" and "my own contacts, saved before this request" count as independent; "the message or request itself", "something I just found online" and "I am not sure" do not. A second person can approve or reject once, from a link. The owner can keep an audit record. **Mgadi never blocks, holds or releases a payment and never says it does.** "I have already paid" goes to the existing bank-first guide.
+- **POPIA notification draft** (on the incident pack): a template for the information officer. It states first and last that it is not legal advice, ticks nothing, leaves every unknown as a visible blank, and leaves the question "are there reasonable grounds to believe personal information was accessed or acquired by an unauthorised person?" to the information officer.
+- **Helper summary** (on the incident pack): a short summary the owner previews and approves, shared by link. The helper presses **Acknowledge**, which means "seen", not "accepted".
+
+### Sources used
+
+| Used for | Source | Limitation |
+|---|---|---|
+| Red flags, and confirming changed details through a known contact | The Absa and FBI IC3 BEC pages already listed above; the owner-facing flags are the author's synthesis | Not a validated risk model. Levels (High / Medium) are the author's judgement |
+| The section 22 trigger, timing and what a notice to affected people must contain | [POPIA section 22 text](https://popia.co.za/section-22-notification-of-security-compromises/), read in full 27 October 2026 | A third-party site reproducing the Act; check the Act itself |
+| How and where to report, and what the report asks for | The Information Regulator's own [step-by-step guide to reporting on the eServices portal](https://www.inforegulator.org.za/wp-content/uploads/2025/05/stepbystepguide.pdf) (read in full 28 October 2026; the file is in the Regulator's May 2025 uploads and is itself undated) and its [forms page](https://inforegulator.org.za/popia-forms/) | The guide says the organisation and its information officers must be registered, lists the portal's sections (statistical details, incident details with Confirmed / Potential / Alleged, notification with a mandatory upload of a sample notice, impact, document upload in PDF) and does not mention email. It does not say whether the older SCN1 form is withdrawn |
+| The older prescribed form (SCN1, August 2022) and its Parts A, B and C | Summaries by [Bowmans](https://bowmanslaw.com/insights/south-africa-information-regulator-publishes-a-new-prescribed-form-to-be-used-in-the-event-of-a-security-compromise/), [Cliffe Dekker Hofmeyr](https://www.cliffedekkerhofmeyr.com/en/news/publications/2022/Sector/Technology/technology-and-communications-newsletter-26-august-2022-information-regulator-issues-data-breach-notification-guidelines-and-template.html) and SEESA, read in part (27 October) | Law-firm summaries, not the form. Some 2022-era sources say the form was emailed to the Regulator; one commercial blog says portal filing became compulsory from 1 April 2025. **I could not confirm that date from the Regulator.** The draft therefore says "check which route applies today" and does not choose |
+
+### Questions for the reviewer
+
+1. **Red flags.** Are the six prompts and the levels right for a South African small business? What is missing (look-alike domains, first-time payee, round amounts)? Is "High" for *any* change to banking details too strong or about right?
+2. **Independent verification.** Is the list of what counts as independent right? Is "I phoned a number I already had" sufficient, or should the screen say more about who to ask for?
+3. **The second person.** Does asking a second person to approve help, or does it create false comfort? Should the screen say the second person should also phone the supplier on the number already held? (Today it says only that Mgadi has not checked who sent the request and cannot check the call.)
+4. **Wording.** "VERIFY BEFORE PAYING", "Do not pay to the new details" when the supplier denies the change, and "You report that you phoned a number you already had…": acceptable, or would an owner read them as a guarantee?
+5. **POPIA draft.** For an information officer or lawyer: are the structure, the decision box, the "Confirmed / Potential / Alleged" and consequence lists, and the notice wording sound? Is it right that nothing is pre-ticked? What is missing (operators and section 21, delay reasons, annexures)? Which route does the Regulator require **today**?
+6. **Helper summary.** Is the set of facts right (situation, times, steps as reported by the owner, evidence count) and is the exclusion list right (no story, business name, amount, evidence names or fingerprints)? Does "Acknowledge" read as "seen" to a small-business owner or a helper?
+7. **Comprehension.** Do owners understand "second person", "helper" and "acknowledge"? Nobody has been asked (no user test was run).
+
 ## How to request the review
 
 Ask the Track 3 mentor to identify someone experienced in bank-fraud response or incident response. A business mentor/accountant can check clarity and supplier practice; bank, IT and privacy/reporting details may need different specialists.
@@ -83,6 +111,11 @@ Scope/routes/languages: __________  Public attribution permitted: yes / no
 | Ransomware 7 Handoff, SAPS, Information Regulator wording | | | | | |
 | Entry screen: five choices and the money sub-question | | | | | |
 | Pack handoff wording ("reported by the owner", "no referral was made") | | | | | |
+| Supplier check: red flags and their levels | | | | | |
+| Supplier check: independent-verification wording and what counts as independent | | | | | |
+| Supplier check: second-person approval, "VERIFY BEFORE PAYING" and the audit-record wording | | | | | |
+| POPIA draft: structure, decision box, consequence lists and notice wording (information officer or lawyer) | | | | | |
+| Helper summary: contents, exclusions and "Acknowledge" wording | | | | | |
 
 Voice consent wording and the cross-border note are **legal** review items, not playbook review items (see `RELEASE-READINESS.md` §5).
 

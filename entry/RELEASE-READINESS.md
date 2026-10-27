@@ -2,6 +2,8 @@
 
 Branch: `feature/emergency-offline-readiness`, stacked on `feature/live-voice-companion` (PR #3) on `feature/critical-fixes` (PR #2) on `main`. **Nothing has been merged, deployed or pushed to `main`. No real voice call has ever been made.** Every number below is from a run on this branch; "not tested" means exactly that.
 
+> **Update, 28 October 2026 (written after the rest of this document).** Chuma merged PR #2, PR #3 and PR #6 on 27 October 2026 at about 23:06 UTC (01:06 SAST on 28 October). PR #6 carried this whole stack into `main`, including the supplier-check, POPIA and handoff code **up to commit `6bda84f`**. Sentences below that say nothing is merged, and the merge order in §5 item 1, describe the time they were written. I merged nothing and pushed nothing to `main`. The documentation that came after that commit (§9 in its final form, `SECURITY-REVIEW.md` §10, `SOURCE-OF-TRUTH.md`) is in PR #7. `main` as merged builds and passes the same 231 unit tests. Nothing is deployed by me.
+
 ## 1. Status at a glance
 
 | Question | Answer |
@@ -95,3 +97,62 @@ npm run scoreboard
 npm run test:browser        # needs Playwright 1.56 and axe-core outside the lock file; see entry/ci/github-actions-ci.yml
 MGADI_VOICE_MODE=mock npm start     # simulated voice for the demo
 ```
+
+---
+
+## 9. Addendum: POPIA draft, supplier payment-change check, responder handoff (branch `feature/popia-supplier-check-handoff`, 28 October 2026)
+
+Built on `feature/popia-supplier-check-handoff`, stacked on `feature/emergency-offline-readiness`. **The code and tests reached `main` through PR #6 (merged by Chuma, see the note at the top); this addendum's final documentation is PR #7. I pushed nothing to `main`. Nothing is deployed by me, and no external service, account or paid product was used or created.** The data statement is `LINKS-DATA.md`; the security addendum is `SECURITY-REVIEW.md` §10.
+
+### 9.1 Built, mocked, not built
+
+| | Built (real code, tested) | Mocked or only simulated | Not built |
+|---|---|---|---|
+| **POPIA draft** | Template built in the browser from the incident pack; downloadable text; says "template for the information officer, not legal advice" first and last; leaves the section 22 decision to the information officer; sends nothing | — | Review by a lawyer or information officer; translations; filling the Regulator's own form; any submission |
+| **Supplier payment-change check** | Request log, red flags, "VERIFY BEFORE PAYING", independent-verification record (a number from the request itself does not count), second-person approve/reject by link with no account, first answer wins, replay harmless, SHA-256 audit record with export and a verifier, "already paid" goes to the bank-first guide. Never blocks or releases a payment | The "second person" is a second browser profile on the same machine in the tests | Notifying the second person (the owner shares the link); proving who the second person is; a server-signed attestation; Mgadi keeping an audit copy; practitioner review of the red flags |
+| **Responder handoff** | Owner-approved preview, smaller than the pack, shared by link; contact presses **Acknowledge**; statuses draft / sent / acknowledged; acknowledging is never "accepted"; the sender cannot acknowledge their own summary | Same second-profile caveat | Any delivery (email, SMS, WhatsApp); a responder accepting or declining; task tracking beyond this |
+| **Link service** | Create / read / decide / acknowledge, 7-day expiry, hashed codes, locked content, memory store, Upstash-style REST store, fail-closed on errors, refusal on Vercel without a shared store, Vercel adapter `api/links.js` | **The shared store is only a fake that speaks the same protocol.** It has never talked to a real Upstash or Vercel KV store | A real store; "delete now"; revoking one link; a global quota |
+
+### 9.2 What was verified (28 October 2026, desktop Chromium, synthetic data, local server, no external hosts)
+
+| Area | Result | Where |
+|---|---|---|
+| Unit, HTTP and security tests | **231 / 231** (175 existing + 56 new) | `npm test` |
+| Browser: the new tools (two separate browser contexts as owner and second person) | **63 / 63** (four of them with the server shut down) | `scripts/tools-smoke.mjs` |
+| Browser: accessibility, now including 10 new screens at 390 and 320 px and keyboard/focus/target checks on them | **76 / 76**, no serious or critical findings (was 49) | `scripts/a11y-smoke.mjs` |
+| Browser: the existing suites, unchanged | browser 37, emergency 59, voice 88, real SDK vs mocked provider 37, offline 34 (all passing) | `npm run test:browser` runs all 7 suites; 394 checks in total |
+| Mutation checks on the new tests | 67 runs including re-runs; 8 survived at first (7 real test gaps in 3 areas, 1 vacuous mutation of mine); all closed. See `SECURITY-REVIEW.md` §10.5 | by hand |
+| Real bugs found by the tests | 3 fixed: retry re-sealed with a new IV (owner stuck on a lost reply), memory store never removed expired entries, handoff accepted non-string lines | `SECURITY-REVIEW.md` §10.4 |
+
+**One unexplained intermittent failure.** `tools-smoke` failed **once**: the first run after I edited three of its checks timed out waiting for the "This link cannot be used" screen in the section that opens tampered links in a fresh browser context. The **12 runs that followed all passed 63/63** (one run, then eight in a row, then three straight after a rebuild). I did not capture the failed run's full output, so **I do not know whether it was a slow start-up of the test machine or a real race in how the app boots on a link address.** If it recurs in CI, treat it as a possible race in `openFromHash` at start-up and look there first.
+
+**Offline (tested with the HTTP server shut down, desktop Chromium):** the supplier check with its red flags and VERIFY BEFORE PAYING, and the POPIA draft with its download, work from the saved copy (4 checks in `tools-smoke`). Making, reading or answering a link needs the internet: the screens say "This needs an internet connection. Nothing was sent.", the helper summary stays a draft, and no link is made. The saved copy picked up the new public files automatically (the precache version changed); `pwa-smoke` still passes 34/34.
+
+**Not run on this branch or not repeated:** any phone, any second real device, any screen reader, any real store, any deployment.
+
+### 9.3 Waiting on you (numbered; continues from §5)
+
+11. **Confirm the scope change.** Mgadi's server now keeps locked content for up to 7 days (no accounts, nothing readable). `LINKS-DATA.md` lists it exactly. Proposed invariants 18–23 are in `SOURCE-OF-TRUTH.md` §5.
+12. **Choose a shared store before any hosted use.** On Vercel, links are refused without one. An Upstash-style store needs an account **you** create (check its limits and any cost yourself; I have not signed up for anything). Until then a hosted preview shows the feature as unavailable, which is the intended fail-closed behaviour.
+13. **Who reviews the wording.** POPIA draft: an information officer or lawyer. Supplier-check red flags and verification questions: a fraud or payments practitioner. Both are drafts and say so. The "second person" and "helper" wording needs a usability test with real small-business owners (not done).
+14. **Decide the sharing channel guidance.** Today the screens say the link can be read by whoever carries it. Decide whether to recommend a channel.
+15. Still open from §5: items 2–10 (Vercel account, Retell, CI, practitioner review, translators, and so on). Item 1, the merge order, has been overtaken (see the note at the top).
+
+### 9.4 The strongest truthful demo of the new features
+
+Laptop, `localhost` (WebCrypto needs https or localhost), synthetic data, **two browser windows (the second one private) standing in for two people on one machine**. Say only what is shown.
+
+1. Home screen: the five choices and bank button are unchanged. Open **"Check a supplier's changed bank details before paying"**. Point to the first notice: Mgadi cannot stop, block or release a payment.
+2. Enter a synthetic supplier, "banking details changed", "by email", tick "they asked me not to phone". Show the red flags with their written levels and **VERIFY BEFORE PAYING**.
+3. Record a verification. First choose "a number taken from the request" and show it does **not** count; then choose "an old invoice", tick "I made this call myself" and save. Say: this is the owner's report; Mgadi cannot check the call.
+4. Create the link for the second person. In the **private window** open it: the second person sees the request and the owner's report with a warning that Mgadi has not checked who sent it. Press Approve. Show the owner's page change **by itself** (checks every 8 seconds) with the server's time. Reload the second person's link: nothing to press. Say: first answer final.
+5. Make the audit record: SHA-256 fingerprint, "not a signature", "Mgadi does not keep this record". Export it, change one word in the file, load it in the checker: "This record has been changed."
+6. Make an incident pack. Show **Draft a POPIA notification (template)**: the disclaimer first and last, the blanks, the decision left to the information officer, no breach asserted. Download it.
+7. **Send a summary to a helper**: the preview, what is not included, the draft status, tick approve, create the link; open it in the private window and press Acknowledge. Say: acknowledged means seen, not accepted.
+8. Show `LINKS-DATA.md`: what the server keeps and for how long.
+
+Do **not** say: Mgadi approves, verifies or protects a payment; the second person is "verified"; POPIA compliant or legally reviewed; works on phones; delivered; end-to-end secure against a hostile server; or that the shared store works.
+
+### 9.5 Exact blockers to "hosted and demo-ready"
+
+(a) A shared store (item 12) before links work on Vercel. (b) A real second device over https to see two people use it. (c) Wording review (item 13). None can be completed by writing more code.

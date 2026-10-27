@@ -117,3 +117,25 @@ Nothing below has been done unless ticked. Each item says who or what is needed.
 - [ ] Screen reader and assistive-technology testing with real users (TalkBack, VoiceOver, NVDA). The automated suite is not a WCAG claim.
 - [ ] Independent security review or penetration test.
 - [ ] A new sealed evaluation set written by someone who has not seen the rules.
+
+## 7. Added by the POPIA / supplier-check / handoff sprint (28 October 2026): still waiting on real services or people
+
+Nothing below has been done unless ticked. Built and tested on this machine: the three features, the link service, 231 unit tests and 7 browser suites (see `RELEASE-READINESS.md` §9).
+
+### Hosting and devices
+- [ ] Decide to keep server-held locked content (no accounts, at most 7 days) in the product scope; confirm proposed invariants 18–23 in `SOURCE-OF-TRUTH.md`. _Team._
+- [ ] Provision a shared store (Upstash-style or Vercel KV), set its variables in the host, **not** in Git; check its limits, cost, retention and logging yourself. _Account owner._
+- [ ] Run the supplier-check approval and the helper acknowledgement once against that real store, from **two real devices over https**. Confirm expiry after the set time, and that a restart loses nothing.
+- [ ] Read the store provider's and host's own request-log settings (they are outside Mgadi's control).
+
+### People
+- [ ] Fraud or payments practitioner reviews the red flags, the verification wording and "VERIFY BEFORE PAYING" (`PLAYBOOK-REVIEW.md`).
+- [ ] Information officer or South African lawyer reviews the POPIA template, and confirms which reporting route the Regulator requires today (eServices portal or the older form).
+- [ ] Usability test with real small-business owners: do they understand "second person", "helper" and "acknowledge", and do they read anything as a guarantee? Test the warning shown on links someone else made.
+- [ ] Screen-reader and keyboard testing of the new screens with real users (the automated suite is not a WCAG claim).
+- [ ] Translators for the new screens (about 2% have a draft translation; all unreviewed).
+
+### Build decisions not yet made
+- [ ] Delete a link early / revoke one link; a notification when an answer arrives; a way to send the link (any delivery would be a separate, approved integration).
+- [ ] A global quota on stored links before any public use.
+- [ ] A server-signed or externally anchored audit attestation (today it is a checksum).
