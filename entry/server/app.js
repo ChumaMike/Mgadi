@@ -9,6 +9,7 @@ import { classifyRules } from '../public/shared/rules.js';
 import { validateTriage } from '../public/shared/labels.js';
 import { createVoiceService } from './voice.js';
 import { buildPrecacheManifest } from './precache.js';
+import { createLinkService, createLinkStoreFromEnv } from './links.js';
 
 const publicRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MAX_BODY_BYTES = 8 * 1024;
@@ -118,7 +119,7 @@ function loadPlaybook(root = publicRoot) {
   try { return JSON.parse(readFileSync(path.join(root, 'data', 'playbook.json'), 'utf8')); } catch { return { incidents: {} }; }
 }
 
-export function createHandler({ classifyWithAI = null, voice, env = process.env, fetchImpl = globalThis.fetch, publicDir } = {}) {
+export function createHandler({ classifyWithAI = null, voice, links, env = process.env, fetchImpl = globalThis.fetch, publicDir } = {}) {
   const root = publicDir ? path.resolve(publicDir) : publicRoot; // tests may serve a different copy of the app
   const voiceService = voice ?? createVoiceService({ env, fetchImpl, playbook: loadPlaybook(root) });
   let manifestMemo = { at: 0, value: null };
@@ -130,6 +131,23 @@ export function createHandler({ classifyWithAI = null, voice, env = process.env,
   }
   const allow = createRateLimiter();
   const cache = new Map();
+  // Sealed links (supplier check, responder handoff). See server/links.js for exactly what is stored. The limits are per instance.
+  const linkService = links ?? (() => { const { store, sharedRequired } = createLinkStoreFromEnv(env, { fetchImpl }); return createLinkService({ store, sharedRequired, ttlHours: Number(env.MGADI_LINK_TTL_HOURS) || undefined }); })();
+  const allowLinkCreate = createRateLimiter(20, 3_600_000);
+  const allowLinkUse = createRateLimiter(300, 600_000);
+
+  async function linksRoute(request, response) {
+    if (request.method !== 'POST') return reply(response, 405, { error: 'POST only' }, undefined, { Allow: 'POST' });
+    if (foreignOrigin(request)) return reply(response, 403, { error: 'forbidden' });
+    if (!String(request.headers['content-type'] ?? '').startsWith('application/json')) return reply(response, 415, { error: 'JSON only' });
+    let payload;
+    try { payload = await readJson(request); } catch (error) { return reply(response, error.status ?? 400, { error: error.status ? 'too large' : 'bad JSON' }); }
+    const client = clientKey(request);
+    const creating = payload?.op === 'create';
+    if (!(creating ? allowLinkCreate : allowLinkUse)(`${creating ? 'c' : 'u'}:${client}`)) return reply(response, 429, { error: 'rate_limited' });
+    const result = await linkService.handle(payload);
+    return reply(response, result.status, result.body);
+  }
 
   async function triage(request, response) {
     if (request.headers['sec-fetch-site'] === 'cross-site') return reply(response, 403, { error: 'forbidden' });
@@ -216,6 +234,7 @@ export function createHandler({ classifyWithAI = null, voice, env = process.env,
       try { pathname = new URL(request.url, 'http://mgadi.local').pathname; } catch { /* handled by the static route */ }
       if (pathname === '/api/health') return reply(response, 200, { ok: true, ai: Boolean(classifyWithAI) });
       if (pathname === '/api/voice/config' || pathname === '/api/voice/session') return await voiceRoute(request, response, pathname);
+      if (pathname === '/api/links') return await linksRoute(request, response);
       if (pathname === '/api/triage') {
         if (request.method !== 'POST') return reply(response, 405, { error: 'POST only' }, undefined, { Allow: 'POST' });
         return await triage(request, response);
