@@ -136,11 +136,11 @@ test('an error before the call is live fails it; an error during a live call onl
   assert.match(live.controller.getState().messages.at(-1).text, /Connection problem/);
 });
 
-test('an unexpected drop while offline reconnects with the history kept; two failed retries end in a clear failure', async () => {
-  const s = setup({ online: false }); const hooks = await goLive(s);
+test('a provider error while ONLINE reconnects with the history kept; two failed retries end in a clear failure', async () => {
+  const s = setup({ online: true }); const hooks = await goLive(s);
   hooks.onTranscript([{ id: 'agent_0', role: 'agent', content: 'Call your bank first.' }]);
   s.c.advance(10_000);
-  hooks.onEnd({});
+  hooks.onEnd({ disconnection_reason: 'error_retell' });
   assert.equal(s.controller.getState().phase, 'reconnecting');
   s.c.advance(1500); assert.equal(s.provider.sessions.length, 2);
   s.provider.last().request.hooks.onStatus('live');
@@ -148,12 +148,53 @@ test('an unexpected drop while offline reconnects with the history kept; two fai
   assert.deepEqual([st.phase, st.callIndex], ['live', 2]);
   assert.ok(st.messages.some((m) => m.text === 'Call your bank first.'), 'history survives the reconnect');
   assert.ok(types(s).includes('voice-reconnecting'));
-  // drop again twice
   s.provider.last().request.hooks.onEnd({ disconnection_reason: 'error_retell' });
   s.c.advance(4000); s.provider.last().request.hooks.onStatus('live');
   s.provider.last().request.hooks.onEnd({ disconnection_reason: 'error_retell' });
   assert.equal(s.controller.getState().phase, 'failed'); assert.equal(s.controller.getState().error.code, 'connection_lost');
   assert.ok(s.controller.getState().messages.some((m) => m.text === 'Call your bank first.'));
+});
+
+test('losing the connection mid-call: the session is ended cleanly, nothing retries, history and the bank pointer are kept', async () => {
+  const opts = { online: true }; const s = setup(opts); const hooks = await goLive(s);
+  hooks.onTranscript([{ id: 'agent_0', role: 'agent', content: 'Call your bank first.' }, { id: 'user_0', role: 'user', content: 'I paid the wrong account' }]);
+  s.c.advance(10_000);
+  opts.online = false; s.controller.networkChanged(false);
+  const st = s.controller.getState();
+  assert.equal(st.phase, 'failed'); assert.equal(st.error.code, 'offline');
+  assert.equal(s.provider.last().ended, 1, 'the provider session was closed, not left dangling');
+  assert.match(st.error.message, /needs an internet connection/i); assert.match(st.error.message, /guide on this phone/i);
+  assert.match(st.error.message, /bank fraud line is still at the top/i);
+  assert.deepEqual(st.messages.filter((m) => m.role !== 'system').map((m) => m.text), ['Call your bank first.', 'I paid the wrong account'], 'already displayed transcript is preserved');
+  assert.ok(st.messages.some((m) => m.role === 'system' && /needs the internet/.test(m.text)));
+  s.c.advance(60_000);
+  assert.equal(s.provider.sessions.length, 1, 'no reconnect attempts while offline');
+  assert.ok(types(s).includes('voice-failed'));
+  s.controller.networkChanged(true);
+  assert.equal(s.controller.getState().phase, 'failed', 'coming back online does not silently restart a paid call');
+});
+
+test('a drop that arrives while the device is offline fails at once instead of retrying', async () => {
+  const opts = { online: true }; const s = setup(opts); const hooks = await goLive(s);
+  s.c.advance(10_000); opts.online = false;
+  hooks.onEnd({});
+  assert.equal(s.controller.getState().phase, 'failed'); assert.equal(s.controller.getState().error.code, 'offline');
+  s.c.advance(10_000); assert.equal(s.provider.sessions.length, 1);
+});
+
+test('starting voice while offline never contacts the provider and explains why', async () => {
+  const s = setup({ online: false }); s.controller.giveConsent(); await s.controller.start();
+  assert.equal(s.provider.sessions.length, 0);
+  assert.equal(s.controller.getState().phase, 'failed'); assert.equal(s.controller.getState().error.code, 'offline');
+});
+
+test('going offline while the call is still connecting also ends it, and an idle controller ignores network changes', async () => {
+  const idle = setup(); idle.controller.networkChanged(false);
+  assert.equal(idle.controller.getState().phase, 'idle');
+  const s = setup(); s.controller.giveConsent(); await s.controller.start();
+  assert.equal(s.controller.getState().phase, 'connecting');
+  s.controller.networkChanged(false);
+  assert.equal(s.controller.getState().error.code, 'offline');
 });
 
 test('a normal ending never reconnects: agent hang-up, inactivity, or a long call with an unknown reason', async () => {
