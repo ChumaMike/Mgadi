@@ -1,0 +1,25 @@
+Task: accessibility
+Date: 27 October 2026
+Branch: feature/accessibility
+Base: a8a00ab348a41a8db00aab295e32755887281e38
+
+Chuma explicitly asked to push our changes so the other developer can build on them.
+Read entry/docs/ACCESSIBILITY-AND-PLAYBOOK.md and the appended source-of-truth section.
+The coordinator board was not modified.
+
+Modules: entry/public/accessibility/{catalog,accessibility,avatar,signs}.js.
+Integration hooks: entry/public/{app.js,index.html,styles.css}.
+Dev preview adapter: entry/scripts/dev.js and package.json dev command.
+Tests: entry/test/accessibility.test.js plus existing tests, 13 total passing.
+
+No new dependencies. Original 3D geometry, no borrowed animations. No validated SASL clips.
+Do not describe the avatar as a working SASL translator or sign recogniser.
+The call walkthrough is not a real call. Live provider setup remains unconfigured.
+Four language choices, partial draft translations and honest English fallback.
+App structure remains vanilla Node/ES modules. The newer external preview's source
+was not imported. Port the small hooks into your newer UI if needed; preserve the
+separate modules and current incident state. Start your next branch from this one
+or merge this branch deliberately. Do not overwrite teammate changes or force-push.
+
+Verified browser flows are recorded in entry/SOURCE-OF-TRUTH.md.
+No production deployment performed.
