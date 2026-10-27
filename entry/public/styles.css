@@ -220,3 +220,14 @@ html { scroll-padding-top: calc(var(--header-h) + .75rem); scroll-padding-bottom
 
 /* WCAG 2.2 target size: checkboxes were 22px, below the 24px minimum. */
 .toggle input, .check input { width: 1.75rem; height: 1.75rem; min-width: 1.75rem; }
+
+/* ---- POPIA draft, supplier payment-change check, responder handoff ---- */
+.tool-entry { margin-top: .8rem; }
+.tool-set { border: 1px solid var(--mg-line); border-radius: 12px; margin: 1rem 0; padding: .3rem .9rem .8rem; }
+.tool-set legend { font-weight: 800; padding: 0 .4rem; }
+.flags { padding-left: 1.2rem; }
+.tool-status { margin: .8rem 0; }
+.audit, .popia-draft { margin-top: 1rem; }
+.popia-draft h3 { font-size: 1rem; margin-top: 1.2rem; }
+.field input[readonly] { background: #eef1e9; }
+@media print { .tool-entry { display: none !important; } }

@@ -6,6 +6,7 @@ import { makePack, verifyPack } from './shared/pack.js';
 import { triageWithFallback } from './shared/triage-client.js';
 import { initVoice } from './voice/panel.js';
 import { initOffline } from './offline/register.js';
+import { initTools } from './tools/tools.js';
 import { buildPackData, defaultPackOptions, previewItems, summarySections, formatTime, sanitizeHandoff, AFFECTED } from './shared/summary.js';
 
 const app = document.querySelector('#app');
@@ -88,7 +89,7 @@ function showHome() {
   const choices=element('div', '', {className:'incident-choices'});
   choices.append(element('p', playbook.entry.intro));
   for (const option of playbook.entry.options) choices.append(button(option.text, () => chooseEntry(option), 'button secondary'));
-  card.append(choices);
+  card.append(choices, tools.homeButton());
   const description = element('textarea', '', { id: 'incident-description', placeholder: 'Example: We paid a supplier after an email said their banking details changed. They say they never got the money.' });
   const names = element('input', '', { id: 'names-to-hide', placeholder: 'Optional: names to hide, separated by commas' });
   description.lang='en';
@@ -330,12 +331,18 @@ function showPack(pack) {
   const technical = element('details', '', { className: 'pack-technical' });
   technical.append(element('summary', 'Technical data and tamper check'), element('h2', 'Verify a downloaded pack'), element('p', 'Load a pack after changing a value to see the tamper check.'), checkFile, result, details);
   const actions = element('div', '', { className: 'pack-actions' });
-  actions.append(download, button('Print or save as PDF', () => window.print(), 'button secondary'), button('Start a new incident', showHome, 'button secondary'));
+  actions.append(download, button('Print or save as PDF', () => window.print(), 'button secondary'), tools.packButtons(pack, () => showPack(pack)), button('Start a new incident', showHome, 'button secondary'));
   card.append(summary, actions, technical);
   app.append(card);
 }
 
 installAccessibility();
+// POPIA draft, supplier payment-change check and responder handoff (see public/tools/tools.js). "Already paid" always goes to the bank-first guide.
+const tools = initTools({
+  ui: { element, button, plain, clear, mount: (node) => app.append(node) },
+  bridge: { showHome, alreadyPaid: () => { startFromChoice('payment_diversion'); showIncident('payment_diversion'); } },
+});
+window.addEventListener('hashchange', () => tools.openFromHash());
 emergencyButton.addEventListener('click', showBankLines);
 // The offline copy is saved in the background. It must never delay or break the emergency screens, so failures are swallowed.
 initOffline({ statusEl: document.querySelector('#offline-status') }).catch(() => {});
@@ -353,5 +360,5 @@ const voiceBridge = {
 };
 const voiceReady = initVoice({ bridge: voiceBridge }).catch(() => ({ launchButton: () => document.createDocumentFragment() }));
 Promise.all([fetch('/data/playbook.json').then((response) => response.json()), fetch('/data/fraud-lines.json').then((response) => response.json()), fetch('/data/resources.json').then((response) => response.json()).catch(() => null)])
-  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; showHome(); })
+  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; if (!tools.openFromHash()) showHome(); })
   .catch(() => { clear(); app.append(element('p', 'Mgadi could not load its local safety guide. Please call the fraud number on the back of your bank card.')); });
