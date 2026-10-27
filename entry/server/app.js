@@ -128,18 +128,34 @@ export function createHandler({ classifyWithAI = null, voice, env = process.env,
     return reply(response, 200, result);
   }
 
-  async function voiceRoute(request, response) {
-    if (request.url === '/api/voice/config') {
+  // Browsers attach Sec-Fetch-Site and Origin to cross-site requests; scripts can leave them out, so these checks stop
+  // other WEBSITES from spending our credits through a visitor's browser. Stopping scripts is the job of the quota layer.
+  function foreignOrigin(request) {
+    const site = request.headers['sec-fetch-site'];
+    if (site === 'cross-site' || site === 'same-site') return true;
+    const origin = request.headers.origin;
+    if (!origin) return false;
+    try { return new URL(origin).host !== String(request.headers.host ?? ''); } catch { return true; }
+  }
+
+  async function voiceRoute(request, response, pathname) {
+    const clientId = clientKey(request);
+    const token = request.headers['x-mgadi-operator-token'];
+    if (pathname === '/api/voice/config') {
       if (request.method !== 'GET') return reply(response, 405, { error: 'GET only' }, undefined, { Allow: 'GET' });
-      const result = await voiceService.config();
+      const auth = await voiceService.authenticate(token, clientId);
+      // A wrong token is answered exactly like no token (public view), so it reveals nothing; only a lockout is visible.
+      if (auth.limited) return reply(response, 429, { error: 'rate_limited' });
+      const result = await voiceService.config(auth.rejected ? { access: 'public' } : auth);
       return reply(response, result.status, result.body);
     }
     if (request.method !== 'POST') return reply(response, 405, { error: 'POST only' }, undefined, { Allow: 'POST' });
-    if (request.headers['sec-fetch-site'] === 'cross-site') return reply(response, 403, { error: 'forbidden' });
+    if (foreignOrigin(request)) return reply(response, 403, { error: 'forbidden' });
     if (!String(request.headers['content-type'] ?? '').startsWith('application/json')) return reply(response, 415, { error: 'JSON only' });
     let payload;
     try { payload = await readJson(request); } catch (error) { return reply(response, error.status ?? 400, { error: error.status ? 'too large' : 'bad JSON' }); }
-    const result = await voiceService.createSession({ payload, consent: request.headers['x-mgadi-voice-consent'], clientId: clientKey(request) });
+    const auth = await voiceService.authenticate(token, clientId);
+    const result = await voiceService.createSession({ payload, consent: request.headers['x-mgadi-voice-consent'], clientId, auth });
     return reply(response, result.status, result.body);
   }
 
@@ -157,9 +173,12 @@ export function createHandler({ classifyWithAI = null, voice, env = process.env,
 
   return async (request, response) => {
     try {
-      if (request.url === '/api/health') return reply(response, 200, { ok: true, ai: Boolean(classifyWithAI) });
-      if (request.url === '/api/voice/config' || request.url === '/api/voice/session') return await voiceRoute(request, response);
-      if (request.url === '/api/triage') {
+      // Match on the path only, so a query string (cache-busting, tracking) never turns an API route into a static lookup.
+      let pathname = '';
+      try { pathname = new URL(request.url, 'http://mgadi.local').pathname; } catch { /* handled by the static route */ }
+      if (pathname === '/api/health') return reply(response, 200, { ok: true, ai: Boolean(classifyWithAI) });
+      if (pathname === '/api/voice/config' || pathname === '/api/voice/session') return await voiceRoute(request, response, pathname);
+      if (pathname === '/api/triage') {
         if (request.method !== 'POST') return reply(response, 405, { error: 'POST only' }, undefined, { Allow: 'POST' });
         return await triage(request, response);
       }
