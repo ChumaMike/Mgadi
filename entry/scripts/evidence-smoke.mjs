@@ -31,8 +31,9 @@ const audit = async (page) => page.evaluate(async () => (await window.axe.run(do
 
 const startCheck = async (page) => { await page.click('.tool-entry'); await page.waitForSelector('#chk-supplier'); };
 const loadExample = async (page) => { await page.click('button:has-text("Fill in a synthetic example")'); };
-const runCheck = async (page) => { await page.click('button:has-text("Check for red flags")'); await page.waitForSelector('#ver-who'); };
+const runCheck = async (page) => { await page.click('button:has-text("Check for red flags")'); await page.waitForSelector('text=Step 2 of 3'); };
 async function saveVerification(page) {
+  if (!(await page.locator('#ver-who').count())) await page.click('button:has-text("Next: record my call")');
   await page.fill('#ver-who', 'Thandi, accounts'); await page.selectOption('#ver-source', 'old_invoice'); await page.selectOption('#ver-result', 'confirmed');
   await page.check('#ver-mine'); await page.click('button:has-text("Save my check")');
 }
@@ -63,6 +64,7 @@ try {
 
   // ---- 1. Scene A: the trusted details, the request, and what differs
   await startCheck(owner);
+  await owner.click('summary:has-text("Compare the old and new bank details")');
   check('the trusted-details form is optional, says full account numbers stay on this device, and offers a synthetic example', /Trusted banking details you already held \(optional\)/.test(await pageText(owner)) && /Full account numbers stay on this device/.test(await pageText(owner)) && (await owner.locator('button:has-text("Fill in a synthetic example")').count()) === 1);
   await loadExample(owner);
   check('the example loads the fictional supplier, both sets of details and says it is fictional', (await owner.inputValue('#chk-supplier')).includes('(synthetic)') && (await owner.inputValue('#tb-account')) === '1234567890' && (await owner.inputValue('#pb-account')) === '9876501234' && /Fictional details only/.test(await pageText(owner)));
