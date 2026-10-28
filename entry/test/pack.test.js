@@ -72,3 +72,28 @@ test('pack checksum detects edits to the new format, including the story and ban
 test('formatBytes uses South African decimal commas and survives bad input', () => {
   assert.equal(formatBytes(512), '512 bytes'); assert.equal(formatBytes(1536), '1,5 KB'); assert.equal(formatBytes('x'), 'unknown size');
 });
+
+test('review and generated pack honour evidence and timeline exclusions', () => {
+  const s = state();
+  const options = { ...defaultPackOptions(s), includeEvidence: false, includeTimeline: false };
+  const data = buildPackData(s, options);
+  assert.deepEqual(data.evidence, []);
+  assert.deepEqual(data.timeline, []);
+  assert.doesNotMatch(JSON.stringify(data), /proof.pdf/);
+  for (const id of ['evidence', 'timeline']) assert.equal(previewItems(s, options).find(item => item.id === id).value, 'Not included');
+});
+
+test('review shows each owner-reported action with the same wording as the incident summary', () => {
+  const s = state({ steps: [
+    { id: 'bank', title: 'Bank', state: 'needs_help' },
+    { id: 'supplier', title: 'Supplier', state: 'confirmed' },
+    { id: 'mailbox', title: 'Mailbox', state: 'not_applicable' },
+  ] });
+  const options = defaultPackOptions(s);
+  const review = previewItems(s, options).find(item => item.id === 'handoff').value;
+  const summary = summarySections(buildPackData(s, options)).flatMap(section => section.lines).join(' ');
+  for (const words of ['Bank: Need help', 'Supplier: Done', 'Mailbox: Not applicable']) {
+    assert.ok(review.includes(words)); assert.ok(summary.includes(words));
+  }
+  assert.equal(buildPackData(s, options).bank.status, 'not-reported');
+});

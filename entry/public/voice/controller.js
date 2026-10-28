@@ -95,6 +95,7 @@ export function createVoiceController({
     uiState: 'idle', needsSoundTap: false, levelsSeen: false,
   };
   const listeners = new Set();
+  let attempt = 0;
   let handle = null; let adapter = null; let userEnded = false; let ticker = null; let limiter = null; let retryTimer = null;
   let liveAt = 0; let lastAssistantAudioAt = 0; let lastAgentTextAt = 0; let lastUserTextAt = 0; let assistantAudioMs = 0; let lastTickAt = 0;
   let gotRealTranscript = false; let finalAnnounced = new Set();
@@ -207,17 +208,19 @@ export function createVoiceController({
   async function begin(isRetry = false) {
     if (!isOnline()) { set({ callIndex: state.callIndex + 1 }); return fail({ code: 'offline' }); }
     adapter = adapterFactory();
+    const generation = ++attempt;
+    const current = () => generation === attempt && !userEnded;
     const callIndex = state.callIndex + 1;
     userEnded = false; gotRealTranscript = false; assistantAudioMs = 0; lastTickAt = 0; lastAssistantAudioAt = lastAgentTextAt = lastUserTextAt = 0; callMaxTime = 0; lastLevel = 0;
     set({ phase: isRetry ? 'reconnecting' : 'connecting', callIndex, activity: null, error: null, muted: false, audioHeard: false, needsSoundTap: false, levelsSeen: false, captions: adapter.captionsExpected ? 'unknown' : 'unavailable', ...(isRetry ? {} : { reconnects: 0 }) });
     const context = getContext();
     set({ language: context.language });
     try {
-      handle = await adapter.start({
+      const startedHandle = await adapter.start({
         context,
         hooks: {
           onStatus: (status) => {
-            if (userEnded || status !== 'live' || (state.phase !== 'connecting' && state.phase !== 'reconnecting')) return;
+            if (!current() || status !== 'live' || (state.phase !== 'connecting' && state.phase !== 'reconnecting')) return;
             liveAt = now(); lastTickAt = 0;
             set({ phase: 'live', activity: 'listening', startedAt: liveAt });
             note(isRetry ? 'Reconnected.' : 'Voice conversation started.');
@@ -225,20 +228,22 @@ export function createVoiceController({
             ticker = timers.setInterval(tick, 200);
             if (config.maxCallMs) limiter = timers.setTimeout(() => { if (state.phase === 'live') { userEnded = true; try { handle?.end(); } catch { /* ignore */ } finish('The conversation reached its time limit.'); } }, config.maxCallMs);
           },
-          onTranscript: (items) => { if (!userEnded) upsert(items); },
+          onTranscript: (items) => { if (current()) upsert(items); },
           // `level` is the loudness of the audio coming FROM the assistant (the SDK analyser listens to the remote track only; the person's
           // own microphone is never measured). It drives the avatar's mouth and the "speaking" state.
           onAudioLevel: (level) => {
-            if (userEnded || state.phase !== 'live' || !Number.isFinite(level)) return;
+            if (!current() || state.phase !== 'live' || !Number.isFinite(level)) return;
             lastLevel = level; levelListeners.forEach((fn) => fn(level));
             if (!state.levelsSeen) set({ levelsSeen: true });
             if (level > SPEAKING_LEVEL) { lastAssistantAudioAt = now(); if (!state.audioHeard) set({ audioHeard: true, needsSoundTap: false }); }
           },
-          onError: (error) => { if (userEnded) return; if (state.phase === 'connecting') fail(error); else if (state.phase === 'live') note('Connection problem. Trying to continue…'); },
-          onEnd: (info) => { if (userEnded || state.phase === 'ended' || state.phase === 'failed') return; if (state.phase === 'connecting') { fail(info?.error ?? { code: 'voice_unavailable' }); return; } reconnectOrEnd(info); },
+          onError: (error) => { if (!current()) return; if (state.phase === 'connecting') fail(error); else if (state.phase === 'live') note('Connection problem. Trying to continue…'); },
+          onEnd: (info) => { if (!current() || state.phase === 'ended' || state.phase === 'failed') return; if (state.phase === 'connecting') { fail(info?.error ?? { code: 'voice_unavailable' }); return; } reconnectOrEnd(info); },
         },
       });
-    } catch (error) { if (!userEnded) fail(error); }
+      if (!current() || ['ended', 'failed'].includes(state.phase)) startedHandle?.end();
+      else handle = startedHandle;
+    } catch (error) { if (current()) fail(error); }
   }
 
   return {
@@ -253,7 +258,7 @@ export function createVoiceController({
     },
     end(reason = 'You ended the voice conversation.') {
       if (!['connecting', 'live', 'reconnecting'].includes(state.phase)) return;
-      userEnded = true; timers.clearTimeout(retryTimer);
+      userEnded = true; attempt++; timers.clearTimeout(retryTimer);
       try { handle?.end(); } catch { /* the session may already be gone */ }
       finish(reason);
     },
@@ -273,7 +278,7 @@ export function createVoiceController({
     // already shown, and point to the offline guide. Never pretend the cloud assistant keeps running offline.
     networkChanged(online) {
       if (online || !['connecting', 'live', 'reconnecting'].includes(state.phase)) return;
-      userEnded = true; timers.clearTimeout(retryTimer);
+      userEnded = true; attempt++; timers.clearTimeout(retryTimer);
       try { handle?.end(); } catch { /* the session may already be gone */ }
       announceFinals(true);
       fail({ code: 'offline' });

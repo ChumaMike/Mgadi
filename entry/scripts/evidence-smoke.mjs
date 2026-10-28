@@ -1,3 +1,4 @@
+import { chooseSituation } from './browser-journey.mjs';
 // Browser checks for the trusted-vs-request comparison and Evidence Assist (local PDF and pasted-text reading).
 //   MGADI_PLAYWRIGHT=/path/to/playwright/index.mjs MGADI_AXE=/path/to/axe.min.js node scripts/evidence-smoke.mjs
 // The PDFs are made by the browser itself (page.pdf) from SYNTHETIC text, so the reader is tested on real PDF output, not on a hand-built file.
@@ -29,7 +30,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
 const tile = (page, text) => page.locator(`.incident-choices button:has-text("${text}")`);
 const audit = async (page) => page.evaluate(async () => (await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] }, resultTypes: ['violations'] })).violations.map((v) => ({ id: v.id, impact: v.impact, count: v.nodes.length, help: v.help, sample: v.nodes[0].target.join(' ').slice(0, 90) })));
 
-const startCheck = async (page) => { await page.click('.tool-entry'); await page.waitForSelector('#chk-supplier'); };
+const startCheck = async (page) => { await page.locator('.landing-extra > summary').click(); await page.click('.tool-entry'); await page.waitForSelector('#chk-supplier'); };
 const loadExample = async (page) => { await page.click('button:has-text("Fill in a synthetic example")'); };
 const runCheck = async (page) => { await page.click('button:has-text("Check for red flags")'); await page.waitForSelector('#ver-who'); };
 async function saveVerification(page) {
@@ -37,7 +38,7 @@ async function saveVerification(page) {
   await page.check('#ver-mine'); await page.click('button:has-text("Save my check")');
 }
 const toPack = async (page) => {
-  await tile(page, 'A suspicious message or link').click(); await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await page.waitForSelector('#evidence-files');
+  await chooseSituation(page, 'A suspicious message or link'); await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await page.waitForSelector('#evidence-files');
   await page.click('text=Review what goes in the pack'); await page.click('text=Make incident pack'); await page.waitForSelector('.pack-summary');
 };
 const evidencePanel = async (page) => { await page.click('summary:has-text("Add evidence from your own files")'); };

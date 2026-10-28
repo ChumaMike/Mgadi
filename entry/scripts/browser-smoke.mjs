@@ -21,7 +21,7 @@ const fresh = async (width = 390, height = 844) => { const page = await (await b
 const h1 = (page) => page.locator('h1').first().innerText();
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
 const type = async (page, text) => { if (!(await page.locator('#incident-description').isVisible())) await page.locator('.describe-incident > summary').click(); await page.fill('#incident-description', text); };
-const send = async (page) => { await page.click('text=Get safe next step'); };
+const send = async (page) => { await page.click('text=Find my next safe step'); };
 const DIVERSION = 'We paid a supplier after an email said their banking details changed, but they say they never got the money. Call 082 123 4567.';
 
 try {
@@ -34,9 +34,9 @@ try {
   check('draft review status is visible on guidance', (await page.locator('.review-status').first().innerText()).toLowerCase().includes('review pending'));
   check('stale "feature is next" text is gone', !(await page.content()).includes('feature is next'));
   await page.click('text=Choose a bank fraud line');
-  check('bank directory shows the checked date', (await page.locator('p.privacy').first().innerText()).includes('last checked'));
-  await page.click('button:has-text("Back")');
-  check('Back from bank directory keeps the step', (await page.locator('.step-count').innerText()).includes('Step 1 of'));
+  check('bank directory shows the checked date', (await page.locator('.bank-popover').innerText()).includes('last checked'));
+  await page.click('button:has-text("Close bank numbers")');
+  check('Back from bank directory keeps the step', (await page.locator('.step-count').textContent()).includes('Step 1 of'));
 
   // 2. Honest bank reporting: skipping is allowed and recorded as "not reported".
   await page.click('button:has-text("Need help")');
@@ -58,8 +58,8 @@ try {
   const [download] = await Promise.all([page.waitForEvent('download'), page.click('text=Download incident pack')]); const good = path.join(tmp, 'pack.json'); await download.saveAs(good);
   const bad = path.join(tmp, 'bad.json'); fs.writeFileSync(bad, JSON.stringify({ ...JSON.parse(fs.readFileSync(good, 'utf8')), business: 'Evil Co' }));
   await page.click('summary:has-text("Technical data")');
-  await page.setInputFiles('input[aria-label="Incident pack to verify"]', good); await page.waitForTimeout(250);
-  check('tamper check: original matches', (await page.locator('.notice.good').count()) === 1);
+  await page.setInputFiles('input[aria-label="Incident pack to verify"]', good); await page.waitForFunction(() => /Pack unchanged/.test(document.querySelector('.pack-technical [role=status]')?.textContent ?? ''));
+  check('tamper check: original matches', (await page.locator('.pack-technical .notice.good').count()) === 1);
   await page.setInputFiles('input[aria-label="Incident pack to verify"]', bad); await page.waitForTimeout(250);
   check('tamper check: edited pack is flagged', (await page.locator('.notice.bad').count()) === 1);
   check('no page errors in core flow', page.errors.length === 0, page.errors.join(' | '));
@@ -81,9 +81,9 @@ try {
   check('unsure route lets the owner continue without claiming a call', (await page.locator('#app button:has-text("Need help")').count()) === 1);
   await page.click('button:has-text("Need help")');
   check('unsure route has a second "pause and verify" step', (await h1(page)).includes('Pause before you pay'));
-  page = await fresh(); await page.click('.incident-choices button:has-text("know what happened")'); await page.waitForSelector('text=One quick question');
+  page = await fresh(); await page.click('.incident-choices button:has-text("know what happened")'); await page.getByRole('button', { name: 'Tell Mgadi by text', exact: true }).click(); await page.waitForSelector('text=One quick question');
   await page.click('button:has-text("nothing has been paid or locked")'); await page.waitForSelector('text=Step 1 of');
-  check('answering "suspicious message, nothing paid or locked" goes to the stop-and-verify guide', (await page.locator('.step-count').innerText()).includes('no money moved'));
+  check('answering "suspicious message, nothing paid or locked" goes to the stop-and-verify guide', (await page.locator('.step-count').textContent()).includes('no money moved'));
 
   // 5. Hung API, API down, and the skip button.
   page = await fresh(); await page.route('**/api/triage', () => {}); await type(page, 'We paid after the supplier changed banking details.'); await send(page);
@@ -99,13 +99,13 @@ try {
   // 6. A late triage result must not pull the owner off the bank numbers.
   page = await fresh(); await page.route('**/api/triage', async (r) => { await new Promise((x) => setTimeout(x, 1200)); await r.continue(); });
   await type(page, 'We paid after the supplier changed banking details.'); await send(page); await page.click('#emergency-button'); await page.waitForTimeout(2200);
-  check('bank directory stays on screen when triage finishes', (await h1(page)).includes('Call your bank now'));
-  await page.click('button:has-text("Back")'); await page.waitForSelector('text=Step 1 of');
+  check('bank directory stays on screen when triage finishes', await page.locator('.bank-popover').isVisible());
+  await page.click('button:has-text("Close bank numbers")'); await page.waitForSelector('text=Step 1 of');
   check('Back then shows the waiting result', (await page.locator('.step-count').count()) === 1);
 
   // 7. Accessibility: no "Audio stopped." churn on navigation; language keeps input.
   page = await fresh(); await page.evaluate(() => { window.__m = 0; new MutationObserver((l) => { window.__m += l.length; }).observe(document.querySelector('.audio-status'), { childList: true, characterData: true, subtree: true }); });
-  await page.click('.incident-choices button:has-text("Money or a payment problem")'); await page.click('.incident-choices button:has-text("I paid after")'); await page.waitForSelector('text=Step 1 of'); await page.click('text=Start again'); await page.waitForSelector('text=What happened?');
+  await page.click('.incident-choices button:has-text("Money or a payment problem")'); await page.getByRole('button', { name: 'Tell Mgadi by text', exact: true }).click(); await page.click('.incident-choices button:has-text("I paid after")'); await page.waitForSelector('text=Step 1 of'); await page.click('text=Start again'); await page.waitForSelector('text=What happened?');
   check('navigation does not change the audio status region', (await page.evaluate(() => window.__m)) === 0);
   await page.click('#accessibility > details > summary'); await page.selectOption('#language', 'zu'); await type(page, 'typed text kept?'); await page.selectOption('#language', 'af');
   check('typed text survives a language switch', (await page.inputValue('#incident-description')) === 'typed text kept?');
@@ -117,7 +117,7 @@ try {
   check('clarify: no sideways scroll', !(await overflow(page)));
   await page.click('button:has-text("Money has been paid out, or is missing")'); await page.waitForSelector('text=Step 1 of');
   check('guidance step: no sideways scroll', !(await overflow(page)));
-  await page.click('#emergency-button'); check('bank directory: no sideways scroll', !(await overflow(page))); await page.click('button:has-text("Back")');
+  await page.click('#emergency-button'); check('bank directory: no sideways scroll', !(await overflow(page))); await page.click('button:has-text("Close bank numbers")');
   await page.click('button:has-text("Need help")'); for (const l of ["I've spoken to the supplier", "I've checked the mailbox", "I've kept the evidence"]) await page.click(`button[data-report="${l}"]`);
   check('evidence: no sideways scroll', !(await overflow(page)));
   await page.click('text=Review what goes in the pack'); check('pack review: no sideways scroll', !(await overflow(page)));

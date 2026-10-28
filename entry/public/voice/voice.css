@@ -245,3 +245,33 @@ html[data-voice='open']{overflow:hidden}
 
 /* Keep the bank emergency shortcut available even on narrow screens. */
 @media(max-width:700px){.voice-panel .vp-btnrow{display:flex!important;flex:0 0 auto}.voice-panel .vp-btnrow .vp-bank{font-size:.65rem;padding:.3rem .4rem;min-height:40px;max-width:100px;white-space:normal;line-height:1.1}}
+
+/* Keep recovery and consent available, including at large text sizes. */
+.voice-panel .vp-btnrow .vp-small:not([hidden]){display:inline-flex!important;min-height:44px}
+.voice-panel .vp-body{flex-direction:column;overflow:auto}
+.vp-compact-setup{flex-wrap:wrap}
+.vp-compact-setup .vp-consent{flex-wrap:wrap}
+.vp-compact-setup .vp-consent .vp-privacy{display:block}
+.vp-compact-shell{flex:1 0 380px}
+.vp-compact-tools .vp-gesture-area{min-height:0}
+html[data-text-size='largest'] .vp-compact-shell{display:flex;flex-direction:column;flex-basis:auto}
+html[data-text-size='largest'] .vp-compact-main .vp-action{max-height:none}
+html[data-text-size='largest'] .vp-compact-side{min-height:220px}
+@media(max-width:700px){
+ .voice-panel .vp-head{flex-wrap:wrap}
+ .voice-panel .vp-btnrow .vp-small{font-size:.72rem;padding:.3rem .5rem}
+ .vp-compact-shell{grid-template-columns:minmax(96px,28%) minmax(0,1fr)}
+}
+.voice-panel .vp-compact-caption-wrap .vp-chat .msg-user{background:#214d40;color:#fffdf7}
+.voice-panel .vp-compact-caption-wrap .vp-chat .msg-user .who{color:#fffdf7}
+.voice-panel .vp-compact-shell{flex:1 1 auto;overflow:hidden}
+.voice-panel .vp-compact-main .vp-action{max-height:58%}
+.voice-panel .vp-compact-main .vp-count:first-of-type{display:none}
+html[data-voice='open'] body{overflow:hidden}
+@media(max-width:700px){.voice-panel .vp-compact-main .vp-action{max-height:65%}}
+html[data-text-size='largest'] .voice-panel .vp-compact-shell{overflow:visible}
+html[data-voice='open'] .voice-panel{height:calc(100dvh - var(--kb-inset,0px))!important;bottom:var(--kb-inset,0px)!important}
+.voice-panel .vp-compact-caption-wrap{min-height:150px}
+.voice-panel .vp-compact-main .vp-action{flex:1 1 auto;max-height:none}
+.voice-panel .vp-actions{position:sticky;bottom:0;background:#fff;padding-block:.35rem}
+@media(max-height:640px){.voice-panel .vp-compact-caption-wrap{min-height:100px}}
