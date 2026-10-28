@@ -1,4 +1,4 @@
-import { createAvatar } from './accessibility/avatar.js';
+import { createAvatar } from '../accessibility/avatar.js';
 const canvas = document.querySelector('#gesture-canvas');
 const avatar = createAvatar(canvas);
 const messages = {
