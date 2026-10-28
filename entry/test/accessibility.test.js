@@ -6,11 +6,11 @@ import { findReviewedSign } from '../public/accessibility/signs.js';
 import { createApp } from '../server/app.js';
 
 test('unsupported and missing translations retain the original with English language metadata', () => {
-  for(const language of ['zu','xh','af','unknown']){
+  for(const language of ['zu','xh','af','st','tn','nso','ss','nr','ts','ve','unknown']){
     assert.equal(translate('An untranslated instruction',language),'An untranslated instruction');
     assert.equal(translationLanguage('An untranslated instruction',language),'en');
   }
-  assert.deepEqual(Object.keys(languages),['en','zu','xh','af']);
+  assert.deepEqual(Object.keys(languages),['en','zu','xh','af','st','tn','nso','ss','nr','ts','ve']);
   assert.equal(translationLanguage('What happened?','xh'),'xh');
 });
 
