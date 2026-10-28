@@ -236,7 +236,7 @@ export async function initVoice({ bridge }) {
     renderChips(s); renderMessages(s); renderControls(s); if (progress.open) renderProgress();
     stage.hidden = !['connecting', 'live', 'reconnecting'].includes(s.phase);
     dock.setActive(!stage.hidden);
-    dock.setMood(s.phase === 'live' ? (s.activity === 'speaking' ? 'speaking' : s.muted ? 'idle' : 'listening') : 'idle');
+    dock.setMood(s.phase === 'live' ? (s.activity === 'speaking' ? 'speaking' : s.muted ? 'muted' : 'listening') : ['connecting', 'reconnecting'].includes(s.phase) ? 'connecting' : 'idle');
   }
 
   // ---- behaviour
