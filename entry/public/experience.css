@@ -361,3 +361,17 @@ main{width:min(100%,1030px);padding:1.35rem 1.2rem 3rem}
 @media(max-width:360px){.site-header .brand .brand-logo{width:42px;height:42px;flex-basis:42px}.site-header .brand-logo img{width:80px;height:80px}.site-header .brand .brand-wordmark{font-size:1.08rem}.landing-hero{padding:1.25rem 1rem 4.1rem}.landing-hero h1{font-size:2.15rem}.landing-readiness{left:1rem;right:1rem}.landing-issues-heading{align-items:flex-start}}
 @media(prefers-reduced-motion:reduce){.landing-choice{transition:none}.landing-choice:hover{transform:none}}
 html[data-reduced-motion='true'] .landing-choice{transition:none;transform:none}
+
+
+/* Voice and text are permanent entry choices directly after 'What happened?'. */
+.landing-entry-modes{display:flex!important;flex-direction:column;align-items:stretch;gap:.75rem;margin:1.2rem 0 0;padding:1.25rem 1.4rem;background:#edf4e9;border:1px solid #bed0bf;border-radius:20px}
+.landing-entry-modes .landing-mode-heading h3{margin:.35rem 0 0;color:#153f34;font-size:1.25rem;letter-spacing:-.025em}
+.landing-entry-modes .landing-mode-summary{margin:0;color:#536d5d;font-size:.87rem}
+.landing-entry-modes .landing-mode-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;width:100%}
+.landing-entry-modes .landing-mode-buttons .button{margin:0;min-width:0;min-height:58px;border-radius:14px;font-size:.95rem;font-weight:780}
+.landing-entry-modes .landing-text-button{background:#fffefb;color:#194a3a;border:1px solid #b3c9bb}
+.landing-entry-modes .landing-voice-button{background:#184c3b;color:#fff;border:1px solid #184c3b}
+.landing-entry-modes .landing-mode-note{font-size:.74rem;line-height:1.45;margin:0;color:#64796b}
+.landing-straight-to-guide{margin:.35rem 0}
+.landing-straight-to-guide[hidden]{display:none!important}
+@media(max-width:560px){.landing-entry-modes{padding:1.05rem}.landing-entry-modes .landing-mode-buttons{grid-template-columns:1fr}.landing-entry-modes .landing-mode-buttons .button{min-height:54px}}

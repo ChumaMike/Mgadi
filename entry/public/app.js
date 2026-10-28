@@ -182,34 +182,57 @@ function showHome() {
   };
 
   const choices = element('div', '', { className: 'landing-choices welcome-choices incident-choices' });
-  const modeBox = element('section', '', { className: 'landing-mode incident-mode-choice', 'aria-live': 'polite' });
-  modeBox.hidden = true;
-  const modeSummary = element('div', '', { className: 'landing-selected' });
-  const selectedCaption = element('span', 'YOUR SELECTION', { className: 'landing-selected-eyebrow' });
-  const selectedText = element('strong', '');
-  modeSummary.append(selectedCaption, selectedText);
+  // Two entry modes are always available, whether or not the owner has picked a situation.
+  // A selected situation is used for the guide, but free-text and voice can start without one.
+  const modeBox = element('section', '', {
+    className: 'landing-mode landing-entry-modes incident-mode-choice',
+    'aria-label': 'Choose text or voice guidance'
+  });
+  const modeHeading = element('div', '', { className: 'landing-mode-heading' });
+  modeHeading.append(element('span', '02 / CHOOSE HOW TO CONTINUE', { className: 'landing-selected-eyebrow' }),
+    element('h3', 'How would you like to tell Mgadi?'));
+  const modeSummary = element('p', 'You can start without choosing an incident above.', { className: 'landing-mode-summary', role: 'status' });
   const modeButtons = element('div', '', { className: 'landing-mode-buttons' });
   let selected = null;
-  const continueIn = (mode) => {
-    if (!selected) return;
-    preferredMode = mode;
-    chooseEntry(selected);
+  const beginText = () => {
+    preferredMode = 'text';
+    describe.open = true;
+    description.focus();
+    describe.scrollIntoView({ block: 'nearest', behavior: 'auto' });
   };
-  const voiceChoice = button('Continue with voice', () => continueIn('voice'), 'button landing-voice-button');
-  const textChoice = button('Continue with text', () => continueIn('text'), 'button secondary landing-text-button');
-  modeButtons.append(voiceChoice, textChoice);
-  modeBox.append(modeSummary, modeButtons);
+  const beginCall = () => {
+    preferredMode = 'voice';
+    if (selected?.route) {
+      chooseEntry(selected); // Exact selected route gives immediate step-by-step guidance.
+      return;
+    }
+    // A payment or uncertain incident still needs a clarifying answer.
+    // Do not guess the answer or display old progress in a new voice session.
+    journey = null;
+    emitJourney();
+    incident = { timeline: [], evidence: [], outcomes: {}, source: 'voice-first' };
+    if (typeof voice.open === 'function') voice.open();
+    else {
+      modeSummary.textContent = 'Voice guidance could not load. Please choose text guidance.';
+      beginText();
+    }
+  };
+  const voiceChoice = button('Call Mgadi', beginCall, 'button landing-voice-button');
+  const textChoice = button('Tell Mgadi by text', beginText, 'button secondary landing-text-button');
+  modeButtons.append(textChoice, voiceChoice);
+  const modeNote = element('p',
+    'Calling opens the 3D companion and captions. Reviewed SASL video guidance is not yet available.',
+    { className: 'landing-mode-note' });
+  modeBox.append(modeHeading, modeSummary, modeButtons, modeNote);
 
   for (const [index, option] of playbook.entry.options.entries()) {
     const choice = button('', () => {
       selected = option;
-      choices.querySelectorAll('.landing-choice').forEach((item) => {
-        const active = item === choice;
-        item.setAttribute('aria-pressed', String(active));
-      });
-      selectedText.textContent = option.text;
-      modeBox.hidden = false;
-      modeBox.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      choices.querySelectorAll('.landing-choice').forEach((item) =>
+        item.setAttribute('aria-pressed', String(item === choice)));
+      modeSummary.textContent = 'Selected: ' + option.text;
+      straightToGuide.hidden = false;
+      voiceChoice.focus({ preventScroll: true });
     }, 'landing-choice');
     choice.setAttribute('aria-pressed', 'false');
     const iconBox = element('span', '', { className: 'landing-choice-icon' });
@@ -253,6 +276,13 @@ function showHome() {
   }, 'button landing-describe-submit');
   description.addEventListener('input', () => description.setCustomValidity(''));
   describe.append(submit);
+  const straightToGuide = button('Use my selected situation instead', () => {
+    if (!selected) return;
+    preferredMode = 'text';
+    chooseEntry(selected);
+  }, 'button secondary landing-straight-to-guide');
+  straightToGuide.hidden = true;
+  describe.append(straightToGuide);
   issue.append(describe);
   page.append(issue);
 
