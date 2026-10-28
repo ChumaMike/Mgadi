@@ -114,3 +114,13 @@ html[data-reduced-motion='true'] .avatar-dock { transition: none; }
 .vp-diagnostics li[data-result='fail'] { color: #8b2222; font-weight: 700; }
 .vp-diagnostics li[data-result='pass'] { color: #176338; }
 .vp-operator > button { margin: .25rem .2rem .25rem 0; }
+
+.vp-gesture-section { margin:.4rem 0; padding:.55rem; border:1px solid var(--mg-line);border-radius:12px;background:#eef4e9; }
+.vp-gesture-heading { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.vp-gesture-area[hidden] { display:none!important; }
+.vp-gesture-area { display:grid;justify-items:center;gap:.25rem; }
+.vp-gesture-area canvas { width:min(170px,43vw);height:auto;display:block;border-radius:12px; }
+.vp-gesture-word { font-weight:800;text-align:center;margin:.3rem 0;color:var(--mg-forest); }
+.vp-gesture-buttons {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.25rem;width:100%}
+.vp-gesture-buttons button {min-width:0;min-height:40px;font-size:.75rem;padding:.35rem .1rem;}
+.vp-gesture-buttons button[aria-pressed='true'] {background:#1e5545;color:#fff}
