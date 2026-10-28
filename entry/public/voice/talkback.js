@@ -21,10 +21,10 @@ const guided=(message)=>{const m=recognizeGesture(message);const replies={stop:'
 function endSpeech(){if(speaking&&'speechSynthesis' in window){speechSynthesis.cancel();speaking=null;}stop.hidden=true;avatar.setMood('idle');}
 function speak(message){endSpeech();lastReply=message;byId('replay').disabled=false;if(!voice.checked){setPhase('Ready');return;}if(!('speechSynthesis' in window)){report('Speech playback is unavailable. Read the reply in the conversation.');return;}const u=new SpeechSynthesisUtterance(message);u.lang='en-ZA';u.rate=.94;const available=speechSynthesis.getVoices();u.voice=available.find(x=>x.lang.toLowerCase()==='en-za')||available.find(x=>x.lang.startsWith('en'))||null;u.onstart=()=>{if(speaking===u){setPhase('Speaking');report('Mgadi is reading its answer aloud.');}};u.onend=()=>{if(speaking===u){speaking=null;stop.hidden=true;setPhase('Ready');report('Ready. Speak again or type a message.');}};u.onerror=()=>{if(speaking===u){speaking=null;stop.hidden=true;setPhase('Ready');report('Speech playback was blocked. You can still read and type replies.');}};speaking=u;stop.hidden=false;setPhase('Speaking');speechSynthesis.speak(u);}
 function stopMic(){listening=false;if(recognizer){const r=recognizer;recognizer=null;try{r.stop();}catch{}}mic.textContent='🎙 Speak';}
-async function submit(value){const message=value.trim();if(!message||busy)return;if(!callActive)startSession();stopMic();endSpeech();busy=true;setPhase('Thinking');caption.hidden=false;caption.textContent='You: '+message;send.disabled=true;mic.disabled=true;add('user',message);gesture(message);text.value='';report(aiMode.checked?'Contacting Claude…':'Preparing guided reply…');let answer='',source='guided';
+async function submit(value){const message=value.trim();if(!message||busy)return;if(!callActive)startSession();stopMic();endSpeech();busy=true;setPhase('Thinking');caption.hidden=false;caption.textContent='You: '+message;send.disabled=true;mic.disabled=true;add('user',message);gesture(message);text.value='';report(aiMode.checked?'Contacting Claude…':'Preparing guided reply…');let answer='',source='guided',streamed=false,spokenChars=0,streamSpeaking=false;
 try{
  if(aiMode.checked){const access=token.value.trim();if(!access){report('Enter the AI demo password under Claude AI access, or turn Claude off for guided replies.');return;}
- const r=await fetch('/api/ai-chat',{method:'POST',cache:'no-store',headers:{'content-type':'application/json','accept':'text/event-stream','x-mgadi-ai-test-token':access},body:JSON.stringify({text:message,history:history.slice(-8)})});let data={},streamed=false;
+ const r=await fetch('/api/ai-chat',{method:'POST',cache:'no-store',headers:{'content-type':'application/json','accept':'text/event-stream','x-mgadi-ai-test-token':access},body:JSON.stringify({text:message,history:history.slice(-8)})});let data={};
  if(r.ok&&r.headers.get('content-type')?.includes('text/event-stream')){
    streamed=true;const reader=r.body.getReader(),decoder=new TextDecoder();let pending='',full='',final=false;
    const streamedReply=addStreamingReply();
@@ -36,18 +36,35 @@ try{
        if(type==='done')final=true;
        if(type==='delta'&&typeof obj.text==='string'){
          full+=obj.text;streamedReply.textContent=full;caption.textContent='Mgadi: '+full;chat.scrollTop=chat.scrollHeight;
+          if(voice.checked&&'speechSynthesis' in window){
+            const remainder=full.slice(spokenChars);const boundary=remainder.search(/[.!?](?=\s|$)/);
+            if(boundary>=0){
+              const sentence=remainder.slice(0,boundary+1).trim();spokenChars+=boundary+1;
+              if(sentence){const u=new SpeechSynthesisUtterance(sentence);u.lang='en-ZA';u.rate=.94;
+                u.onstart=()=>{speaking=u;setPhase('Speaking');report('Mgadi is answering aloud…');};
+                u.onend=()=>{if(speaking===u)speaking=null;};
+                speechSynthesis.speak(u);streamSpeaking=true;stop.hidden=false;
+              }
+            }
+          }
          const match=recognizeGesture(full);if(match)gesture(match.word);
        }
      }
    }
    if(!final||!full.trim())throw Error('stream_interrupted');
    data={reply:full};
+   if(streamSpeaking&&spokenChars<full.length&&voice.checked){
+     const remainder=full.slice(spokenChars).trim();if(remainder){const u=new SpeechSynthesisUtterance(remainder);u.lang='en-ZA';u.rate=.94;
+       u.onstart=()=>{speaking=u;setPhase('Speaking');};u.onend=()=>{if(speaking===u){speaking=null;stop.hidden=true;setPhase('Ready');}};
+       speechSynthesis.speak(u);
+     }
+   }
  }else{try{data=await r.json();}catch{throw Error('The server did not return JSON.');}}
  if(!r.ok){const reasons={operator_required:'AI access password was not accepted. Check MGADI_AI_TEST_TOKEN in Vercel.',ai_not_configured:'Claude is not configured on the production server.',provider_busy:'Anthropic is rate-limited; try again later.',model_unavailable:'Claude model is not available for this account.',provider_auth_failed:'Anthropic rejected the API key; check the provider console.',ai_unavailable:'Claude could not answer. Check Anthropic account credits and model access.',ai_timeout:'Claude took too long; retry.'};throw Error(reasons[data.error]||('Claude returned HTTP '+r.status));}
  if(typeof data.reply!=='string'||!data.reply.trim())throw Error('Claude returned an empty response.');
  answer=data.reply;source='Claude';history.push({role:'user',text:message},{role:'assistant',text:answer});if(history.length>8)history.splice(0,history.length-8);
  }else{answer=guided(message);}
- if(!streamed)add('assistant',answer);gesture(answer);caption.textContent='Mgadi: '+answer;report(source+' replied.');speak(answer);
+ if(!streamed)add('assistant',answer);gesture(answer);caption.textContent='Mgadi: '+answer;report(source+' replied.');if(streamSpeaking){lastReply=answer;byId('replay').disabled=false;}else speak(answer);
 }catch(e){setPhase('Ready');const msg=e instanceof Error?e.message:'Unknown error';report(msg);add('assistant','Connection issue: '+msg+' You can turn off Claude AI to use the built-in guided responses.');}
 finally{busy=false;send.disabled=false;mic.disabled=!Recognition;}
 }
