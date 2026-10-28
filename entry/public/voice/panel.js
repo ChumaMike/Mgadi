@@ -302,13 +302,13 @@ export async function initVoice({ bridge }) {
 
   // The avatar floats in a bottom corner (see voice.css); it is not part of the panel's scrolling content.
   const dock = createAvatarDock({ createCompanion, prefer: params.get('avatar') === 'lite' ? 'lite' : 'auto' });
-  const workspace = installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, dock, body, chat, action, progress, gestureSection, controller, bridge, findReviewedSign });
+  const workspace = installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, dock, body, chat, action, progress, gestureSection, controller, bridge, findReviewedSign, notice, consentBox, operatorBox, privacyLine, jump, sound, clearBtn });
 
   // No-cost, honest character preview, independent of Retell and microphone permissions.
   // It uses the ACTUAL WebGL/lite renderer; it must never be labelled live voice or SASL.
   let avatarPreviewing = false;
   let avatarPreviewMood = 'idle';
-  const avatarPreviewBtn = make('button', 'button secondary vp-preview-toggle', 'Preview 3D avatar');
+  const avatarPreviewBtn = make('button', 'button secondary vp-preview-toggle', '3D animation controls');
   avatarPreviewBtn.type = 'button';
   const avatarPreviewBox = make('section', 'vp-preview');
   avatarPreviewBox.hidden = true;
@@ -328,8 +328,7 @@ export async function initVoice({ bridge }) {
     avatarPreviewModes.append(button);
   }
   avatarPreviewBox.append(avatarPreviewInfo, avatarPreviewModes);
-  body.insertBefore(avatarPreviewBox, consentBox);
-  controls.insertBefore(avatarPreviewBtn, startBtn);
+  workspace.installPreview(avatarPreviewBtn, avatarPreviewBox);
   const stopKeyboardWatch = watchKeyboard();
   let opener = null;
 
@@ -430,9 +429,9 @@ export async function initVoice({ bridge }) {
     sound.hidden = !(s.phase === 'live' && s.needsSoundTap);
     avatarBtn.hidden = !(inCall && dock.isHidden());
     avatarPreviewBtn.hidden = inCall;
-    avatarPreviewBtn.textContent = avatarPreviewing ? 'Hide 3D preview' : 'Preview 3D avatar';
+    avatarPreviewBtn.textContent = '3D animation controls';
     avatarPreviewBtn.setAttribute('aria-expanded', String(avatarPreviewing && !inCall));
-    avatarPreviewBox.hidden = inCall || !avatarPreviewing;
+    avatarPreviewBox.hidden = !avatarPreviewing;
     for (const [mood, button] of avatarPreviewChoices) button.setAttribute('aria-pressed', String(avatarPreviewMood === mood));
     clearBtn.hidden = s.messages.length === 0 || inCall;
   }
@@ -494,7 +493,7 @@ export async function initVoice({ bridge }) {
   muteBtn.addEventListener('click', () => (controller.getState().muted ? controller.unmute() : controller.mute()));
   sound.addEventListener('click', () => controller.startAudioPlayback());
   clearBtn.addEventListener('click', () => controller.clearMessages());
-  const collapse = () => { panel.dataset.collapsed = 'true'; minBtn.setAttribute('aria-expanded', 'false'); minBtn.textContent = 'Expand'; };
+
   // The bank contact directory toggles over the full-screen workspace without hiding the call.
   showBank = () => bridge.showBank();
   bankBtn.addEventListener('click', showBank);
@@ -504,7 +503,7 @@ export async function initVoice({ bridge }) {
   dock.onHidden = () => render(controller.getState());
   jump.addEventListener('click', () => { chat.scrollTop = chat.scrollHeight; jump.hidden = true; });
   chat.addEventListener('scroll', () => { if (chat.scrollHeight - chat.scrollTop - chat.clientHeight < 48) jump.hidden = true; });
-  minBtn.addEventListener('click', () => { const collapsed = panel.dataset.collapsed !== 'true'; panel.dataset.collapsed = String(collapsed); minBtn.setAttribute('aria-expanded', String(!collapsed)); minBtn.textContent = collapsed ? 'Expand' : 'Minimise'; });
+  minBtn.hidden = true;
   closeBtn.addEventListener('click', () => { controller.end('You closed the voice panel.'); close({}); });
   panel.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !['connecting', 'live', 'reconnecting'].includes(controller.getState().phase)) close({}); });
   document.addEventListener('mgadi:language', (e) => { const lang = e.detail.locale; controller.languageChanged(lang, config.languages?.[lang]); refresh(); });

@@ -78,7 +78,7 @@ export function createAvatarDock({ createCompanion, doc = document, win = window
     setLevel(level) { avatar?.setLevel(level); },
     // Only used by the explicitly labelled offline animation preview; never substitutes for real voice audio.
     setApproximate(on) { avatar?.setApproximate(Boolean(on)); },
-    show() { hidden = false; layout(); }, isHidden: () => hidden, getMood: () => uiState, getSize: () => size,
+    show() { hidden = false; layout(); }, hide() { hidden = true; layout(); api.onHidden?.(); }, isHidden: () => hidden, getMood: () => uiState, getSize: () => size,
     getRenderer: () => renderer, getStats: () => avatar?.getStats() ?? null,
     destroy() { observer.disconnect(); motionQuery?.removeEventListener?.('change', layout); avatar?.destroy(); root.remove(); },
   };
