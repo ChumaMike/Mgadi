@@ -24,6 +24,15 @@ export const PROVIDER_LANGUAGES = Object.freeze({
   af: { label: 'Afrikaans', retell: ['af-ZA'] },
   zu: { label: 'isiZulu', retell: null },
   xh: { label: 'isiXhosa', retell: null },
+  // The other official languages. Retell's language list has no entry for any of them, so none can have a real voice. They keep the
+  // text guidance (English until a reviewed translation exists) and the same plain reason as isiZulu and isiXhosa.
+  st: { label: 'Sesotho', retell: null },
+  tn: { label: 'Setswana', retell: null },
+  nso: { label: 'Sepedi (Sesotho sa Leboa)', retell: null },
+  ss: { label: 'siSwati', retell: null },
+  nr: { label: 'isiNdebele', retell: null },
+  ts: { label: 'Xitsonga', retell: null },
+  ve: { label: 'Tshivenda', retell: null },
 });
 const UNSUPPORTED = 'Retell does not list this language for speech recognition or voice. Text guidance is available; read-aloud works only if your device has a matching voice.';
 const intIn = (value, fallback, min, max) => Math.min(Math.max(Math.trunc(Number(value)) || fallback, min), max);
