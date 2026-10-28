@@ -105,3 +105,12 @@ html[data-reduced-motion='true'] .avatar-dock { transition: none; }
 .vp-preview-modes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .45rem; }
 .vp-preview-modes .button { min-width: 0; min-height: 44px; padding: .5rem .4rem; font-size: .88rem; }
 .vp-preview-modes .button[aria-pressed='true'] { border-color: var(--mg-forest); background: #e0eee4; color: var(--mg-forest); font-weight: 800; }
+
+/* Read-only operator preflight status, never a paid call or a public gate. */
+.vp-diagnostics { margin: .65rem 0; padding: .65rem; border: 1px solid var(--mg-line); border-radius: 12px; background: #f8faf6; font-size: .86rem; line-height: 1.5; overflow-wrap: anywhere; }
+.vp-diagnostics[hidden] { display: none !important; }
+.vp-diagnostics ul { padding-left: 1.1rem; margin: .3rem 0; }
+.vp-diagnostics li { margin: .3rem 0; }
+.vp-diagnostics li[data-result='fail'] { color: #8b2222; font-weight: 700; }
+.vp-diagnostics li[data-result='pass'] { color: #176338; }
+.vp-operator > button { margin: .25rem .2rem .25rem 0; }
