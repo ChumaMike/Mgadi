@@ -141,6 +141,33 @@ export async function initVoice({ bridge }) {
 
   // The avatar floats in a bottom corner (see voice.css); it is not part of the panel's scrolling content.
   const dock = createAvatarDock({ createCompanion, prefer: params.get('avatar') === 'lite' ? 'lite' : 'auto' });
+
+  // No-cost, honest character preview, independent of Retell and microphone permissions.
+  // It uses the ACTUAL WebGL/lite renderer; it must never be labelled live voice or SASL.
+  let avatarPreviewing = false;
+  let avatarPreviewMood = 'idle';
+  const avatarPreviewBtn = make('button', 'button secondary vp-preview-toggle', 'Preview 3D avatar');
+  avatarPreviewBtn.type = 'button';
+  const avatarPreviewBox = make('section', 'vp-preview');
+  avatarPreviewBox.hidden = true;
+  avatarPreviewBox.setAttribute('aria-label', '3D companion animation preview');
+  const avatarPreviewInfo = make('p', 'vp-note', '3D animation preview only. No microphone or live AI audio. The character is not a sign language translator.');
+  const avatarPreviewModes = make('div', 'vp-preview-modes');
+  const avatarPreviewChoices = new Map();
+  for (const [mood, label] of [['idle', 'Resting'], ['listening', 'Listening'], ['thinking', 'Thinking'], ['speaking', 'Speaking']]) {
+    const button = make('button', 'button secondary', label);
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      if (!avatarPreviewing || ['connecting', 'live', 'reconnecting'].includes(controller.getState().phase)) return;
+      avatarPreviewMood = mood;
+      render(controller.getState());
+    });
+    avatarPreviewChoices.set(mood, button);
+    avatarPreviewModes.append(button);
+  }
+  avatarPreviewBox.append(avatarPreviewInfo, avatarPreviewModes);
+  body.insertBefore(avatarPreviewBox, consentBox);
+  controls.insertBefore(avatarPreviewBtn, startBtn);
   const stopKeyboardWatch = watchKeyboard();
   let opener = null;
 
@@ -235,6 +262,11 @@ export async function initVoice({ bridge }) {
     endBtn.hidden = !inCall; endBtn.textContent = s.phase === 'connecting' ? 'Cancel' : 'End call';
     sound.hidden = !(s.phase === 'live' && s.needsSoundTap);
     avatarBtn.hidden = !(inCall && dock.isHidden());
+    avatarPreviewBtn.hidden = inCall;
+    avatarPreviewBtn.textContent = avatarPreviewing ? 'Hide 3D preview' : 'Preview 3D avatar';
+    avatarPreviewBtn.setAttribute('aria-expanded', String(avatarPreviewing && !inCall));
+    avatarPreviewBox.hidden = inCall || !avatarPreviewing;
+    for (const [mood, button] of avatarPreviewChoices) button.setAttribute('aria-pressed', String(avatarPreviewMood === mood));
     clearBtn.hidden = s.messages.length === 0 || inCall;
   }
   function render(s) {
@@ -246,8 +278,10 @@ export async function initVoice({ bridge }) {
     opPill.hidden = config.access !== 'operator';
     micPill.hidden = !inCall || config.mode === 'mock'; micPill.textContent = s.muted ? 'Mic muted' : 'Mic on'; micPill.dataset.muted = String(s.muted);
     renderChips(s); renderMessages(s); renderControls(s); if (progress.open) renderProgress();
-    dock.setActive(inCall);
-    dock.setState({ uiState: s.uiState, muted: s.muted });
+    if (inCall) avatarPreviewing = false;
+    dock.setActive(inCall || avatarPreviewing);
+    dock.setState({ uiState: inCall ? s.uiState : avatarPreviewing ? avatarPreviewMood : s.uiState, muted: inCall && s.muted });
+    dock.setApproximate(avatarPreviewing && avatarPreviewMood === 'speaking');
     publishState(s);
   }
   // The contract for the rest of the app: one attribute and one event carry the voice state, so any screen can react without
@@ -268,6 +302,13 @@ export async function initVoice({ bridge }) {
   const refresh = () => { renderAction(); renderProgress(); render(controller.getState()); };
   progress.addEventListener('toggle', () => { if (progress.open) renderProgress(); });
   consentCheck.addEventListener('change', () => render(controller.getState()));
+  avatarPreviewBtn.addEventListener('click', () => {
+    if (['connecting', 'live', 'reconnecting'].includes(controller.getState().phase)) return;
+    avatarPreviewing = !avatarPreviewing;
+    avatarPreviewMood = 'idle';
+    if (avatarPreviewing) dock.show();
+    render(controller.getState());
+  });
   startBtn.addEventListener('click', () => { if (consentCheck.checked) controller.giveConsent(); controller.start(); });
   endBtn.addEventListener('click', () => controller.end());
   muteBtn.addEventListener('click', () => (controller.getState().muted ? controller.unmute() : controller.mute()));
@@ -300,7 +341,7 @@ export async function initVoice({ bridge }) {
     document.documentElement.dataset.voice = 'open'; refresh(); title.focus();
   }
   function close({ keepFocus = false }) {
-    panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setActive(false);
+    avatarPreviewing = false; panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setApproximate(false); dock.setActive(false);
     if (!keepFocus && opener?.isConnected) opener.focus();
   }
   refresh();
