@@ -61,7 +61,7 @@ try {
   const cached = await page.evaluate(async () => { const c = await caches.open((await caches.keys()).find((k) => k.startsWith('mgadi-shell-'))); return (await c.keys()).map((r) => new URL(r.url).pathname).sort(); });
   check('the cache holds every manifest file (and the manifest) and nothing else', JSON.stringify(cached) === JSON.stringify([...manifest.assets.map((a) => a.url), '/precache-manifest.json'].sort()), `${cached.length} vs ${manifest.assets.length + 1}`);
   check('every saved file has the server\'s security headers (CSP, microphone policy)', await page.evaluate(async () => { const r = await caches.match('/'); return /script-src 'self'/.test(r.headers.get('content-security-policy') ?? '') && /microphone=\(self\)/.test(r.headers.get('permissions-policy') ?? '') && r.headers.get('x-content-type-options') === 'nosniff'; }));
-  check('the registered worker URL carries the version', (await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).active.scriptURL)).endsWith(`/sw.js?v=${manifest.version}`));
+  check('the registered worker URL carries the version', (await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).active.scriptURL)).endsWith(`/sw.js?v=${manifest.version}&p=2`));
   const web = await (await page.request.get(`${base}/manifest.webmanifest`)).json();
   const icon = await page.request.get(`${base}${web.icons.find((i) => i.sizes === '512x512' && i.purpose === 'any').src}`);
   const body = await icon.body();
@@ -95,7 +95,7 @@ try {
   // typed words, classified by the local rules (the server is gone)
   const started = Date.now();
   await page.locator('.describe-incident > summary').click(); await page.fill('#incident-description', `${SENTINEL} Every file on the server is encrypted and a ransom note demands bitcoin.`); await page.click('text=Get safe next step'); await page.waitForSelector('text=Step 1 of', { timeout: 12_000 });
-  check('offline: typed words fall back to the local rules, quickly, and reach the ransomware guide', (await page.locator('.step-count').innerText()).includes('Possible ransomware') && Date.now() - started < 9000, `${Date.now() - started} ms`);
+  check('offline: typed words fall back to the local rules, quickly, and reach the ransomware guide', (await page.locator('.step-count').textContent()).includes('Possible ransomware') && Date.now() - started < 9000, `${Date.now() - started} ms`);
 
   // the whole guided journey, evidence fingerprint, pack and verification, offline
   for (let i = 0; i < 7; i += 1) { await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await page.waitForTimeout(60); }
@@ -166,16 +166,18 @@ try {
   const ctx4 = await newContext(); page = await open(ctx4);
   await page.goto(`${base}/`); await waitState(page, 'ready');
   const v1 = (await (await page.request.get(`${base}/precache-manifest.json`)).json()).version;
+  // The person has typed something, so the page must not be replaced under them (an untouched page switches by itself: see update-smoke).
+  await page.click('summary:has-text("Prefer to describe it in your own words?")'); await page.fill('#incident-description', 'keep this text');
   handler = createHandler({ publicDir: V2 });
-  await page.reload();
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
   const sawUpdate = await reached(page, 'update');
   const stillOld = await page.evaluate(() => fetch('/data/playbook.json').then((r) => r.json()).then((p) => p.reviewNote));
-  check('a newer version waits: the open screen keeps running the old, working one', sawUpdate && !stillOld.includes('(v2)') && /newer version is ready/.test(await page.locator('#offline-status').innerText()) && await page.locator('.offline-update').isVisible());
+  check('a newer version waits while work is open: the open screen keeps running the old, working one, keeps its text, and offers the switch', sawUpdate && !stillOld.includes('(v2)') && /newer version is ready/.test(await page.locator('#offline-status').innerText()) && await page.locator('.offline-update').isVisible() && (await page.inputValue('#incident-description')) === 'keep this text');
   await page.close(); await new Promise((r) => setTimeout(r, 1500));
   page = await open(ctx4);
   let v2Note = '';
   for (let i = 0; i < 6 && !v2Note.includes('(v2)'); i += 1) { await page.goto(`${base}/`); await page.waitForSelector('h1'); v2Note = await page.evaluate(() => fetch('/data/playbook.json').then((r) => r.json()).then((p) => p.reviewNote)); if (!v2Note.includes('(v2)')) await page.waitForTimeout(800); }
-  check('the next time Mgadi is opened, the newer version is used', v2Note.includes('(v2)'), v2Note);
+  check('the next time Mgadi is opened (nothing typed), the newer version is used', v2Note.includes('(v2)'), v2Note);
   const v2Names = await cacheNames(page);
   check('the old version\'s cache is deleted once the new one is active', v2Names.length === 1 && !v2Names[0].endsWith(v1), JSON.stringify(v2Names));
   const V3 = copy('v3', (dir) => { const f = path.join(dir, 'data', 'playbook.json'); fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('Practitioner review pending.', 'Practitioner review pending. (v3)')); });
