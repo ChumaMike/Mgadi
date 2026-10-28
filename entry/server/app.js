@@ -8,7 +8,7 @@ import { redactIncident } from '../public/shared/redact.js';
 import { classifyRules } from '../public/shared/rules.js';
 import { validateTriage } from '../public/shared/labels.js';
 import { createVoiceService } from './voice.js';
-import { chatWithAnthropic, chatConfig } from './ai-chat.js';
+import { chatWithAnthropic, chatConfig, startAnthropicStream } from './ai-chat.js';
 import { buildPrecacheManifest } from './precache.js';
 import { createLinkService, createLinkStoreFromEnv } from './links.js';
 
@@ -199,6 +199,47 @@ export function createHandler({ classifyWithAI = null, voice, links, env = proce
     if(!allowPaidChat(clientKey(request,env))) return reply(response,429,{error:'rate_limited'});
     let payload;
     try{payload=await readJson(request);}catch(e){return reply(response,e.status||400,{error:'invalid_message'});}
+    if(String(request.headers.accept||'').includes('text/event-stream')){
+      const result=await startAnthropicStream(payload,{env,fetchImpl});
+      if(result.status!==200)return reply(response,result.status,result.body);
+      response.writeHead(200,{...securityHeaders,'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-store, no-transform','X-Accel-Buffering':'no'});
+      const emit=(type,data)=>{if(!response.writableEnded&&!response.destroyed)response.write('event: '+type+'\ndata: '+JSON.stringify(data)+'\n\n');};
+      const decoder=new TextDecoder();
+      let buffer='',all='',completed=false,terminated=false;
+      const reader=result.stream.getReader();
+      response.on('close',()=>{if(!terminated){terminated=true;result.abort();reader.cancel().catch(()=>{});}});
+      try{
+        emit('ready',{source:'anthropic'});
+        while(!terminated){
+          const {value,done}=await reader.read();
+          if(done)break;
+          buffer+=decoder.decode(value,{stream:true}).replace(/\r\n/g,'\n');
+          // Messages API sends SSE blocks separated by blank lines.
+          const blocks=buffer.split('\n\n');
+          buffer=blocks.pop()||'';
+          for(const block of blocks){
+            const data=block.split('\n').filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('\n');
+            if(!data)continue;
+            let event;try{event=JSON.parse(data);}catch{continue;}
+            if(event.type==='error')throw new Error('provider_stream_failed');
+            if(event.type==='content_block_delta'&&event.delta?.type==='text_delta'){
+              let piece=String(event.delta.text||'');
+              if(all.length>=1300)continue;
+              piece=piece.slice(0,1300-all.length);
+              all+=piece;
+              if(piece)emit('delta',{text:piece});
+            }
+            if(event.type==='message_stop')completed=true;
+          }
+        }
+        if(!terminated){
+          if(all.trim()&&completed)emit('done',{source:'anthropic'});
+          else emit('error',{error:all.trim()?'stream_interrupted':'empty_reply'});
+        }
+      }catch{if(!terminated)emit('error',{error:'ai_unavailable'});}
+      finally{terminated=true;result.finish();try{await reader.cancel();}catch{}if(!response.writableEnded)response.end();}
+      return;
+    }
     const out=await chatWithAnthropic(payload,{env,fetchImpl});
     return reply(response,out.status,out.body);
   }

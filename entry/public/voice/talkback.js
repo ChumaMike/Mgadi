@@ -15,6 +15,7 @@ function finishSession(){callActive=false;stopMic();endSpeech();startCall.disabl
 startCall.addEventListener('click',startSession);endCall.addEventListener('click',finishSession);
 const report=(message)=>{status.textContent=message;byId('connection').textContent=message.length>45?message.slice(0,42)+'…':message;};
 function add(role,message){byId('placeholder')?.remove();const b=document.createElement('div');b.className='bubble '+role;const heading=document.createElement('span');heading.className='who';heading.textContent=role==='user'?'YOU':'MGADI';const p=document.createElement('span');p.textContent=message;b.append(heading,p);chat.append(b);while(chat.children.length>18)chat.firstElementChild.remove();chat.scrollTop=chat.scrollHeight;}
+function addStreamingReply(){byId('placeholder')?.remove();const el=document.createElement('div');el.className='bubble assistant';const who=document.createElement('span');who.className='who';who.textContent='MGADI · LIVE';const value=document.createElement('span');el.append(who,value);chat.append(el);chat.scrollTop=chat.scrollHeight;return value;}
 function gesture(phrase){const m=recognizeGesture(phrase);if(!m)return;if(gestureTimer)clearTimeout(gestureTimer);avatar.setGesture(m.key);byId('gesture').textContent=m.label;gestureTimer=setTimeout(()=>{avatar.setGesture('none');byId('gesture').textContent='READY';},3200);}
 const guided=(message)=>{const m=recognizeGesture(message);const replies={stop:'Stop and verify changed payment instructions using an independently trusted number.',call:'If you already paid, contact the fraud department of your bank immediately using an official number.',save:'Keep the suspicious messages, invoices and proof of payment. Never send passwords or one time codes.',help:'I can help you follow the on-screen first-hour response guide. Have you already sent the payment?',check:'Confirm the supplier banking details using a trusted number you had before receiving the changed instructions.',protect:'Use official bank instructions to protect your accounts. Never share your PIN, password or one time code.'};return m?replies[m.key]:'I can guide you to stop, call, save, help, check or protect. For an urgent payment fraud, contact your bank first.';};
 function endSpeech(){if(speaking&&'speechSynthesis' in window){speechSynthesis.cancel();speaking=null;}stop.hidden=true;avatar.setMood('idle');}
@@ -23,12 +24,30 @@ function stopMic(){listening=false;if(recognizer){const r=recognizer;recognizer=
 async function submit(value){const message=value.trim();if(!message||busy)return;if(!callActive)startSession();stopMic();endSpeech();busy=true;setPhase('Thinking');caption.hidden=false;caption.textContent='You: '+message;send.disabled=true;mic.disabled=true;add('user',message);gesture(message);text.value='';report(aiMode.checked?'Contacting Claude…':'Preparing guided reply…');let answer='',source='guided';
 try{
  if(aiMode.checked){const access=token.value.trim();if(!access){report('Enter the AI demo password under Claude AI access, or turn Claude off for guided replies.');return;}
- const r=await fetch('/api/ai-chat',{method:'POST',cache:'no-store',headers:{'content-type':'application/json','x-mgadi-ai-test-token':access},body:JSON.stringify({text:message,history:history.slice(-8)})});let data={};try{data=await r.json();}catch{throw Error('The server did not return JSON.');}
+ const r=await fetch('/api/ai-chat',{method:'POST',cache:'no-store',headers:{'content-type':'application/json','accept':'text/event-stream','x-mgadi-ai-test-token':access},body:JSON.stringify({text:message,history:history.slice(-8)})});let data={},streamed=false;
+ if(r.ok&&r.headers.get('content-type')?.includes('text/event-stream')){
+   streamed=true;const reader=r.body.getReader(),decoder=new TextDecoder();let pending='',full='',final=false;
+   const streamedReply=addStreamingReply();
+   while(true){const {value,done}=await reader.read();if(done)break;pending+=decoder.decode(value,{stream:true}).replace(/\r\n/g,'\n');let cut;
+     while((cut=pending.indexOf('\n\n'))!==-1){const event=pending.slice(0,cut);pending=pending.slice(cut+2);
+       const type=event.split('\n').find(x=>x.startsWith('event:'))?.slice(6).trim();
+       const payload=event.split('\n').find(x=>x.startsWith('data:'))?.slice(5).trim();let obj={};try{obj=JSON.parse(payload)}catch{}
+       if(type==='error')throw Error(obj.error||'stream_interrupted');
+       if(type==='done')final=true;
+       if(type==='delta'&&typeof obj.text==='string'){
+         full+=obj.text;streamedReply.textContent=full;caption.textContent='Mgadi: '+full;chat.scrollTop=chat.scrollHeight;
+         const match=recognizeGesture(full);if(match)gesture(match.word);
+       }
+     }
+   }
+   if(!final||!full.trim())throw Error('stream_interrupted');
+   data={reply:full};
+ }else{try{data=await r.json();}catch{throw Error('The server did not return JSON.');}}
  if(!r.ok){const reasons={operator_required:'AI access password was not accepted. Check MGADI_AI_TEST_TOKEN in Vercel.',ai_not_configured:'Claude is not configured on the production server.',provider_busy:'Anthropic is rate-limited; try again later.',model_unavailable:'Claude model is not available for this account.',provider_auth_failed:'Anthropic rejected the API key; check the provider console.',ai_unavailable:'Claude could not answer. Check Anthropic account credits and model access.',ai_timeout:'Claude took too long; retry.'};throw Error(reasons[data.error]||('Claude returned HTTP '+r.status));}
  if(typeof data.reply!=='string'||!data.reply.trim())throw Error('Claude returned an empty response.');
  answer=data.reply;source='Claude';history.push({role:'user',text:message},{role:'assistant',text:answer});if(history.length>8)history.splice(0,history.length-8);
  }else{answer=guided(message);}
- add('assistant',answer);gesture(answer);caption.textContent='Mgadi: '+answer;report(source+' replied.');speak(answer);
+ if(!streamed)add('assistant',answer);gesture(answer);caption.textContent='Mgadi: '+answer;report(source+' replied.');speak(answer);
 }catch(e){setPhase('Ready');const msg=e instanceof Error?e.message:'Unknown error';report(msg);add('assistant','Connection issue: '+msg+' You can turn off Claude AI to use the built-in guided responses.');}
 finally{busy=false;send.disabled=false;mic.disabled=!Recognition;}
 }

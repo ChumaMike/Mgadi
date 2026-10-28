@@ -48,3 +48,25 @@ export async function chatWithAnthropic(payload, { env = process.env, fetchImpl 
     return { status: 503, body: { error: 'ai_unavailable' } };
   }
 }
+
+
+// Read-only stream preparation. Validates before sending HTTP headers so that
+// unavailable credentials, invalid inputs and provider errors remain normal JSON.
+export async function startAnthropicStream(payload,{env=process.env,fetchImpl=globalThis.fetch}={}) {
+  if(!chatConfig(env).available)return {status:503,body:{error:'ai_not_configured'}};
+  const messages=validateConversation(payload);
+  if(!messages)return {status:400,body:{error:'invalid_message'}};
+  try {
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),25000);
+    const upstream=await fetchImpl('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'content-type':'application/json','x-api-key':env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
+      signal:controller.signal,
+      body:JSON.stringify({model:env.MGADI_CHAT_MODEL||'claude-haiku-5-5',max_tokens:230,system:PROMPT,messages,stream:true})
+    });
+    if(!upstream.ok){clearTimeout(timeout);return {status:upstream.status===429?429:502,body:{error:upstream.status===429?'provider_busy':'ai_unavailable'}};}
+    if(!upstream.body){clearTimeout(timeout);return {status:502,body:{error:'stream_unavailable'}};}
+    return {status:200,stream:upstream.body,abort:()=>{clearTimeout(timeout);controller.abort();},finish:()=>clearTimeout(timeout)};
+  }catch{return {status:503,body:{error:'ai_unavailable'}};}
+}
