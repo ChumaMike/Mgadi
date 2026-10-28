@@ -36,7 +36,7 @@ try {
   await page.click('text=Choose a bank fraud line');
   check('bank directory shows the checked date', (await page.locator('p.privacy').first().innerText()).includes('last checked'));
   await page.click('button:has-text("Back")');
-  check('Back from bank directory keeps the step', (await page.locator('.step-count').innerText()).includes('Step 1 of'));
+  check('Back from bank directory keeps the step', (await page.locator('.step-count').textContent()).includes('Step 1 of'));
 
   // 2. Honest bank reporting: skipping is allowed and recorded as "not reported".
   await page.click('button:has-text("Need help")');
@@ -54,7 +54,8 @@ try {
   check('readable summary shows bank NOT reported', summaryText.includes('has not reported calling the bank'));
   check('readable summary excludes the raw number by default', !summaryText.includes('082 123 4567'));
   const pack = JSON.parse(await page.locator('pre.pack-json').textContent());
-  check('pack JSON has masked story and no raw number', pack.story.version === 'masked' && !JSON.stringify(pack).includes('082'));
+  check('pack JSON has masked story and no raw number', pack.story.version === 'masked' && !/082[ -]?123[ -]?4567/.test(JSON.stringify(pack)));
+  // Why not look for "082" alone: the pack holds SHA-256 digests, and three digits turn up in random hex by chance now and then, which made this check fail without any real problem.
   const [download] = await Promise.all([page.waitForEvent('download'), page.click('text=Download incident pack')]); const good = path.join(tmp, 'pack.json'); await download.saveAs(good);
   const bad = path.join(tmp, 'bad.json'); fs.writeFileSync(bad, JSON.stringify({ ...JSON.parse(fs.readFileSync(good, 'utf8')), business: 'Evil Co' }));
   await page.click('summary:has-text("Technical data")');
@@ -83,7 +84,7 @@ try {
   check('unsure route has a second "pause and verify" step', (await h1(page)).includes('Pause before you pay'));
   page = await fresh(); await page.click('.incident-choices button:has-text("know what happened")'); await page.waitForSelector('text=One quick question');
   await page.click('button:has-text("nothing has been paid or locked")'); await page.waitForSelector('text=Step 1 of');
-  check('answering "suspicious message, nothing paid or locked" goes to the stop-and-verify guide', (await page.locator('.step-count').innerText()).includes('no money moved'));
+  check('answering "suspicious message, nothing paid or locked" goes to the stop-and-verify guide', (await page.locator('.step-count').textContent()).includes('no money moved'));
 
   // 5. Hung API, API down, and the skip button.
   page = await fresh(); await page.route('**/api/triage', () => {}); await type(page, 'We paid after the supplier changed banking details.'); await send(page);
@@ -105,7 +106,7 @@ try {
 
   // 7. Accessibility: no "Audio stopped." churn on navigation; language keeps input.
   page = await fresh(); await page.evaluate(() => { window.__m = 0; new MutationObserver((l) => { window.__m += l.length; }).observe(document.querySelector('.audio-status'), { childList: true, characterData: true, subtree: true }); });
-  await page.click('.incident-choices button:has-text("Money or a payment problem")'); await page.click('.incident-choices button:has-text("I paid after")'); await page.waitForSelector('text=Step 1 of'); await page.click('text=Start again'); await page.waitForSelector('text=What happened?');
+  await page.click('.incident-choices button:has-text("Money or a payment problem")'); await page.click('.incident-choices button:has-text("I paid after")'); await page.waitForSelector('text=Step 1 of'); await page.click('text=Start again'); await page.waitForSelector('.welcome-choices');
   check('navigation does not change the audio status region', (await page.evaluate(() => window.__m)) === 0);
   await page.click('#accessibility > details > summary'); await page.selectOption('#language', 'zu'); await type(page, 'typed text kept?'); await page.selectOption('#language', 'af');
   check('typed text survives a language switch', (await page.inputValue('#incident-description')) === 'typed text kept?');
