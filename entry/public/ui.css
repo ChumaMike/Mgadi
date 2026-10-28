@@ -298,3 +298,25 @@ html[data-contrast='true'] :is(.privacy,.screen-eyebrow,.screen-intro,.step-coun
 .review-additional { border-top: 1px solid var(--mg-line); margin-top: .7rem; }
 .review-additional > summary { font-size: .8rem; }
 .review-additional .review-item { padding-block: .6rem; }
+
+
+/* Final demo journey refinements: clear bank feedback, early evidence handoff, and privacy choices. */
+.bank-feedback-details { padding: .1rem 0 .7rem; border-block: 1px solid var(--mg-line); }
+.bank-feedback-details summary { color: var(--mg-forest); font-weight: 750; }
+.bank-feedback-details textarea { display:block; width:100%; min-height:92px; resize:vertical; line-height:1.5; }
+.bank-feedback-details label { margin:.65rem 0 .35rem; }
+.skip-evidence-note { flex:1 0 100%; margin:0; font-size:.78rem; line-height:1.45; }
+.journey-navigation .button { min-height:48px; }
+.journey-navigation .button:first-child { border-color:#a9c4ad; }
+.pack-preferences .check { display:flex; align-items:flex-start; gap:.65rem; border:1px solid var(--mg-line); border-radius:12px; padding:.8rem; margin:.45rem 0; background:#fafcf7; }
+.pack-preferences .check input { flex:0 0 24px; width:24px; height:24px; margin:.12rem 0 0; }
+.pack-review-screen .evidence-file-list { margin-bottom:0; }
+.pack-review-screen .evidence-file-list + .privacy { margin-top:.35rem; }
+@media (max-width:390px) {
+ .journey-navigation { flex-direction:column; align-items:stretch; }
+ .journey-navigation .button { width:100%; margin:0; }
+ .pack-preferences .check { padding:.75rem .6rem; }
+}
+@media (prefers-reduced-motion:reduce) {
+ .bank-feedback-details, .journey-navigation { scroll-behavior:auto; }
+}
