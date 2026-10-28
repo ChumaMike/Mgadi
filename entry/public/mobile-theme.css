@@ -186,3 +186,15 @@
 .assistance-bank{padding:1rem;background:#f0f9f8;border-radius:15px;margin:1rem 0}.assistance-bank:empty{display:none}.assistance-bank a{display:block;width:100%;margin:1rem 0 0;text-align:center}
 .assistance-evidence-item{border:1px solid #d9e7ed;border-radius:15px;padding:1rem;margin:.8rem 0;background:white;min-width:0}.assistance-evidence-item>strong{display:block;overflow-wrap:anywhere}.assistance-evidence-item summary{font-size:.8rem}.assistance-success{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:#e2f7ef;color:#0c8068;font-size:2rem;margin:1rem 0}.access-explanation{display:block;min-height:44px;padding:.8rem 0}.assistance-card .hash{display:block;font-size:.8rem;background:#f1f7f9;padding:1rem;border-radius:12px}
 }
+
+@media screen {
+.site-header{display:grid;grid-template-columns:76px minmax(0,1fr) auto;align-items:center;gap:.5rem;flex-wrap:nowrap}
+.site-header .brand{min-width:0;width:76px;display:block;flex:none}
+.site-header .brand .brand-logo{width:76px;height:64px;flex:none;overflow:visible;background:transparent}
+.site-header .brand-logo svg{display:block;width:100%;height:100%;overflow:visible}
+.site-header>.talkback-link{justify-self:end;font-size:.8rem;min-width:0}
+.site-header>#emergency-button{font-size:.75rem;min-width:0;padding:.65rem .6rem}
+@media(max-width:359px){.site-header{grid-template-columns:64px minmax(0,1fr) auto;padding-inline:.6rem;gap:.35rem}.site-header .brand,.site-header .brand .brand-logo{width:64px}.site-header .brand .brand-logo{height:58px}.site-header>.talkback-link{font-size:.7rem;padding:.5rem}.site-header>#emergency-button{font-size:.7rem}}
+}
+
+@media screen{.assistance-companion{margin:1rem 0;background:#edf7f9;border:1px solid #cfe2e9;border-radius:18px;display:flex;flex-direction:column;align-items:center;padding:.7rem}.assistance-companion canvas{display:block;width:160px;max-width:100%;height:auto;max-height:190px;object-fit:contain}.assistance-companion .privacy{font-size:.75rem;text-align:center;margin:.4rem 0 0}}

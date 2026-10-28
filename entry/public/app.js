@@ -33,7 +33,7 @@ function button(text, onClick, className = 'button') { const node = element('but
 // Focus moves to the new screen's heading so a screen reader says where you are, but NOT on the very first screen: stealing focus
 // on load would leave the header (the bank button) behind a keyboard user.
 let hasRendered = false;
-function clear() { stopSpeech(); app.replaceChildren(); const moveFocus = hasRendered; hasRendered = true; if (moveFocus) requestAnimationFrame(() => { const heading = app.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus(); } }); }
+function clear() { assistance?.stop(); stopSpeech(); app.replaceChildren(); const moveFocus = hasRendered; hasRendered = true; if (moveFocus) requestAnimationFrame(() => { const heading = app.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus(); } }); }
 function log(text) { incident.timeline.push({ at: new Date().toISOString(), text }); }
 
 // While the owner has the bank numbers open, a late triage result must not replace that screen.

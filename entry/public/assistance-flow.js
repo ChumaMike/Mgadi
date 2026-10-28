@@ -1,3 +1,4 @@
+import { createAvatar } from './accessibility/avatar.js';
 import { makePack, verifyPack } from './shared/pack.js';
 import { sha256Hex } from './shared/sha256.js';
 
@@ -21,7 +22,7 @@ export function assistancePackData(c){
   note:'File bytes are not included. Actions are user reported. SHA-256 detects differences against a trusted original checksum; it is not a digital signature or proof of authenticity. This record does not confirm resolution or recovery.'};
 }
 export function createAssistanceFlow({root,clear,goHome,banks}){
- let current=null,processing=false,storageWarning='',pack=null;
+ let current=null,processing=false,storageWarning='',pack=null,companion=null;
  const el=(tag,text='',attrs={})=>{const n=document.createElement(tag);n.textContent=text;for(const[k,v]of Object.entries(attrs))n.setAttribute(k,v);return n;};
  const b=(text,fn,cls='button')=>{const n=el('button',text,{type:'button',class:cls});n.addEventListener('click',fn);return n;};
  const p=text=>el('p',text);const small=text=>el('p',text,{class:'privacy'});
@@ -30,7 +31,7 @@ export function createAssistanceFlow({root,clear,goHome,banks}){
  const event=text=>current.timeline.push({at:new Date().toISOString(),text});
  function save(){try{localStorage.setItem(KEY,JSON.stringify(current));storageWarning='';}catch{storageWarning='Progress could not be saved on this browser. Keep this tab open and download your pack before leaving.';}}
  function go(phase){stopReading();current.phase=phase;save();render();window.scrollTo(0,0);}
- function stopReading(){if('speechSynthesis'in window)window.speechSynthesis.cancel();}
+ function stopReading(){if('speechSynthesis'in window)window.speechSynthesis.cancel();companion?.destroy();companion=null;}
  function start({incident,label,flow}){
   const launch=()=>{current={version:1,id:'MG-'+Date.now().toString(36).toUpperCase(),startedAt:new Date().toISOString(),phase:'incoming',label,flow,description:incident.redacted?.text||incident.description||'',evidence:[],timeline:[{at:new Date().toISOString(),text:'Incident report received'}],bankStatus:'not_reported'};pack=null;save();render();};
   if(current&&current.phase!=='pack'){const card=screen('Keep your current report?', 'Your active report is saved on this browser.');card.append(row(b('Resume my report',render),b('Replace with this new report',launch,'button secondary')));return;}
@@ -46,10 +47,15 @@ export function createAssistanceFlow({root,clear,goHome,banks}){
   card.append(el('div','M',{class:'assistance-call-mark','aria-hidden':'true'}),el('h2','Incoming in-app guidance'),p('Pick up to see your first action. You can read every word, with optional read-aloud.'),small('Guided assistance · no telephone call, microphone or live agent connection.'),row(b('Pick up guidance',()=>{event('Owner opened in-app guidance');go('guidance');}),b('Continue by text',()=>go('guidance'),'button secondary')));
  }
  function guidance(){const instruction=getInstruction(),card=screen(instruction.title,instruction.body);
+  const visual=el('section','',{class:'assistance-companion','aria-label':'3D visual companion'}),canvas=el('canvas','',{width:'400',height:'470',role:'img','aria-label':'Animated visual companion. Illustrative gestures, not verified SASL.'});
+  visual.append(canvas,small('Visual companion · illustrative gestures, not verified SASL'));
+  if(document.documentElement.dataset.textOnly!=='true'){card.append(visual);companion=createAvatar(canvas);if(!matchMedia('(prefers-reduced-motion: reduce)').matches&&document.documentElement.dataset.reducedMotion!=='true')companion.play();}
+  card.append(b('Open AI voice + 3D companion',()=>{stopReading();location.href='/talkback.html';},'button secondary'),small('AI voice needs a configured server and demo access. You can return here without losing your incident.'));
+
   card.append(small('Contact your bank without waiting to finish collecting evidence. Recovery is not guaranteed.'));
   const audioStatus=el('p','',{role:'status',class:'privacy'});
-  const read=b('Read this guidance aloud',()=>{if(!('speechSynthesis'in window)){audioStatus.textContent='Read aloud is unavailable here. The full guidance is written above.';return;}const u=new SpeechSynthesisUtterance(instruction.title+'. '+instruction.body);u.lang='en-ZA';window.speechSynthesis.speak(u);audioStatus.textContent='Reading the written guidance. You can stop it at any time.';},'button secondary');
-  card.append(small('Read aloud is optional. Your device/browser voice may use an online speech service.'),row(read,b('Stop reading',stopReading,'button secondary')),audioStatus);
+  const read=b('Read this guidance aloud',()=>{if(!('speechSynthesis'in window)){audioStatus.textContent='Read aloud is unavailable here. The full guidance is written above.';return;}const u=new SpeechSynthesisUtterance(instruction.title+'. '+instruction.body);u.lang='en-ZA';u.onstart=()=>{companion?.setMood('speaking');companion?.setGesture(current.flow.steps.some(s=>s.id==='bank')?'call':'help');};u.onend=()=>{companion?.setMood('idle');companion?.setGesture('none');};u.onerror=u.onend;window.speechSynthesis.speak(u);audioStatus.textContent='Reading the written guidance. You can stop it at any time.';},'button secondary');
+  card.append(small('Read aloud is optional. Your device/browser voice may use an online speech service.'),row(read,b('Stop reading',()=>{window.speechSynthesis?.cancel();companion?.setMood('idle');companion?.setGesture('none');},'button secondary')),audioStatus);
   const label=el('label','Choose your bank',{for:'assistance-bank'}),choice=el('select','',{id:'assistance-bank'});choice.append(el('option','Select a bank',{value:''}));for(const bank of banks.banks)choice.append(el('option',bank.name,{value:bank.name}));choice.value=current.bank||'';
   const contact=el('div','',{class:'assistance-bank'});
   const draw=()=>{contact.replaceChildren();const bank=banks.banks.find(x=>x.name===current.bank);if(bank){contact.append(el('strong',bank.name),el('a','Call '+bank.number,{href:'tel:'+bank.tel,class:'button secondary'}),small('Confirm this contact with your bank card or official banking app. Opening the dialler does not mark the bank contacted.'));}};
