@@ -66,7 +66,7 @@ footer { font-size: .74rem; line-height: 1.7; border-top: 1px solid var(--mg-lin
 .vp-consent { line-height: 1.55; }
 .vp-body { padding: .5rem 1rem 1rem; }
 .avatar-dock { border-radius: 18px; box-shadow: 0 8px 24px #173e3533; }
-@media(min-width:900px) { .voice-panel { left: auto; right: 1.2rem; bottom: 1rem; width: 440px; border: 1px solid #b8c8b6; border-radius: 22px; overflow: hidden; max-height: calc(100dvh - 105px); } html[data-voice='open'] main { padding-right: 450px; width: min(100%,1400px); padding-bottom: 3rem; } html[data-voice='open'] .welcome-hero { grid-template-columns: 1fr; } }
+@media(min-width:900px) { .voice-panel { left: auto; right: 1.2rem; bottom: 1rem; width: 440px; border: 1px solid #b8c8b6; border-radius: 22px; overflow: hidden; max-height: calc(100dvh - var(--header-h) - 2rem); } html[data-voice='open'] main { padding-right: 450px; width: min(100%,1400px); padding-bottom: 3rem; } html[data-voice='open'] .welcome-hero { grid-template-columns: 1fr; } }
 @media(max-width:600px) { .brand span { display: none; } .site-header { padding: .7rem 1rem; } main { padding: .25rem 1rem 2rem; } .welcome-hero { grid-template-columns: 1fr; gap: 1.3rem; padding: 1rem 0 1.5rem; } .welcome-copy h1 { max-width: 360px; } .welcome-companion { min-height: 0; padding: 1rem 1.2rem; display: grid; grid-template-columns: 44px 1fr; gap: .35rem .8rem; } .companion-symbol { width: 44px; height: 44px; font-size: 1.8rem; margin: 0; grid-row: span 2; border-radius: 14px 14px 14px 3px; } .welcome-companion strong { font-size: .88rem; max-width: none; } .welcome-companion .button { justify-self: start; margin: .25rem 0 0; min-height: 44px; padding: .6rem .85rem; font-size: .85rem; } .welcome-companion .privacy { grid-column: 2; } .welcome-choices { grid-template-columns: 1fr; } .welcome-choices .situation-card { min-height: 68px; } .journey-progress .step-link { flex-direction: column; font-size: .65rem; } .journey-card { padding: 1.15rem; } }
 @media(prefers-reduced-motion:reduce) { .situation-card { transition: none; } .situation-card:hover { transform: none; } }
 html[data-reduced-motion='true'] .situation-card { transition: none; transform: none; }
@@ -121,3 +121,50 @@ html[data-text-size='largest'] .tool-grid { grid-template-columns:1fr; }
 .update-banner .update-message { flex: 1 1 16rem; margin: 0; font-size: 1rem; font-weight: 650; line-height: 1.45; }
 .update-banner .update-now { flex: 0 1 auto; margin: 0; min-height: 48px; }
 @media print { .update-banner { display: none !important; } }
+
+/* ---- Layout fixes found by looking at the real screens (390px phone, 1280px desktop) ---- */
+/* Keyboard focus and scrolled-to content stay clear of the sticky header AND the update banner (WCAG 2.2, 2.4.11 Focus Not Obscured). */
+html { --banner-h: 0px; scroll-padding-top: calc(var(--header-h) + var(--banner-h) + .75rem); }
+
+/* "Ready offline" is good news, not something to read on every screen. When all is well it sits at the very bottom; any other state
+   (saving, offline, failed, update ready) stays at the top where it matters. The words are unchanged. */
+.offline-status[data-state="ready"][data-online="true"] { order: 99; text-align: center; padding-block: .8rem; }
+
+/* Step progress. Wide screens: numbered titles. Narrow screens: numbered buttons only (44px), because seven step titles in 40px
+   columns wrapped letter by letter. The title and state stay in the accessible name; the state is also a symbol, never colour alone. */
+.step-number { display: inline-grid; place-items: center; min-width: 1.6rem; }
+@media (max-width: 700px) {
+  .journey-progress { flex-wrap: wrap; gap: .3rem; margin-bottom: 1.2rem; }
+  .journey-progress li { flex: 0 0 auto; }
+  .journey-progress .step-link { width: 44px; min-width: 44px; height: 44px; padding: 0; justify-content: center; align-items: center; border: 2px solid #c9d4c5; border-radius: 50%; background: #fff; font-size: 1rem; }
+  .journey-progress .current .step-link { border-color: #b98430; background: #fff2d3; }
+  .journey-progress .reported .step-link { border-color: #6c8b74; background: #eef4ea; }
+  .step-link .step-words { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .step-link .step-number { font-size: 1.05rem; }
+}
+
+/* Voice panel on a phone: the captions are the part people need most, so they get the room. */
+@media (max-width: 600px) {
+  .vp-chips { gap: .2rem; margin: .2rem 0; }
+  .vp-chip { font-size: .68rem; padding: .05rem .45rem; }
+  .vp-stage { flex-direction: row; align-items: center; gap: .75rem; padding: .5rem .75rem; margin: .4rem 0; }
+  /* The two size/hide buttons sit beside the picture, not over the face. */
+  .vp-stage .avatar-dock, html[data-avatar='max'] .vp-stage .avatar-dock { width: auto; display: grid; grid-template-columns: 92px 44px; grid-template-rows: 44px 44px; gap: .25rem .4rem; align-items: center; overflow: visible; background: transparent; box-shadow: none; }
+  html[data-avatar='max'] .vp-stage .avatar-dock { grid-template-columns: 150px 44px; }
+  .vp-stage .avatar-dock canvas { grid-column: 1; grid-row: 1 / span 2; width: 100%; height: auto; border-radius: 14px; background: #fff; }
+  .vp-stage .avatar-btn, .vp-stage .avatar-btn:first-of-type, .vp-stage .avatar-btn:last-of-type { position: static; width: 44px; height: 44px; grid-column: 2; }
+  /* The grid layout above must not undo hiding: the Hide button, text-only mode and very large text all hide the avatar. */
+  .vp-stage .avatar-dock[hidden], html[data-avatar='max'] .vp-stage .avatar-dock[hidden],
+  html[data-text-size='larger'] .vp-stage .avatar-dock, html[data-text-size='largest'] .vp-stage .avatar-dock,
+  html[data-text-only='true'] .vp-stage .avatar-dock { display: none; }
+  .vp-stage .vp-note { flex: 1; margin: 0; text-align: left; font-size: .75rem; }
+}
+
+/* Which kind of translation is on this screen. Words first; the colour is only a second cue. */
+.translation-note { max-width: 1000px; width: calc(100% - 2.4rem); margin: .2rem auto; padding: .45rem .75rem; font-size: .82rem; font-weight: 650; line-height: 1.4; background: #eef2e9; border: 1px solid #c5d0c8; border-radius: 10px; color: var(--mg-ink); }
+.translation-note[hidden] { display: none; }
+.translation-note[data-state="english"], .translation-note[data-state="partial"] { background: #fff2d3; border-color: #9b690f; }
+@media print { .translation-note { display: none !important; } }
+
+/* The skip link appears at the top-left when focused; the sticky header (z-index 60) used to cover it, so a keyboard user tabbed to nothing visible. */
+.skip-link:focus { z-index: 100; }
