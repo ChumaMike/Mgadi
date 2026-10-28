@@ -1,4 +1,5 @@
-export const languages = {"en": "English", "zu": "isiZulu", "xh": "isiXhosa", "af": "Afrikaans"};
+import { languages, languageCodes } from './languages.js';
+export { languages };
 export const catalog = {
   "en": {
     "What happened?": "What happened?",
@@ -84,7 +85,11 @@ export const catalog = {
     "I paid after bank details changed": "Ngikhokhile ngemva kokushintshwa kwemininingwane yasebhange",
     "I have not paid a suspicious request": "Angikasikhokheli isicelo esisolisayo",
     "I am not sure": "Angiqiniseki",
-    "Choose what happened, or describe it below.": "Khetha okwenzekile, noma ukuchaze ngezansi."
+    "Choose what happened, or describe it below.": "Khetha okwenzekile, noma ukuchaze ngezansi.",
+  "I think something has gone wrong": "Ngicabanga ukuthi kukhona okungahambanga kahle",
+  "Check before paying": "Hlola ngaphambi kokukhokha",
+  "Start the supplier check": "Qala ukuhlola umphakeli",
+  "More ways to use Mgadi": "Ezinye izindlela zokusebenzisa i-Mgadi"
   },
   "xh": {
     "What happened?": "Kwenzeke ntoni?",
@@ -127,7 +132,11 @@ export const catalog = {
     "I paid after bank details changed": "Ndihlawule emva kokutshintshwa kweenkcukacha zebhanki",
     "I have not paid a suspicious request": "Andikasihlawuli isicelo esikrokrisayo",
     "I am not sure": "Andiqinisekanga",
-    "Choose what happened, or describe it below.": "Khetha okwenzekileyo, okanye ukuchaze ngezantsi."
+    "Choose what happened, or describe it below.": "Khetha okwenzekileyo, okanye ukuchaze ngezantsi.",
+  "I think something has gone wrong": "Ndicinga ukuba kukho into engahambanga kakuhle",
+  "Check before paying": "Khangela phambi kokuhlawula",
+  "Start the supplier check": "Qala ukujonga umboneleli",
+  "More ways to use Mgadi": "Ezinye iindlela zokusebenzisa i-Mgadi"
   },
   "af": {
     "What happened?": "Wat het gebeur?",
@@ -328,8 +337,22 @@ Object.assign(catalog.af, {
   "Build an incident pack": "Skep ’n insidentpakket",
   "What still needs a person?": "Wat moet ’n mens nog doen?",
   "Not yet": "Nog nie",
-  "Voice, captions and a 3D companion, when connected.": "Stem, onderskrifte en ’n 3D-metgesel, wanneer gekoppel."
+  "Voice, captions and a 3D companion, when connected.": "Stem, onderskrifte en ’n 3D-metgesel, wanneer gekoppel.",
+  "I think something has gone wrong": "Ek dink iets het skeefgeloop",
+  "Check before paying": "Kontroleer voor jy betaal",
+  "Start the supplier check": "Begin die verskaffer-kontrole",
+  "More ways to use Mgadi": "Meer maniere om Mgadi te gebruik"
 });
 for (const source of Object.keys(catalog.zu)) catalog.en[source] = source;
-export function translate(text, lang) { return catalog[lang]?.[text] ?? text; }
-export function translationLanguage(text, lang) { return catalog[lang]?.[text] ? lang : "en"; }
+// A language with no drafts still has a (empty) catalog, so choosing it falls back to English everywhere and marks that text lang="en".
+for (const code of languageCodes) if (!Object.hasOwn(catalog, code)) catalog[code] = {};
+const entryFor = (text, lang) => (Object.hasOwn(catalog, lang) && Object.hasOwn(catalog[lang], text) ? catalog[lang][text] : undefined);
+export function translate(text, lang) { return entryFor(text, lang) || text; }
+// The text is only tagged with the language when it really is translated: an entry that copies the English is still English.
+export function translationLanguage(text, lang) { const entry = entryFor(text, lang); return entry && entry !== text ? lang : "en"; }
+// "source" (English), "draft" (some text has an unreviewed draft translation) or "fallback" (nothing translated: English is shown).
+export function translationState(lang) {
+  if (lang === "en") return "source";
+  const own = Object.entries(catalog[lang] ?? {}).filter(([text, value]) => value && value !== text);
+  return own.length ? "draft" : "fallback";
+}

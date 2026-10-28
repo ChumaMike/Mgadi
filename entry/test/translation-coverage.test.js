@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { catalog } from '../public/accessibility/catalog.js';
-import { computeCoverage, isTranslated, renderReport } from '../scripts/translation-coverage.mjs';
+import { computeCoverage, isTranslated, renderReport, LANGS } from '../scripts/translation-coverage.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -17,7 +17,7 @@ test('the report is internally consistent and never overstates', () => {
   assert.ok(rows.length >= 10);
   for (const row of rows) {
     assert.equal(row.total, row.strings + row.dynamic);
-    for (const lang of ['zu', 'xh', 'af']) assert.ok(row[lang] >= 0 && row[lang] <= row.strings, `${row.name} ${lang}`);
+    for (const lang of LANGS) assert.ok(row[lang] >= 0 && row[lang] <= row.strings, `${row.name} ${lang}`);
   }
   const report = renderReport(rows);
   assert.match(report, /Every translation in Mgadi is an unreviewed draft/);
@@ -48,6 +48,7 @@ test('nothing the person can read claims the product is fully or completely tran
 
 test('the ransomware guide, the connectivity notices and the pack screens are honestly reported as untranslated drafts today', () => {
   const rows = Object.fromEntries(computeCoverage().map((r) => [r.name.split(' (')[0], r]));
-  for (const name of ['Ransomware guide', 'Errors and connectivity notices']) for (const lang of ['zu', 'xh', 'af']) assert.equal(rows[name][lang], 0, `${name} ${lang}`);
+  for (const name of ['Ransomware guide', 'Errors and connectivity notices']) for (const lang of LANGS) assert.equal(rows[name][lang], 0, `${name} ${lang}`);
+  for (const lang of ['st', 'tn', 'nso', 'ss', 'nr', 'ts', 've']) for (const row of Object.values(rows)) assert.equal(row[lang], 0, `${lang} has no invented translation in ${row.name}`);
   assert.ok(rows['Payment-diversion guide'].zu > 0, 'the one drafted path is counted');
 });

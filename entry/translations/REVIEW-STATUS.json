@@ -1,0 +1,22 @@
+{
+  "format": "mgadi-translation-review/1",
+  "rule": "A language counts as reviewed only when named reviewers, a date and the reviewed scope are written here AND the product text and its tests are changed on purpose. Nothing is reviewed today, so the product says 'draft' or 'English' and never 'reviewed'.",
+  "statuses": {
+    "not-started": "No translation exists. The product shows English and says so.",
+    "unreviewed-draft": "Some text has a draft translation. No speaker has checked it.",
+    "in-review": "A named reviewer has started checking a defined part. Still shown as a draft.",
+    "reviewed": "Named reviewers checked the listed scope on the recorded date. Only this scope may be called reviewed."
+  },
+  "languages": {
+    "zu": { "name": "isiZulu", "status": "unreviewed-draft", "origin": "Draft text added during development. No professional translation or native-speaker review is recorded.", "reviewers": [], "reviewedOn": null, "reviewedScope": [] },
+    "xh": { "name": "isiXhosa", "status": "unreviewed-draft", "origin": "Draft text added during development. No professional translation or native-speaker review is recorded.", "reviewers": [], "reviewedOn": null, "reviewedScope": [] },
+    "af": { "name": "Afrikaans", "status": "unreviewed-draft", "origin": "Draft text added during development. No professional translation or native-speaker review is recorded.", "reviewers": [], "reviewedOn": null, "reviewedScope": [] },
+    "st": { "name": "Sesotho", "status": "not-started", "origin": "None. English is shown.", "reviewers": [], "reviewedOn": null, "reviewedScope": [] },
+    "tn": { "name": "Setswana", "status": "not-started", "origin": "None. English is shown.", "reviewers": [], "reviewedOn": null, "reviewedScope": [] },
+    "nso": { "name": "Sepedi (Sesotho sa Leboa)", "status": "not-started", "origin": "None. English is shown.", "reviewers": [], "reviewedOn": null, "reviewedScope": [] },
+    "ss": { "name": "siSwati", "status": "not-started", "origin": "None. English is shown.", "reviewers": [], "reviewedOn": null, "reviewedScope": [] },
+    "nr": { "name": "isiNdebele", "status": "not-started", "origin": "None. English is shown.", "reviewers": [], "reviewedOn": null, "reviewedScope": [] },
+    "ts": { "name": "Xitsonga", "status": "not-started", "origin": "None. English is shown.", "reviewers": [], "reviewedOn": null, "reviewedScope": [] },
+    "ve": { "name": "Tshivenda", "status": "not-started", "origin": "None. English is shown.", "reviewers": [], "reviewedOn": null, "reviewedScope": [] }
+  }
+}

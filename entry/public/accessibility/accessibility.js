@@ -1,4 +1,4 @@
-import { languages, translate, translationLanguage } from './catalog.js';
+import { languages, translate, translationLanguage, translationState } from './catalog.js';
 import { createAvatar } from './avatar.js';
 import { findReviewedSign } from './signs.js';
 let locale = 'en';
@@ -82,12 +82,19 @@ export function installAccessibility(){
   const label=el('label','Language / Ulimi / Ulwimi / Taal',{for:'language'});
   const select=el('select','',{id:'language'});
   for(const [id,name] of Object.entries(languages))select.append(el('option',name,{value:id}));
-  select.addEventListener('change',()=>{locale=select.value;updateLanguage();selected.textContent=locale==='en'?'English':`${languages[locale]} · draft`;selected.lang='en';});
-  const notice=el('p','Draft isiZulu, isiXhosa and Afrikaans translations need speaker review. Missing translations remain in English. Signing is SASL, a separate language.',{class:'notice',lang:'en'});
+  // What the chosen language really is, in words: a draft that no speaker has checked, or English because nothing is translated yet.
+  const languageStatus=el('p','',{id:'language-status',role:'status',class:'setting-note',lang:'en'});
+  const describeLanguage=()=>{
+    const name=languages[locale],state=translationState(locale);
+    return {source:'',draft:`${name}: draft translation of part of Mgadi. No ${name} speaker has checked it yet. Anything not translated shows in English.`,fallback:`${name}: there is no ${name} translation yet, so Mgadi shows English.`}[state];
+  };
+  const shortStatus=()=>{const state=translationState(locale);return state==='source'?'English':state==='draft'?`${languages[locale]} · draft`:`${languages[locale]} · English text`;};
+  select.addEventListener('change',()=>{locale=select.value;updateLanguage();selected.textContent=shortStatus();selected.lang='en';languageStatus.textContent=describeLanguage();});
+  const notice=el('p','Draft isiZulu, isiXhosa and Afrikaans translations need speaker review. Missing translations remain in English. The other official languages have no translation yet and show English. Signing is SASL, a separate language.',{class:'notice',lang:'en'});
   const size=el('select','',{id:'text-size'});for(const [v,t]of [['normal','100%'],['large','125%'],['larger','150%'],['largest','200%']])size.append(el('option',t,{value:v}));size.addEventListener('change',()=>document.documentElement.dataset.textSize=size.value);
   const toggle=(id,text,fn)=>{const l=el('label','',{class:'toggle',for:id});const n=el('input','',{type:'checkbox',id});l.append(n,document.createTextNode(text));n.addEventListener('change',()=>fn(n.checked));return l;};
   voiceStatus=el('p','',{role:'status',tabindex:'-1',lang:'en',class:'audio-status'});
-  panel.append(label,select,el('label','Text size',{for:'text-size'}),size,
+  panel.append(label,select,languageStatus,el('label','Text size',{for:'text-size'}),size,
     toggle('contrast','High contrast',v=>document.documentElement.dataset.contrast=String(v)),
     toggle('reduced-motion','Reduce movement',v=>{document.documentElement.dataset.reducedMotion=String(v);if(v)avatar?.pause();}),
     toggle('text-only','Low-data / text-only mode',v=>{document.documentElement.dataset.textOnly=String(v);if(v){avatar?.pause();video?.pause();stopSpeech();} if(dialog?.open)dialog.close();}),

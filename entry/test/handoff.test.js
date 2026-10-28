@@ -21,14 +21,38 @@ test('pack format is /3 and older /2 packs still verify (the checksum is over wh
   assert.equal(await verifyPack({ ...old, story: { version: 'masked', text: 'y' } }), false);
 });
 
-test('nothing is typed: no handoff is offered by default, and a pack without it has no handoff key at all', () => {
-  const s = base();
+test('nothing is typed and no step has been reported: no handoff is offered by default, and a pack without it has no handoff key at all', () => {
+  const s = base({ steps: steps([]) });
   assert.equal(sanitizeHandoff(undefined), null); assert.equal(sanitizeHandoff({}), null); assert.equal(sanitizeHandoff('x'), null);
   assert.equal(sanitizeHandoff({ outcome: 'unknown', affected: '' }), null, 'only defaults entered means nothing entered');
   assert.equal(defaultPackOptions(s).includeHandoff, false);
   const pack = buildPackData(s, defaultPackOptions(s));
   assert.equal(Object.hasOwn(pack, 'handoff'), false);
   assert.match(previewItems(s, defaultPackOptions(s)).find((i) => i.id === 'handoff').value, /Not included/);
+});
+
+test('once any step has been reported, the owner\'s Done, Need help and Not applicable are in the pack by default, they can untick it, and Need help never says anyone was contacted', () => {
+  const s = base({ steps: steps(['confirmed', 'needs_help', 'not_applicable']) });
+  assert.equal(defaultPackOptions(s).includeHandoff, true, 'ticked by default so the record is accurate');
+  const included = buildPackData(s, defaultPackOptions(s));
+  const byStep = Object.fromEntries(included.handoff.actions.map((a) => [a.step.split(' ').slice(2).join(' '), a]));
+  assert.equal(byStep.check_signs.status, 'reported-by-owner'); assert.equal(byStep.disconnect.status, 'help-requested-by-owner'); assert.equal(byStep.do_not_pay.status, 'not-applicable-by-owner');
+  assert.equal(byStep.get_help.status, 'not-reported');
+  assert.match(byStep.disconnect.note, /The owner needs help with this step\. It has not been reported as done\./);
+  assert.doesNotMatch(JSON.stringify(included.handoff), /(was|were|has been|have been) (contacted|notified|alerted)|help is on (its|the) way/i);
+  assert.equal(included.handoff.contacts.referral.includes('does not mean anyone has accepted'), true);
+  const unticked = buildPackData(s, { ...defaultPackOptions(s), includeHandoff: false });
+  assert.equal(Object.hasOwn(unticked, 'handoff'), false, 'unticking removes it entirely');
+  // a correction replaces the earlier tap: the pack states the FINAL outcome per step (the timeline keeps the history separately)
+  const corrected = base({ steps: steps(['confirmed', 'confirmed', 'not_applicable']) });
+  assert.equal(buildPackData(corrected, defaultPackOptions(corrected)).handoff.actions[1].status, 'reported-by-owner');
+  // the page people read and print says each step's real outcome in plain words, and no longer calls help-requested or not-applicable steps "not yet reported"
+  const text = summarySections(included).flatMap((section) => section.lines).join('\n');
+  assert.match(text, /Step 1 check_signs: Done \(the owner reported doing this; Mgadi cannot confirm it\)\./);
+  assert.match(text, /Step 2 disconnect: Need help \(the owner asked for help with this step; Mgadi did not contact anyone\)\./);
+  assert.match(text, /Step 3 do_not_pay: Not applicable \(the owner's own assessment; Mgadi has not verified it\)\./);
+  assert.match(text, /Step 4 get_help: Not reported yet\./);
+  assert.doesNotMatch(text, /Not yet reported by the owner/);
 });
 
 test('typed details are included only when the owner opts in, and then only the sanitized fields', () => {

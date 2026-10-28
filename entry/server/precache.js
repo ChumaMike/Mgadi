@@ -9,7 +9,8 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 const SKIP_DIRS = ['vendor', 'accessibility/media'];
-const SKIP_FILES = new Set(['sw.js', 'precache-manifest.json']);
+// The full-size logo (about 740 KB) is kept as supplied but the app shows the 384px copy, so the offline copy does not carry both.
+const SKIP_FILES = new Set(['sw.js', 'precache-manifest.json', 'brand/mgadi-logo.png']);
 const EXTENSIONS = new Set(['.html', '.js', '.css', '.json', '.webmanifest', '.png', '.svg', '.ico', '.txt']);
 export const MAX_TOTAL_BYTES = 2_000_000;
 

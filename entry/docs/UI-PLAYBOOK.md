@@ -2,6 +2,8 @@
 
 28 October 2026. Branch: `feature/ui-experience`, based on `feature/final-demo-integration` at `0113074`. This adds to the latest Claude integration; it does not replace that backend or merge into main.
 
+> **Update (branch `feature/final-mobile-ux`).** The welcome screen described below was redesigned into two doors ("I think something has gone wrong" with the five situations inside it, and "Check before paying"), with calm secondary rows. The supplier check is now three steps. See `UX-REDESIGN.md` and `DESIGN-SYSTEM.md`. The rest of this playbook still describes the guide steps, outcomes and voice panel correctly.
+
 ![Welcome screen with the supplied Mgadi logo](ui-preview.jpg)
 
 ## The journey, in plain language

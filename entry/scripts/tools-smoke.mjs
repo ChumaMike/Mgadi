@@ -27,11 +27,13 @@ const XSS = `<img src=x onerror=window.__x=1>${SENT}`;
 
 async function startCheck(page) { await page.click('.tool-entry'); await page.waitForSelector('#chk-supplier'); }
 async function fillRequest(page, extra = {}) {
+  for (const summary of ['What looked odd?', 'Compare the old and new bank details']) { const s = page.locator(`summary:has-text("${summary}")`); if (await s.count()) await s.click(); }
   await page.fill('#chk-supplier', extra.supplier ?? XSS); await page.selectOption('#chk-changed', 'bank_account'); await page.selectOption('#chk-arrived', 'email');
   await page.fill('#chk-amount', 'R 70 000,00'); await page.fill('#chk-note', extra.note ?? 'Please pay urgently, do not call us'); await page.check('#chk-q-dont_call');
-  await page.click('button:has-text("Check for red flags")'); await page.waitForSelector('#ver-who');
+  await page.click('button:has-text("Check for red flags")'); await page.waitForSelector('text=Step 2 of 3');
 }
 async function saveVerification(page, { source = 'old_invoice', result = 'confirmed', mine = true } = {}) {
+  if (!(await page.locator('#ver-who').count())) await page.click('button:has-text("Next: record my call")');
   await page.fill('#ver-who', 'Thandi, accounts'); await page.selectOption('#ver-source', source); await page.selectOption('#ver-result', result);
   if (mine) await page.check('#ver-mine'); await page.click('button:has-text("Save my check")');
 }

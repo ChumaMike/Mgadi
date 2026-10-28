@@ -1,4 +1,4 @@
-// Translation coverage report: how much of each part of Mgadi really exists in isiZulu, isiXhosa and Afrikaans.
+// Translation coverage report: how much of Mgadi really exists in each of the ten non-English interface languages, with reviewer status.
 //   node scripts/translation-coverage.mjs           prints the report
 //   node scripts/translation-coverage.mjs --write   regenerates TRANSLATION-COVERAGE.md (a test fails if it is stale)
 // HOW IT COUNTS. The only translation mechanism is the catalog (public/accessibility/catalog.js), keyed by the exact English
@@ -9,14 +9,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { catalog, languages } from '../public/accessibility/catalog.js';
+import { catalog, languages, translationState } from '../public/accessibility/catalog.js';
+import { languageCodes } from '../public/accessibility/languages.js';
+import { PROVIDER_LANGUAGES } from '../server/voice.js';
 import { FAILURE_COPY } from '../public/voice/controller.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const playbook = JSON.parse(read('public/data/playbook.json'));
 const resources = JSON.parse(read('public/data/resources.json'));
-const LANGS = ['zu', 'xh', 'af'];
+export const LANGS = languageCodes.filter((code) => code !== 'en');
+export const reviewStatus = JSON.parse(read('translations/REVIEW-STATUS.json'));
 
 const SKIP_KEYS = new Set(['id', 'route', 'next', 'reviewed', 'url', 'audience', 'allowedHosts', 'checkedOn', 'reviewNote']);
 function collect(value, out = []) {
@@ -68,7 +71,7 @@ const fromData = (value) => ({ strings: [...new Set(collect(value))], dynamic: [
 const offlineSentences = [...offline.matchAll(/return `[^`]*`/g)].map((m) => m[0]);
 const controllerNotes = [...controller.matchAll(/note\('([^']{6,})'\)/g)].map((m) => m[1]);
 const inc = (id) => playbook.incidents[id];
-const surfaces = [
+export const surfaces = [
   ['Emergency entry screens (choices, money question, one quick question)', merge(fromData([playbook.entry, playbook.clarify]), fromFunctions(app, ['showHome', 'showPaymentChoice', 'showClarify']))],
   ['Payment-diversion guide', fromData(inc('payment_diversion'))],
   ['Hacked-mailbox guide', fromData(inc('mailbox_compromise'))],
@@ -94,7 +97,14 @@ export function computeCoverage() {
 }
 const pct = (n, total) => (total ? `${Math.round((n / total) * 100)}%` : 'n/a');
 
+const STATUS_LABEL = { 'not-started': 'No translation: English shown', 'unreviewed-draft': 'Unreviewed draft', 'in-review': 'In review (still a draft)', reviewed: 'Reviewed (see scope)' };
+const reviewerText = (code) => { const r = reviewStatus.languages[code]; return r.reviewers.length ? `${r.reviewers.join(', ')} (${r.reviewedOn})` : 'None recorded'; };
+const voiceText = (code) => (PROVIDER_LANGUAGES[code]?.retell ? 'Provider lists it; not verified here' : 'No provider voice');
+
 export function renderReport(rows = computeCoverage()) {
+  const totalStrings = rows.reduce((n, r) => n + r.total, 0);
+  const drafted = LANGS.filter((code) => translationState(code) === 'draft');
+  const empty = LANGS.filter((code) => translationState(code) !== 'draft');
   const lines = [
     '# Translation coverage (generated: do not edit by hand)',
     '',
@@ -103,19 +113,34 @@ export function renderReport(rows = computeCoverage()) {
     '**Every translation in Mgadi is an unreviewed draft.** No language is complete. Text that is not translated stays in English and is',
     'marked `lang="en"` so screen readers pronounce it correctly. Nothing here is a claim of reviewed or complete translation.',
     '',
-    '| Part of Mgadi | Strings | Dynamic (built at run time) | isiZulu | isiXhosa | Afrikaans |',
-    '|---|---:|---:|---:|---:|---:|',
-    ...rows.map((r) => `| ${r.name} | ${r.strings} | ${r.dynamic} | ${r.zu} (${pct(r.zu, r.total)}) | ${r.xh} (${pct(r.xh, r.total)}) | ${r.af} (${pct(r.af, r.total)}) |`),
+    '## Coverage by language',
     '',
-    `Catalog size: ${Object.keys(catalog.en).length} entries per language (${Object.values(languages).join(', ')}).`,
+    `Mgadi's interface lists all eleven written official languages. Strings counted: ${totalStrings} (the exact total is in the table below; strings built at run time count as untranslated).`,
+    '',
+    '| Language | Code | Status | Translated | Share | Reviewer | Voice |',
+    '|---|---|---|---:|---:|---|---|',
+    ...LANGS.map((code) => { const n = rows.reduce((sum, r) => sum + r[code], 0); return `| ${languages[code]} | \`${code}\` | ${STATUS_LABEL[reviewStatus.languages[code].status]} | ${n} of ${totalStrings} | ${pct(n, totalStrings)} | ${reviewerText(code)} | ${voiceText(code)} |`; }),
+    '',
+    `**Drafts exist for:** ${drafted.map((c) => languages[c]).join(', ')}. **No translation yet (English is shown, and says so):** ${empty.map((c) => languages[c]).join(', ')}.`,
+    'The review record is `translations/REVIEW-STATUS.json`. A language moves to "reviewed" only when named reviewers, a date and a scope are written there.',
+    '',
+    `## Coverage by part of Mgadi (languages that have drafts: ${drafted.map((c) => languages[c]).join(', ')})`,
+    '',
+    `| Part of Mgadi | Strings | Dynamic (built at run time) | ${drafted.map((c) => languages[c]).join(' | ')} |`,
+    `|---|---:|---:|${drafted.map(() => '---:').join('|')}|`,
+    ...rows.map((r) => `| ${r.name} | ${r.strings} | ${r.dynamic} | ${drafted.map((c) => `${r[c]} (${pct(r[c], r.total)})`).join(' | ')} |`),
+    '',
+    `Catalog size: ${Object.keys(catalog.en).length} entries per drafted language (English and ${drafted.map((c) => languages[c]).join(', ')}).`,
     'Percentages are translated strings divided by strings plus dynamic strings. Dynamic strings count as untranslated.',
     '',
     '## What this means for people',
     '',
-    '- Only the payment-diversion path and a few core buttons have draft translations. The ransomware guide, the one quick question, the',
-    '  evidence and pack screens, the voice panel and every connectivity notice appear in English in all four interface languages.',
-    '- Free-text triage is English-first and unverified in isiZulu, isiXhosa and Afrikaans. The choices on the entry screen work in every language.',
-    '- Voice: isiZulu and isiXhosa never get voice (the provider lists no support). Afrikaans voice stays blocked because its guide is incomplete.',
+    '- Only the payment-diversion path and a few core buttons have draft translations, and only in isiZulu, isiXhosa and Afrikaans. The ransomware guide, the one quick question, the',
+    '  evidence and pack screens, the voice panel and every connectivity notice appear in English in every language.',
+    '- Choosing one of the seven languages with no translation keeps everything in English, says so on every screen, and keeps text, bank and step guidance working.',
+    '- Free-text triage is English-first and unverified in every other language. The choices on the entry screen work in every language.',
+    '- Voice: no provider voice exists for any South African language except Afrikaans, and Afrikaans voice stays blocked because its guide is incomplete.',
+    '  Choosing a written language never switches on a spoken one.',
     '- Sign language (SASL) is a separate language, not a translation. No reviewed clip exists, so no signing is shown.',
     '',
     '## How the count is made, and its limits',
@@ -125,6 +150,7 @@ export function renderReport(rows = computeCoverage()) {
     '  A string assembled at run time is listed as dynamic and counted as untranslated. A literal the scan cannot see would be missed, so',
     '  treat counts as close, not exact. The catalog lookup itself is exact: the catalog entry must exist and differ from the English.',
     '- Nothing here measures translation QUALITY. Every draft needs review by speakers of that language before it is relied on.',
+    '- Adding a language or reviewing one: see `docs/TRANSLATION-REVIEW.md`.',
     '',
   ];
   return `${lines.join('\n')}`;

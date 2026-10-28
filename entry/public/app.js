@@ -1,4 +1,4 @@
-import { bindText, installAccessibility, guidanceControls, stopSpeech } from './accessibility/accessibility.js';
+import { bindText, installAccessibility, guidanceControls, stopSpeech, getLocale } from './accessibility/accessibility.js';
 import { redactIncident } from './shared/redact.js';
 import { routeTriage } from './shared/labels.js';
 import { sha256Hex } from './shared/sha256.js';
@@ -7,6 +7,8 @@ import { triageWithFallback } from './shared/triage-client.js';
 import { initVoice } from './voice/panel.js';
 import { initOffline } from './offline/register.js';
 import { initTools } from './tools/tools.js';
+import { icon } from './shared/icons.js';
+import { languages } from './accessibility/catalog.js';
 import { buildPackData, defaultPackOptions, previewItems, summarySections, formatTime, sanitizeHandoff, AFFECTED } from './shared/summary.js';
 
 const app = document.querySelector('#app');
@@ -85,33 +87,62 @@ function showBankLines() {
   }, 'button secondary')); app.append(card);
 }
 
+// One calm row for the secondary ways in: an icon, one control, and a line saying what it does.
+function secondaryItem(iconName, control, description) {
+  const item = document.createElement('li'); item.className = 'secondary-item';
+  const mark = element('span', '', { className: 'secondary-icon', 'aria-hidden': 'true' }); mark.append(icon(iconName));
+  const text = element('div', '', { className: 'secondary-text' }); text.append(control, element('p', description));
+  item.append(mark, text); return item;
+}
+function openSettings() {
+  const panel = document.querySelector('#accessibility details'); if (!panel) return;
+  panel.open = true; panel.scrollIntoView?.({ block: 'start' });
+  (panel.querySelector('#language') ?? panel.querySelector('summary'))?.focus();
+}
+// Shown only while an incident is open on this page. Nothing is saved in the browser, so a closed tab means a fresh start.
+function continueCard() {
+  if (!journey || !incident?.title) return null;
+  const card = element('section', '', { className: 'continue-card', 'aria-label': 'Continue your incident' });
+  const text = element('div', '', { className: 'continue-card__text' });
+  const where = journey.finished ? 'Your incident pack is ready to review.' : `${journey.flow.title}: step ${journey.position + 1} of ${journey.flow.steps.length}.`;
+  text.append(element('strong', 'Continue your incident'), element('p', where), element('p', 'Kept only while this page stays open. Mgadi does not save it in your browser. Choosing a new situation replaces it.'));
+  card.append(icon('resume'), text, button(journey.finished ? 'Back to your pack' : 'Continue', () => { if (journey.finished) showEvidencePack(journey.flow); else renderStep(); }));
+  return card;
+}
+
 function showHome() {
   clear();
   const card = element('section', '', { className: 'card welcome-card' });
-  const hero = element('div', '', { className: 'welcome-hero' });
-  const copy = element('div', '', { className: 'welcome-copy' });
-  const intro = element('p', 'Let’s take the next step, together.', { className: 'hero-intro' });
-  copy.append(element('p', 'YOUR FIRST HOUR, MADE SIMPLER', { className: 'eyebrow' }), element('h1', 'Something feels wrong?'), intro);
-  const companion = element('div', '', { className: 'welcome-companion' });
-  const logo = element('span', '', { className: 'companion-symbol', 'aria-hidden': 'true' });
-  logo.append(element('img', '', { src: '/brand/mgadi-logo.png', alt: '', width: '1254', height: '1254' }));
-  companion.append(logo, element('strong', 'You don’t have to figure it out alone.'), voice.launchButton(), button('Use text guidance', () => card.querySelector('.situation-card')?.focus(), 'button secondary text-entry'), element('p', 'Voice, captions and a 3D companion, when connected.', { className: 'privacy' }));
-  hero.append(copy, companion); card.append(hero);
+  const resume = continueCard(); if (resume) card.append(resume);
+  const hero = element('div', '', { className: 'welcome-intro' });
+  const intro = element('p', 'Choose the closest option. We’ll guide you one step at a time.', { className: 'hero-intro' });
+  hero.append(element('p', 'YOUR FIRST HOUR, MADE SIMPLER', { className: 'eyebrow' }), element('h1', 'Something feels wrong?'), intro);
+  card.append(hero);
+  const actions = element('div', '', { className: 'primary-actions' });
+
+  // 1. The emergency door. The five situations are one tap each, so the next step is never more than two taps away.
+  const urgent = element('section', '', { className: 'action-card action-card--urgent', 'aria-labelledby': 'urgent-title' });
+  const urgentHead = element('div', '', { className: 'action-card__head' });
+  const urgentMark = element('span', '', { className: 'action-card__icon', 'aria-hidden': 'true' }); urgentMark.append(icon('alert'));
+  const urgentText = element('div'); const urgentTitle = element('h2', 'I think something has gone wrong', { id: 'urgent-title' });
+  urgentText.append(urgentTitle, element('p', 'Pick what is closest. You do not need technical words.'));
+  urgentHead.append(urgentMark, urgentText); urgent.append(urgentHead);
   const choices = element('div', '', { className: 'incident-choices welcome-choices' });
-  card.append(element('h2', 'What happened?'), element('p', 'Choose the closest option. We’ll guide you one step at a time.', { className: 'section-intro' }));
-  const symbols = ['↗', '▣', '@', '↗', '?'];
+  const iconFor = ['money', 'lock', 'mail', 'link', 'help'];
   playbook.entry.options.forEach((option, index) => {
     const choice = button('', () => chooseEntry(option), 'button secondary situation-card');
-    choice.append(element('span', symbols[index] || '→', { className: 'choice-icon', 'aria-hidden': 'true' }), element('span', option.text), element('span', '→', { className: 'choice-arrow', 'aria-hidden': 'true' }));
+    const mark = element('span', '', { className: 'choice-icon', 'aria-hidden': 'true' }); mark.append(icon(iconFor[index] || 'help'));
+    const arrow = element('span', '', { className: 'choice-arrow', 'aria-hidden': 'true' }); arrow.append(icon('arrow'));
+    choice.append(mark, element('span', option.text), arrow);
     choices.append(choice);
   });
-  card.append(choices);
+  urgent.append(choices);
   const writing = element('details', '', { className: 'describe-incident' });
   writing.append(element('summary', 'Prefer to describe it in your own words?'));
   const description = element('textarea', '', { id: 'incident-description', placeholder: 'Example: We paid a supplier after an email said their banking details changed. They say they never got the money.' });
   description.lang = 'en';
   const names = element('input', '', { id: 'names-to-hide', placeholder: 'Optional: names to hide, separated by commas' });
-  writing.append(element('p', 'Please type in English. For other languages, use the choices above.', { className: 'privacy' }), element('label', 'What happened?', { for: 'incident-description' }), description, element('label', 'Names to hide', { for: 'names-to-hide' }), names, element('p', 'Before anything leaves this phone, Mgadi hides names, emails, phone numbers, bank-like numbers, amounts and links.', { className: 'privacy' }));
+  writing.append(element('p', 'Please type in English. For other languages, use the choices above.', { className: 'privacy' }), element('label', 'What happened?', { for: 'incident-description' }), description, element('label', 'Names to hide', { for: 'names-to-hide' }), names);
   const submit = button('Get safe next step', async () => {
     if (!description.value.trim()) { description.setCustomValidity('Describe what happened, or choose a situation above.'); description.reportValidity(); return; }
     const hiddenNames = names.value.split(',').map((item) => item.trim()).filter(Boolean);
@@ -120,24 +151,30 @@ function showHome() {
     await triage(redacted.text);
   });
   description.addEventListener('input', () => description.setCustomValidity(''));
-  writing.append(submit); card.append(writing);
-  const more = element('div', '', { className: 'welcome-bottom' });
-  more.append(guidanceControls([intro], 'welcome')); card.append(more);
-  const practical = element('section', '', { className: 'practical-tools', 'aria-label': 'Practical tools' });
-  practical.append(element('h2', 'More than advice'), element('p', 'Prepare a record. Check the details. You stay in control.', { className: 'section-intro' }));
-  const grid = element('div', '', { className: 'tool-grid' });
-  for (const [action, description] of [
-    [tools.homeButton(), 'Compare the old and new payment details.'],
-    [button('Check a PDF or message', () => tools.showEvidenceScreen(showHome), 'button secondary'), 'Read and compare documents on this device.'],
-    [button('Build an incident pack', startRecord, 'button secondary'), 'Keep evidence fingerprints and prepare a handoff.'],
-  ]) {
-    const item = element('div', '', { className: 'practical-tool' });
-    item.append(action, element('p', description, { className: 'privacy' })); grid.append(item);
-  }
-  practical.append(grid);
+  writing.append(submit); urgent.append(writing);
+
+  // 2. The prevention door: the supplier payment check.
+  const calm = element('section', '', { className: 'action-card action-card--calm', 'aria-labelledby': 'check-title' });
+  const calmHead = element('div', '', { className: 'action-card__head' });
+  const calmMark = element('span', '', { className: 'action-card__icon', 'aria-hidden': 'true' }); calmMark.append(icon('check'));
+  const calmText = element('div'); calmText.append(element('h2', 'Check before paying', { id: 'check-title' }), element('p', 'A supplier sent new bank details? Check them, and phone the supplier yourself, before any money moves.'));
+  calmHead.append(calmMark, calmText); calm.append(calmHead, tools.homeButton());
+  actions.append(urgent, calm); card.append(actions);
+
+  // 3. Secondary access, in calm rows rather than more cards.
+  const more = element('section', '', { className: 'secondary-actions', 'aria-labelledby': 'more-title' });
+  more.append(element('h2', 'More ways to use Mgadi', { id: 'more-title' }));
+  const list = element('ul', '', { className: 'secondary-list' });
+  list.append(
+    secondaryItem('mic', voice.launchButton(), 'Talk it through with Mgadi’s assistant. Captions show on screen, and every step also works in text.'),
+    secondaryItem('file', button('Check a PDF or message', () => tools.showEvidenceScreen(showHome), 'button secondary'), 'Read an invoice or a pasted message on this device and compare what it says.'),
+    secondaryItem('pack', button('Build an incident pack', startRecord, 'button secondary'), 'Keep evidence fingerprints and prepare what you would share with your bank or a helper.'),
+    secondaryItem('settings', button('Language and accessibility', openSettings, 'button secondary'), 'Text size, contrast, less movement, read-aloud and language. No account needed.'),
+  );
+  more.append(list, guidanceControls([intro], 'welcome'));
   const limits = element('details', '', { className: 'capability-limits' });
   limits.append(element('summary', 'What still needs a person?'), element('p', 'You make bank calls, confirm supplier details and approve sharing. Mgadi does not freeze money or change accounts. Live voice needs a connection; SASL translation is not available yet.'));
-  practical.append(limits); card.append(practical);
+  more.append(limits); card.append(more);
   app.append(card);
   document.dispatchEvent(new Event('mgadi:idle')); // lets a waiting update apply now that nothing is in progress
 }
@@ -412,8 +449,23 @@ function showPack(pack) {
   checkFile.addEventListener('change', async () => { try { const candidate = JSON.parse(await checkFile.files[0].text()); const ok = await verifyPack(candidate); result.textContent = ok ? 'Pack unchanged: its fingerprint matches.' : 'Pack has been changed: use the original file.'; result.className = ok ? 'notice good' : 'notice bad'; } catch { result.textContent = 'That is not a valid Mgadi incident pack.'; result.className = 'notice bad'; } });
   const technical = element('details', '', { className: 'pack-technical' });
   technical.append(element('summary', 'Technical data and tamper check'), element('h2', 'Verify a downloaded pack'), element('p', 'Load a pack after changing a value to see the tamper check.'), checkFile, result, details);
-  const actions = element('div', '', { className: 'pack-actions' });
-  actions.append(download, button('Print or save as PDF', () => window.print(), 'button secondary'), tools.packButtons(pack, () => showPack(pack)), button('Start a new incident', showHome, 'button secondary'));
+  // What happens next, grouped by what each action does, so nobody shares something by accident or thinks a draft has been sent.
+  const [popiaButton, helperButton, documentsButton] = [...tools.packButtons(pack, () => showPack(pack)).children];
+  download.classList.add('row-primary');
+  const actions = element('section', '', { className: 'pack-next', 'aria-labelledby': 'pack-next-title' });
+  const state = element('div', '', { className: 'ds-status ds-status--info' }); const stateText = element('div');
+  stateText.append(element('strong', 'Draft on this device: nothing has been shared'), element('p', 'Mgadi shares nothing unless you choose to. Making a link is not the same as someone receiving it: Mgadi says "link created", and shows "acknowledged" only if the other person confirms it themselves.'));
+  state.append(icon('file'), stateText);
+  const list = element('ul', '', { className: 'secondary-list pack-list' });
+  list.append(
+    secondaryItem('pack', download, 'Saves a file on this device. Nothing is sent. Keep it with the original messages and proof of payment.'),
+    secondaryItem('file', button('Print or save as PDF', () => window.print(), 'button secondary'), 'Uses your browser’s print screen. Nothing is sent.'),
+    secondaryItem('mail', helperButton, 'Makes a private link that you pass on yourself. Only someone holding the link can read it. Mgadi cannot tell whether it was opened.'),
+    secondaryItem('file', documentsButton, 'Read an invoice, proof of payment or pasted message on this device and compare what it says. Nothing is uploaded.'),
+    secondaryItem('alert', popiaButton, 'A template for your information officer to review. It is not legal advice and nothing is sent.'),
+    secondaryItem('resume', button('Start a new incident', showHome, 'button secondary'), 'Clears this incident from the screen. Download first if you need a copy.'),
+  );
+  actions.append(element('h2', 'What would you like to do?', { id: 'pack-next-title' }), state, list);
   card.append(summary, actions, technical);
   app.append(card);
 }
@@ -423,10 +475,9 @@ installAccessibility();
 // screen itself (text that fell back to English is tagged lang="en"), so it cannot claim more than is true. There is deliberately no
 // "reviewed" state: no language has had a native speaker's review. When one has, add that state here together with the recorded review
 // (and change test/translation-coverage.test.js on purpose), never before.
-const LANGUAGE_NAMES = { zu: 'isiZulu', xh: 'isiXhosa', af: 'Afrikaans' };
 const translationNote = document.querySelector('#translation-note');
 function updateTranslationNote() {
-  const name = LANGUAGE_NAMES[document.documentElement.lang];
+  const name = document.documentElement.lang === 'en' ? null : languages[document.documentElement.lang];
   if (!name) { translationNote.hidden = true; translationNote.textContent = ''; delete translationNote.dataset.state; return; }
   const shown = [...app.querySelectorAll('[lang]')].filter((node) => !['TEXTAREA', 'INPUT', 'SELECT'].includes(node.tagName) && node.textContent.trim());
   const english = shown.filter((node) => node.lang === 'en').length;
@@ -434,7 +485,7 @@ function updateTranslationNote() {
   translationNote.dataset.state = state; translationNote.hidden = false;
   translationNote.textContent = {
     draft: `${name}: draft translation, not yet checked by a ${name} speaker.`,
-    partial: `${name}: part of this screen is a draft translation. The rest is still in English.`,
+    partial: `${name}: part of this screen is a draft translation that no ${name} speaker has checked. The rest is still in English.`,
     english: `This screen is in English: there is no ${name} translation for it yet.`,
   }[state];
 }
@@ -471,7 +522,22 @@ const voiceBridge = {
   showBank: showBankLines, log,
   showText: () => { const heading = app.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus(); } },
 };
-const voiceReady = initVoice({ bridge: voiceBridge }).catch(() => ({ launchButton: () => document.createDocumentFragment() }));
+// Settings say, in plain words, whether live voice exists for the language that is chosen. It reads what the server reports; it never
+// assumes. Text guidance is always named as the way that always works.
+const voiceSetting = document.createElement('p'); voiceSetting.id = 'voice-availability'; voiceSetting.className = 'setting-note'; voiceSetting.lang = 'en'; voiceSetting.setAttribute('role', 'status');
+function updateVoiceSetting() {
+  const config = voice.config; const info = config?.languages?.[getLocale()];
+  let text = 'Live voice: not available in this version. Text guidance always works.';
+  if (config?.mode === 'mock' && info?.available) text = 'Live voice: a labelled SIMULATION only. There is no real AI and no microphone is used. Text guidance always works.';
+  else if (info?.available) text = `Live voice: available in ${info.label}. You choose when to start it. Text guidance always works.`;
+  else if (info) text = `Live voice: not available in ${info.label}. ${info.reason}${/text guidance/i.test(info.reason) ? '' : ' Text guidance always works.'}`;
+  voiceSetting.textContent = text;
+  const host = document.querySelector('#accessibility .access-panel');
+  if (host && !voiceSetting.isConnected) (host.querySelector('#language-status') ?? host.firstChild).after(voiceSetting);
+}
+document.addEventListener('mgadi:language', updateVoiceSetting);
+// If the voice panel cannot start, the text guidance still works, but the reason is written to the console so it is not lost.
+const voiceReady = initVoice({ bridge: voiceBridge }).catch((error) => { console.error('Mgadi: the voice panel could not start. Text guidance is unaffected.', error); return { launchButton: () => document.createDocumentFragment() }; });
 Promise.all([fetch('/data/playbook.json').then((response) => response.json()), fetch('/data/fraud-lines.json').then((response) => response.json()), fetch('/data/resources.json').then((response) => response.json()).catch(() => null)])
-  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; if (!tools.openFromHash()) showHome(); })
+  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; updateVoiceSetting(); if (!tools.openFromHash()) showHome(); })
   .catch(() => { clear(); app.append(element('p', 'Mgadi could not load its local safety guide. Please call the fraud number on the back of your bank card.')); });

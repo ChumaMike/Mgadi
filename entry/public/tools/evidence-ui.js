@@ -22,6 +22,7 @@ export function createEvidencePanel({ ui, ctx = {}, onChange = () => {} }) {
   const fileInput = element('input', '', { type: 'file', accept: '.pdf,application/pdf', 'aria-label': 'Proof of payment or invoice (PDF)' });
   const pasteLabel = element('label', 'Or paste the text of an email or SMS', { for: 'ev-paste' });
   const paste = element('textarea', '', { id: 'ev-paste', maxlength: '8000', placeholder: 'Paste only the part you want to check' });
+  const selectedHead = element('h3', 'Evidence selected'); selectedHead.hidden = true;
   const list = element('div', '', { className: 'evidence-sources' }); const result = element('div', '', { className: 'evidence-result' });
 
   const pickedFacts = (src) => Object.fromEntries(Object.entries(src.chosen).filter(([, v]) => v));
@@ -32,19 +33,28 @@ export function createEvidencePanel({ ui, ctx = {}, onChange = () => {} }) {
     const docs = {};
     for (const [id, src] of sources) { const entry = { label: src.label, kind: src.kind, facts: pickedFacts(src), sha256: src.sha256 }; confirmed[id] = entry; docs[id] = entry; }
     const comparison = compareSources(confirmed);
-    result.replaceChildren();
+    result.replaceChildren(); selectedHead.hidden = !sources.size;
     if (!sources.size) { onChange(null); return; }
-    result.append(element('h3', 'What the sources say'));
+    result.append(element('h3', 'Possible matches'));
     const ul = element('ul', '', { className: 'compare' });
     for (const row of comparison.rows) {
-      const li = document.createElement('li'); li.append(plain('strong', `${row.label}: ${STATUS_TEXT[row.status]}. `));
+      const li = document.createElement('li'); li.className = `compare-${row.status}`; li.append(plain('strong', `${row.label}: ${STATUS_TEXT[row.status]}. `));
       li.append(plain('span', row.values.map((v) => `${v.shown} (${v.sources.map((s) => s.label).join(', ')})`).join('  versus  '))); ul.append(li);
     }
     if (!comparison.rows.length) ul.append(plain('li', 'Choose at least one detail above to compare.'));
     result.append(ul);
+    // Missing or contradictory: the two things that mean "stop and check", kept together so they are not lost in the list above.
+    const conflicts = comparison.rows.filter((r) => r.status === 'conflict').map((r) => r.label);
+    result.append(element('h3', 'Missing or contradictory'));
+    if (conflicts.length) result.append(plain('p', `The sources disagree about: ${conflicts.join(', ')}.`, 'notice bad'));
     if (comparison.missing.length) result.append(plain('p', `Not found in any source: ${comparison.missing.join(', ')}.`, 'privacy'));
+    if (!conflicts.length && !comparison.missing.length) result.append(element('p', 'Nothing is missing or contradictory in what you chose. That does not prove the documents are genuine.', { className: 'privacy' }));
     result.append(element('p', AGREEMENT_NOTE, { className: 'notice' }));
     const { summary } = reviewFacts(docs, comparison); onChange(summary);
+    result.append(element('h3', 'Facts you confirmed'));
+    if (summary?.facts?.length) { const facts = element('ul', '', { className: 'confirmed-facts' }); for (const f of summary.facts) facts.append(plain('li', `${FIELDS[f.field]}: ${f.value} (${f.source})`)); result.append(facts); }
+    else result.append(element('p', 'You have not chosen any detail yet.', { className: 'privacy' }));
+    result.append(element('h3', 'Ready to export'), element('p', 'This downloads a small file to this device. It holds the facts you confirmed and the file fingerprints, never the documents. Nothing is sent anywhere.', { className: 'privacy' }));
     result.append(button('Download this evidence summary (.json)', async () => {
       const data = { format: 'mgadi-evidence-summary/1', createdAt: new Date().toISOString(), sources: [...sources.values()].map((s) => ({ label: s.label, kind: s.kind, sha256: s.sha256 || null, readBy: s.readBy })), reviewedFacts: summary?.facts ?? [], conflicts: summary?.conflicts ?? [], comparison: comparison.rows, statement: 'Details the owner reviewed, read by fixed patterns on the owner\'s device. Mgadi has not checked them, contacted anyone, or kept any file. A matching fingerprint shows only that a file is unchanged since it was chosen on this device.' };
       const pack = await makePack(data); const url = URL.createObjectURL(new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' }));
@@ -54,10 +64,14 @@ export function createEvidencePanel({ ui, ctx = {}, onChange = () => {} }) {
 
   function renderSource(id) {
     const src = sources.get(id); const card = element('section', '', { className: 'evidence-source' });
-    card.append(element('h3', src.label));
+    card.append(element('h4', src.label));
+    const chips = element('p', '', { className: 'evidence-chips' });
+    chips.append(element('span', src.kind === 'pdf' ? 'PDF, read on this device' : 'Pasted message', { className: 'ds-chip ds-chip--info' }));
+    if (src.sha256) chips.append(element('span', `Fingerprint ${src.sha256.slice(0, 8)}`, { className: 'ds-chip' }));
+    card.append(chips);
     if (src.note) card.append(element('p', src.note, { className: 'notice' }));
     for (const w of src.warnings) card.append(element('p', w, { className: 'notice bad' }));
-    card.append(element('p', 'For each detail, choose what Mgadi found or type it yourself. Leave it as "Not used" to skip it.', { className: 'privacy' }));
+    card.append(element('h5', 'Information found'), element('p', 'For each detail, choose what Mgadi found or type it yourself. Leave it as "Not used" to skip it.', { className: 'privacy' }));
     for (const field of Object.keys(FIELDS)) {
       const found = src.candidates.filter((c) => c.field === field);
       const sid = `ev-${id}-${field}`; const row = element('div', '', { className: 'field' });
@@ -98,6 +112,6 @@ export function createEvidencePanel({ ui, ctx = {}, onChange = () => {} }) {
   }, 'button secondary');
 
   box.append(element('label', 'Proof of payment or invoice (PDF)', { for: 'ev-file' }));
-  fileInput.id = 'ev-file'; box.append(fileInput, pasteLabel, paste, addText, status, list, result);
+  fileInput.id = 'ev-file'; box.append(fileInput, pasteLabel, paste, addText, status, selectedHead, list, result);
   return box;
 }
