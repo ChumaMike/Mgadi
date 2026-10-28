@@ -179,8 +179,96 @@ export async function initVoice({ bridge }) {
   const gestureButtons = make('div','vp-gesture-buttons');
   const gestureNames = [['stop','Stop'],['call','Call'],['save','Save'],['help','Help'],['check','Check'],['protect','Protect']];
   gestureArea.append(gestureCanvas,gestureLabel,gestureExplanation,gestureButtons);
+  const localButton=make('button','button secondary vp-small','Speak gesture words'); localButton.type='button';
+  const localStatus=make('p','vp-note','Optional microphone gesture recognition. Not connected to Retell; browser speech services may process audio.');
+  const guideButton=make('button','button secondary vp-small','Start guided voice replies'); guideButton.type='button';
+  const guideLog=make('div','vp-local-dialogue'); guideLog.setAttribute('role','log'); guideLog.setAttribute('aria-label','Browser-guided voice captions');
+  const guideStatus=make('p','vp-note','Browser guided voice: live text and spoken safety replies without Retell. Uses predefined guidance, not an AI model. Your browser may use online speech recognition.');
+  const aiTokenInput=make('input');aiTokenInput.type='password';aiTokenInput.autocomplete='off';aiTokenInput.placeholder='AI test access token from Vercel';aiTokenInput.setAttribute('aria-label','Private AI test token');
+  const aiButton=make('button','button secondary vp-small','Use Claude AI replies');aiButton.type='button';aiButton.setAttribute('aria-pressed','false');
+  gestureArea.append(localButton,localStatus,guideButton,guideStatus,aiTokenInput,aiButton,guideLog);
+  let guideMode=false,aiMode=false,aiBusy=false,aiHistory=[],lastProcessed='';
+  aiButton.addEventListener('click',()=>{
+    aiMode=!aiMode;aiHistory=[];aiButton.setAttribute('aria-pressed',String(aiMode));
+    aiButton.textContent=aiMode?'Claude AI replies selected':'Use Claude AI replies';
+    guideStatus.textContent=aiMode?'Claude AI mode: your final recognized words are sent to Mgadi server and Anthropic for a reply. Paid operator test token required.':'Guided predefined replies selected.';
+  });
+  const safeSpeech=(text)=>{
+    if(!('speechSynthesis' in globalThis)) {guideStatus.textContent='Speech playback unavailable here. Read the captions below.';return;}
+    globalThis.speechSynthesis.cancel();
+    const utterance=new SpeechSynthesisUtterance(text); utterance.lang='en-ZA'; utterance.rate=.93;utterance.volume=1;
+    // Avoid listening to our own spoken answer. Restart only after playback finishes.
+    utterance.onend=()=>{if(guideMode && !localRecognizer && !gestureArea.hidden && !['connecting','live','reconnecting'].includes(controller.getState().phase))localButton.click();};
+    utterance.onerror=()=>{if(guideMode && !localRecognizer && !gestureArea.hidden)localButton.click();};
+    globalThis.speechSynthesis.speak(utterance);
+  };
+  const guideReply=async(spoken)=>{
+    if(aiBusy)return;
+    if(aiMode){
+      if(!aiTokenInput.value.trim()){guideStatus.textContent='Enter the AI test access token from Vercel. Using guided reply instead.';}
+      else {
+        aiBusy=true; guideStatus.textContent='Claude is preparing a reply…';guideButton.disabled=true;
+        const userLine=make('p',null,'You: '+spoken);guideLog.append(userLine);
+        try{
+          const response=await fetch('/api/ai-chat',{method:'POST',cache:'no-store',headers:{'content-type':'application/json','x-mgadi-ai-test-token':aiTokenInput.value.trim()},body:JSON.stringify({text:spoken,history:aiHistory})});
+          const data=await response.json();
+          if(!response.ok || typeof data.reply!=='string')throw Error(data.error||'ai_unavailable');
+          const reply=data.reply.slice(0,1100);
+          guideLog.append(make('p',null,'Mgadi (Claude AI): '+reply));while(guideLog.children.length>12)guideLog.firstChild.remove();
+          aiHistory.push({role:'user',text:spoken},{role:'assistant',text:reply});aiHistory=aiHistory.slice(-8);
+          const match=recognizeGesture(reply)||recognizeGesture(spoken);if(match)setGesture(match.key,'live');
+          safeSpeech(reply);
+          guideStatus.textContent='Claude AI replied. Speak again when ready.';
+          return;
+        }catch(error){guideStatus.textContent='Claude unavailable ('+String(error.message).slice(0,50)+'). Giving the safe on-screen guide instead.';}
+        finally{aiBusy=false;guideButton.disabled=false;}
+      }
+    }
+
+    const match=recognizeGesture(spoken);
+    const responses={
+      stop:'Stop. Do not pay using changed bank details until you verify them independently with your supplier.',
+      call:'Call your bank fraud department immediately using the official number on your bank card or website.',
+      save:'Preserve the suspicious messages, invoice and proof of payment. Never share passwords or one time codes.',
+      help:'I can help you follow the first-hour guide. If money was sent, contact your bank fraud team first.',
+      check:'Verify the supplier through a phone number you already trusted before receiving the changed details.',
+      protect:'Secure your account using your bank or provider official instructions. Never share PINs or one time codes.'
+    };
+    const answer=match?responses[match.key]:'I can guide you with six actions: stop, call, save, help, check and protect. Say one of those words, or follow the on-screen emergency steps.';
+    const line=make('p',null,'You: '+spoken);const reply=make('p',null,'Mgadi guided reply: '+answer);
+    guideLog.append(line,reply); while(guideLog.children.length>12) guideLog.firstChild.remove();
+    if(match)setGesture(match.key,'microphone');
+    safeSpeech(answer);
+  };
+  guideButton.addEventListener('click',()=>{
+    guideMode=!guideMode;
+    guideButton.textContent=guideMode?'Stop guided replies':'Start guided voice replies';
+    if(guideMode) {
+      if(!Recognition){guideMode=false;guideButton.textContent='Start guided voice replies';guideStatus.textContent='This browser cannot recognize speech. Use the gesture buttons.';return;}
+      if(!gestureArea.hidden && !localRecognizer)localButton.click();
+      guideStatus.textContent='Guided voice active. Say STOP, CALL, SAVE, HELP, CHECK or PROTECT.';
+    }else {stopLocal();globalThis.speechSynthesis?.cancel();lastProcessed='';}
+  });
   gestureSection.append(gestureHeader,gestureArea);
   let gestureAvatar = null, gestureLast = '', gestureTimeout = null;
+  let localRecognizer = null;
+  const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
+  if (!Recognition) {localButton.disabled=true; localStatus.textContent='Browser speech recognition unavailable. Gesture buttons still work.';}
+  const stopLocal = () => { if (localRecognizer) {const active=localRecognizer; localRecognizer=null;try{active.stop();}catch{} } localButton.textContent='Speak gesture words'; };
+  localButton.addEventListener('click',()=>{
+    if(localRecognizer){stopLocal();return;}
+    if(!Recognition || !globalThis.isSecureContext){localStatus.textContent='Speech recognition needs a supported browser and HTTPS.';return;}
+    const rec=new Recognition();localRecognizer=rec;rec.lang='en-ZA';rec.interimResults=true;rec.continuous=true;
+    rec.onresult=(e)=>{const words=e.results[e.results.length-1]?.[0]?.transcript||'';
+      localStatus.textContent='Heard: '+words;
+      const match=recognizeGesture(words);if(match)setGesture(match.key,'microphone');
+      if(guideMode && e.results[e.results.length-1]?.isFinal && words.trim() && words.trim()!==lastProcessed){lastProcessed=words.trim();stopLocal();guideReply(words.trim());}
+    };
+    rec.onerror=(e)=>{localStatus.textContent='Microphone recognition error: '+e.error;};
+    rec.onend=()=>{if(localRecognizer===rec){localRecognizer=null;localButton.textContent='Speak gesture words';}};
+    try{rec.start();localButton.textContent='Stop gesture microphone';localStatus.textContent='Listening for STOP, CALL, SAVE, HELP, CHECK and PROTECT…';}
+    catch{localRecognizer=null;localStatus.textContent='Unable to start microphone recognition.';}
+  });
   function setGesture(key, source='manual') {
     if (!gestureAvatar || !key) return;
     gestureAvatar.setGesture(key);
@@ -195,6 +283,7 @@ export async function initVoice({ bridge }) {
   gestureToggle.addEventListener('click',()=>{
     gestureArea.hidden = !gestureArea.hidden; gestureToggle.setAttribute('aria-expanded', String(!gestureArea.hidden));
     gestureToggle.textContent = gestureArea.hidden ? 'Show gestures' : 'Hide gestures';
+    if(gestureArea.hidden){guideMode=false;guideButton.textContent='Start guided voice replies';stopLocal();globalThis.speechSynthesis?.cancel();}
     if(!gestureArea.hidden && !gestureAvatar){gestureAvatar=createGestureAvatar(gestureCanvas); if(!matchMedia('(prefers-reduced-motion: reduce)').matches) gestureAvatar.play();}
     else if(gestureAvatar){if(gestureArea.hidden)gestureAvatar.pause();else if(!matchMedia('(prefers-reduced-motion: reduce)').matches)gestureAvatar.play();}
   });
@@ -357,6 +446,8 @@ export async function initVoice({ bridge }) {
     micPill.hidden = !inCall || config.mode === 'mock'; micPill.textContent = s.muted ? 'Mic muted' : 'Mic on'; micPill.dataset.muted = String(s.muted);
     renderChips(s); renderMessages(s); renderControls(s); if (progress.open) renderProgress();
     if (inCall && gestureArea.hidden) gestureToggle.click();
+    if(inCall && localRecognizer)stopLocal();
+    if(inCall && guideMode){guideMode=false;guideButton.textContent='Start guided voice replies';globalThis.speechSynthesis?.cancel();}
     if (inCall && gestureAvatar) {
       // Streaming transcripts may repeat or extend; only newly matched words animate.
       const candidates = s.messages.filter(m => m.role !== 'system' && m.callIndex === s.callIndex).slice(-5);
@@ -430,7 +521,7 @@ export async function initVoice({ bridge }) {
     document.documentElement.dataset.voice = 'open'; workspace.open(); refresh(); title.focus();
   }
   function close({ keepFocus = false }) {
-    avatarPreviewing = false; panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setApproximate(false); dock.setActive(false); workspace.close();
+    stopLocal();globalThis.speechSynthesis?.cancel(); avatarPreviewing = false; panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setApproximate(false); dock.setActive(false); workspace.close();
     if (!keepFocus && opener?.isConnected) opener.focus();
   }
   refresh();
