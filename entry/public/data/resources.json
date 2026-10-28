@@ -1,7 +1,15 @@
 {
   "checkedOn": "2026-10-27",
   "note": "These links open outside Mgadi, need an internet connection, and are run by other organisations. Mgadi does not control them and they are not an endorsement or a promise that they can help in your case. Never enter a password, a bank detail or a card number on any of them.",
-  "allowedHosts": ["www.cisa.gov", "www.nomoreransom.org", "csrc.nist.gov"],
+  "allowedHosts": [
+    "www.cisa.gov",
+    "www.nomoreransom.org",
+    "csrc.nist.gov",
+    "www.fnb.co.za",
+    "cib.absa.africa",
+    "learn.microsoft.com",
+    "www.ic3.gov"
+  ],
   "routes": {
     "ransomware_suspected": [
       {
@@ -35,6 +43,46 @@
         "url": "https://csrc.nist.gov/pubs/ir/8374/r1/final",
         "purpose": "How organisations prepare for, respond to and recover from ransomware. Written for IT and risk teams, not for first-hour steps.",
         "audience": "IT or security specialist"
+      }
+    ],
+    "payment_diversion": [
+      {
+        "title": "Report a security incident",
+        "publisher": "FNB South Africa",
+        "url": "https://www.fnb.co.za/security-centre/incident-reporting-process/",
+        "purpose": "Contact the bank to report suspected fraud. Confirm the bank-specific instructions.",
+        "steps": [
+          "bank"
+        ]
+      },
+      {
+        "title": "Business Email Compromise guidance",
+        "publisher": "Absa South Africa",
+        "url": "https://cib.absa.africa/home/insights-and-events/business-email-compromise/",
+        "purpose": "Independently verify changed supplier details.",
+        "steps": [
+          "supplier"
+        ]
+      },
+      {
+        "title": "Responding to compromised accounts",
+        "publisher": "Microsoft",
+        "url": "https://learn.microsoft.com/en-us/defender-office-365/responding-to-a-compromised-email-account",
+        "purpose": "Account security, unknown forwarding and sign-ins; some actions require IT.",
+        "steps": [
+          "mailbox"
+        ]
+      }
+    ],
+    "mailbox_compromise": [
+      {
+        "title": "Responding to compromised accounts",
+        "publisher": "Microsoft",
+        "url": "https://learn.microsoft.com/en-us/defender-office-365/responding-to-a-compromised-email-account",
+        "purpose": "Account security, unknown forwarding and sign-ins; some actions require IT.",
+        "steps": [
+          "mailbox"
+        ]
       }
     ]
   }
