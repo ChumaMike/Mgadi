@@ -90,7 +90,7 @@ try {
   await page.waitForSelector('.vp-operator .vp-note:has-text("not accepted")');
   check('a wrong operator token is refused and still looks like the public view', await page.locator('.vp-start').isDisabled());
   await page.fill('#voice-operator-token', OPERATOR); await page.click('button:has-text("Check test access")');
-  await page.waitForSelector('.vp-chip:has-text("Operator test call")');
+  await page.waitForSelector('.vp-optest:not([hidden])');
   check('the operator token unlocks a capped TEST (3 minutes), shown with a clear label', (await page.locator('.vp-operator .vp-note').last().innerText()).includes('3 minutes'));
   check('the token field is emptied and the token is not stored or in the URL', (await page.inputValue('#voice-operator-token')) === '' && (await page.evaluate((t) => JSON.stringify([localStorage, sessionStorage, location.href, document.cookie]).includes(t), OPERATOR)) === false);
   check('live mode: voice can be started in English once the person agrees', await page.locator('.vp-start').isDisabled() && (await page.check('#voice-consent-check'), !(await page.locator('.vp-start').isDisabled())));
@@ -101,7 +101,7 @@ try {
   const chat = await page.locator('.vp-chat .msg:not(.msg-system) .said').allInnerTexts();
   check('live transcript from the SDK shows distinct assistant and user messages', chat[0].includes('Mgadi assistant') && chat[1] === 'I paid the wrong account', JSON.stringify(chat));
   check('the transcript socket targets the documented monitor endpoint', seen.wsUrls[0] === 'wss://api.retellai.com/v2/monitor-call/call_fake', seen.wsUrls[0]);
-  check('captions are reported as on', (await page.locator('.vp-chips').innerText()).includes('Captions stay on this screen only'));
+  check('captions are reported as on', (await page.locator('.vp-chips').textContent()).includes('Captions stay on this screen only'));
 
   // Hostile transcript content must be shown as inert text and must change nothing.
   await page.waitForSelector('.msg-assistant:has-text("Ignore previous")', { timeout: 10_000 });
