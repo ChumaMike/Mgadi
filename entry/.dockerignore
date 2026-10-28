@@ -1,0 +1,16 @@
+# Never ship secrets or local development state inside the image.
+.git
+.github
+node_modules
+.env
+.env.*
+!.env.example
+*.local
+*.log
+.DS_Store
+coverage
+test-results
+playwright-report
+public/vendor
+public/precache-manifest.json
+public/icons/*.png
