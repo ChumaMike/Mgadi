@@ -119,6 +119,7 @@ export function createVoiceService({ env = process.env, fetchImpl = globalThis.f
       else if (cfg.mode === 'mock') out[code] = code === 'en' ? { ...base, available: true, reason: 'Simulated conversation (no real AI).' } : { ...base, reason: 'The simulation covers English only.' };
       else if (!cfg.agents[code]) out[code] = { ...base, reason: `No ${info.label} voice agent is configured.` };
       else if (!cfg.verified.has(code) && access !== 'operator') out[code] = { ...base, reason: `Configured, but not yet verified with ${info.label} speakers.` };
+      else if (access !== 'operator' && cfg.sharedStoreRequired && quota.kind !== 'rest') out[code] = { ...base, reason: 'Public voice requires a shared quota store on this host. Contact the operator.' };
       else {
         const check = await checkAgent(code);
         out[code] = check.ok ? { ...base, available: true, testOnly: !cfg.verified.has(code) } : { ...base, reason: check.reason };
