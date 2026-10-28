@@ -64,7 +64,7 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
   const visualToggle = el('button', 'vp-compact-toggle', 'Show gestures');
   visualToggle.type = 'button'; visualToggle.setAttribute('aria-pressed', 'false');
   visualButtons.append(avatarToggle, visualToggle);
-  const stageNote = el('p', 'vp-compact-stage-note', 'Gestures are illustrative, not SASL');
+  const stageNote = el('p', 'vp-compact-stage-note', 'Illustrative movements only · not verified SASL');
   side.append(stage, visualButtons, stageNote);
 
   const main = el('section', 'vp-compact-main');
@@ -129,6 +129,7 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
     if (gesturesOn && gestureArea?.hidden) gestureToggle?.click();
     if (!gesturesOn && gestureArea && !gestureArea.hidden) gestureToggle?.click();
     gesturePreview.hidden = !gesturesOn;
+    avatarArea.hidden = gesturesOn;
     stage.dataset.gestures = String(gesturesOn);
     visualToggle.textContent = gesturesOn ? 'Hide gestures' : 'Show gestures';
     visualToggle.setAttribute('aria-pressed', String(gesturesOn));

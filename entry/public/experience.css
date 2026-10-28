@@ -426,3 +426,49 @@ html[data-reduced-motion='true'] .landing-choice{transition:none;transform:none}
  .evidence-permission-actions .button{flex:1 1 125px;}
 }
 @media(prefers-reduced-motion:reduce){.evidence-permission-prompt *{scroll-behavior:auto}}
+
+/* Accessible, phone-first guided incident journey. */
+#app{min-width:0}
+#app .clarification-card,#app .journey-card,#app .evidence-screen,#app .pack-review-screen,#app .pack-result-screen{max-width:760px;margin:clamp(.75rem,3vw,2rem) auto;padding:clamp(1.1rem,4vw,2.25rem);border-radius:22px;background:#fffefa;border:1px solid #e0e8df;box-shadow:0 16px 50px #153d3210;min-width:0}
+#app .screen-eyebrow{color:#547764;font-size:.73rem;letter-spacing:.1em;text-transform:uppercase;font-weight:800;margin:0 0 .65rem}
+#app .screen-intro{color:#526a5b;line-height:1.55;margin:.3rem 0 1.35rem}
+#app .clarification-card h1,#app .evidence-screen h1,#app .pack-review-screen h1,#app .pack-result-screen h1{font-size:clamp(1.65rem,4vw,2.5rem);letter-spacing:-.045em;line-height:1.14;margin:0 0 1rem}
+#app .clarification-choices{display:grid;gap:.65rem;margin:1.5rem 0}
+#app .clarification-choices .button{text-align:left;display:flex;align-items:center;justify-content:space-between;width:100%;min-height:58px;margin:0;padding:.95rem 1.15rem;background:#f5f8f1;border:1px solid #ccdbd0;border-radius:15px;color:#17483a;font-weight:720;white-space:normal}
+#app .clarification-choices .button::after{content:'›';font-size:1.5rem;margin-left:.6rem}
+#app .clarification-choices .button:focus-visible{border-color:#377153;background:#edf5eb}
+#app .journey-card .journey-progress{gap:.35rem;margin:.8rem 0 1.55rem}
+#app .journey-card .step-count{font-size:.87rem;font-weight:800;color:#456655;margin:0}
+#app .journey-card .action-list{padding-left:1.3rem;line-height:1.55;margin:.9rem 0}
+#app .journey-card .action-list li{padding:.28rem 0}
+#app .journey-card .step-context{margin:1rem 0;border:1px solid #dce6dc;border-radius:12px;padding:.65rem .9rem}
+#app .journey-card .step-outcomes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}
+#app .journey-card .step-outcomes .button{min-width:0;min-height:48px;white-space:normal;padding:.65rem .3rem}
+#app .evidence-screen .evidence-selected-files{padding-left:1.25rem;overflow-wrap:anywhere}
+#app .evidence-screen input[type=file]{width:100%;max-width:100%;overflow:hidden}
+#app .evidence-optional,#app .pack-full-details,#app .pack-more-actions{margin:1.1rem 0;border:1px solid #d8e4d8;border-radius:14px;padding:.85rem 1rem;background:#f9fbf6}
+#app .evidence-optional summary,#app .pack-full-details summary,#app .pack-more-actions summary{font-weight:750;cursor:pointer}
+#app .evidence-optional label{display:block;margin-top:.8rem}
+#app .page-actions{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1.35rem}
+#app .page-actions>.button{margin:0;min-height:48px;flex:1 1 180px}
+#app .pack-review-screen .preview-box{overflow-wrap:anywhere;max-width:100%}
+#app .pack-result-screen .pack-summary{padding:1.1rem;border-radius:16px;background:#eff6eb}
+#app .pack-result-screen .hash,#app .pack-result-screen .pack-json{overflow-wrap:anywhere}
+@media(max-width:560px){
+ #app .clarification-card,#app .journey-card,#app .evidence-screen,#app .pack-review-screen,#app .pack-result-screen{border-radius:16px;margin:.5rem 0;padding:1rem}
+ #app .journey-card .step-outcomes{gap:.3rem}
+ #app .journey-card .step-outcomes .button{font-size:.78rem}
+ #app .landing-hero{padding:1.1rem 1.15rem 2.65rem;min-height:0;grid-template-columns:1fr}
+ #app .landing-hero-emblem{display:none}
+ #app .landing-readiness{left:1.1rem;bottom:.65rem}
+ #app .landing-issues{padding:1rem 0 0}
+ #app .landing-choices{gap:.4rem}
+ #app .landing-choices .landing-choice{min-height:64px;padding:.6rem;gap:.5rem;font-size:.84rem}
+ #app .landing-choice-icon{width:32px;height:32px;flex-basis:32px}
+ #app .landing-icon-svg{width:19px;height:19px}
+ #app .landing-entry-modes{margin:.7rem 0 0;padding:.8rem}
+ #app .landing-entry-modes .landing-mode-buttons{grid-template-columns:repeat(2,minmax(0,1fr));gap:.45rem}
+ #app .landing-entry-modes .landing-mode-buttons .button{font-size:.78rem;padding:.5rem;min-height:52px}
+ .site-header .header-call{font-size:.7rem;padding:.4rem;max-width:102px;text-align:center}
+}
+@media(max-width:355px){#app .landing-entry-modes .landing-mode-buttons{grid-template-columns:1fr}.site-header .header-call{display:none}}
