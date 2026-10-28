@@ -71,9 +71,12 @@ export async function initVoice({ bridge }) {
   const consentBox = make('div', 'vp-consent');
   const consentCheck = make('input'); consentCheck.type = 'checkbox'; consentCheck.id = 'voice-consent-check';
   const consentLabel = make('label', 'check'); consentLabel.setAttribute('for', 'voice-consent-check');
-  const consentText = tr('span', null, 'I understand and agree that my voice is processed by Retell AI for this conversation.');
+  const consentText = tr('span', null, config.mode === 'mock' ? 'I understand this is a simulation with no microphone.' : 'I understand and agree that my voice is processed by Retell AI for this conversation.');
   consentLabel.append(consentCheck, consentText);
-  consentBox.append(tr('p', null, config.mode === 'mock' ? 'This is a simulated conversation. No microphone is used and nothing leaves this device.' : "Your browser will ask to use your microphone. Your voice is sent to Retell AI, our voice provider, which turns it into text and produces the assistant's replies. Mgadi does not record or save the conversation, and the Retell agent is set not to store transcripts or recordings, but Retell does process your audio while the call runs, possibly outside South Africa. The assistant is an AI, not a person. It can only explain Mgadi's draft guidance. It cannot call your bank, tick steps for you, or give legal advice. Never say passwords, PINs, one-time codes or card numbers."), consentLabel);
+  const privacyDetails = make('details', 'vp-privacy');
+  privacyDetails.append(tr('summary', null, 'How this conversation works'), tr('p', null, "The assistant is AI, not a person. It explains Mgadi’s draft guidance; it cannot call your bank, mark steps done or give legal advice. Mgadi does not save recordings or transcripts. The Retell agent must also be configured not to retain them. Retell processes audio during the call, possibly outside South Africa. Never say passwords, PINs, one-time codes or card numbers."));
+  consentBox.append(tr('p', null, config.mode === 'mock' ? 'This is a simulated conversation. No microphone is used and nothing leaves this device.' : 'Your microphone audio goes to Retell AI to generate replies and captions, possibly outside South Africa. This is an AI assistant. Do not share passwords, PINs or one-time codes.'), ...(config.mode === 'mock' ? [] : [privacyDetails]), consentLabel);
+
   // Operator test access: shown only when the server has an operator token configured. It never makes a language public.
   const operatorBox = make('details', 'vp-operator'); operatorBox.hidden = !config.operatorAvailable;
   const opLabel = make('label', null, 'Operator test token'); opLabel.setAttribute('for', 'voice-operator-token');
@@ -107,7 +110,7 @@ export async function initVoice({ bridge }) {
     try { const { next } = await reloadConfig(); if (next) applyConfig(next); } catch { /* keep the old view until the next load */ }
     render(controller.getState());
   });
-  const action = make('section', 'vp-action'); action.setAttribute('aria-label', 'Current action');
+  const action = make('details', 'vp-action'); action.setAttribute('aria-label', 'Current action');
   // A plain container with role=log: an <ol> with role=log would lose its list semantics and orphan its items.
   const chat = make('div', 'vp-chat'); chat.setAttribute('role', 'log'); chat.setAttribute('aria-label', 'Conversation'); chat.tabIndex = 0;
   const empty = tr('p', 'vp-empty', 'Your conversation will appear here as captions, kept on this screen only.');
@@ -130,6 +133,9 @@ export async function initVoice({ bridge }) {
   document.body.append(panel);
 
   const dock = createAvatarDock({ createAvatar });
+  const stage = make('div', 'vp-stage'); stage.hidden = true;
+  stage.append(dock.root, tr('p', 'vp-note', 'Visual companion · not SASL translation'));
+  body.insertBefore(stage, chat);
   let opener = null;
 
   let showBank = () => bridge.showBank();
@@ -138,7 +144,7 @@ export async function initVoice({ bridge }) {
   function renderChips(s) {
     chips.replaceChildren();
     const inCall = ['connecting', 'live', 'reconnecting'].includes(s.phase);
-    chip(!inCall ? 'Microphone off' : s.muted ? 'Microphone muted' : 'Microphone on', inCall && !s.muted ? 'on' : '');
+    chip(config.mode === 'mock' ? 'No microphone · simulation' : !inCall ? 'Microphone off' : s.muted ? 'Microphone muted' : 'Microphone on', inCall && !s.muted ? 'on' : '');
     if (config.mode === 'mock') chip('Simulation: nothing is sent anywhere', 'on');
     else chip(inCall ? 'Your voice is being processed by Retell AI' : 'Not connected to Retell AI', inCall ? 'on' : '');
     if (config.access === 'operator') chip('Operator test call: short, limited, not public', 'warn');
@@ -165,11 +171,11 @@ export async function initVoice({ bridge }) {
   function renderAction() {
     action.replaceChildren();
     const journey = bridge.getJourney();
-    action.append(tr('h3', null, 'Current action'));
+    action.append(tr('summary', null, 'Your next action'));
     if (!journey) { now.textContent = 'Now: choose what happened, or tell the assistant.'; action.append(tr('p', null, 'No steps yet. Choose what happened on the main screen, or tell the assistant. Your bank fraud line is always available above.')); return; }
     const step = journey.steps[journey.position];
-    const pending = journey.steps.some((x) => x.state === 'pending') || step.state === 'pending';
-    if (!pending) { now.textContent = 'Now: all steps are done. Make your incident pack.'; action.append(tr('p', null, 'All steps are done. Make your incident pack on the main screen.')); return; }
+    const pending = !journey.finished;
+    if (!pending) { now.textContent = 'Now: review your incident pack.'; action.append(tr('p', null, 'You have recorded a response for each step. Review your incident pack on the main screen, including anything you still need help with.')); return; }
     const title = make('p', 'vp-step'); bindText(title, step.title);
     now.textContent = ''; now.append(make('strong', null, 'Now: '), (() => { const t = make('span'); bindText(t, step.title); return t; })());
     action.append(make('p', 'vp-count', `${journey.title} · step ${journey.position + 1} of ${journey.steps.length}`), title);
@@ -177,7 +183,9 @@ export async function initVoice({ bridge }) {
     if (step.id === 'bank') { const b = tr('button', 'button danger', 'Choose a bank fraud line'); b.type = 'button'; b.addEventListener('click', () => showBank()); buttons.append(b); }
     const done = make('button', 'button'); done.type = 'button'; bindText(done, step.done); done.addEventListener('click', () => bridge.confirmCurrent());
     buttons.append(done);
-    if (step.skip) { const skip = make('button', 'button secondary'); skip.type = 'button'; bindText(skip, step.skip); skip.addEventListener('click', () => bridge.skipCurrent()); buttons.append(skip); }
+    for (const [state, label] of [['needs_help', 'Need help'], ['not_applicable', 'Not applicable']]) {
+      const other = tr('button', 'button secondary', label); other.type = 'button'; other.addEventListener('click', () => bridge.reportOther(state)); buttons.append(other);
+    }
     action.append(buttons, tr('p', 'vp-note', 'Only you can mark a step done. The assistant cannot.'));
     // Why it matters, and signing guidance. Signing appears only from reviewed SASL clips; the avatar is never presented as signing.
     const more = make('details', 'vp-more'); more.append(tr('summary', null, 'Why this matters and signing'));
@@ -196,7 +204,7 @@ export async function initVoice({ bridge }) {
     if (!journey) tasks.append(tr('li', null, 'Steps appear once you choose what happened.'));
     else journey.steps.forEach((step, index) => {
       const li = make('li', `vp-task ${step.state}${index === journey.position && step.state === 'pending' ? ' now' : ''}`);
-      li.append(make('span', 'mark', step.state === 'confirmed' ? 'Done' : step.state === 'skipped' ? 'Skipped' : index === journey.position ? 'Now' : 'Not yet'));
+      li.append(make('span', 'mark', step.state === 'confirmed' ? 'Done' : step.state === 'skipped' ? 'Skipped' : step.state === 'needs_help' ? 'Need help' : step.state === 'not_applicable' ? 'Not applicable' : index === journey.position ? 'Now' : 'Not yet'));
       const text = make('span', 'label'); bindText(text, step.title); li.append(text);
       if (step.at) li.append(make('time', null, timeOf(step.at)));
       tasks.append(li);
@@ -226,8 +234,9 @@ export async function initVoice({ bridge }) {
     if (status.textContent !== label) status.textContent = label;
     activity.textContent = s.phase === 'live' && !s.muted ? ACTIVITY[s.activity] ?? '' : '';
     renderChips(s); renderMessages(s); renderControls(s); if (progress.open) renderProgress();
-    dock.setActive(['connecting', 'live', 'reconnecting'].includes(s.phase));
-    dock.setMood(s.phase === 'live' && !s.muted ? (s.activity === 'speaking' ? 'speaking' : 'listening') : 'idle');
+    stage.hidden = !['connecting', 'live', 'reconnecting'].includes(s.phase);
+    dock.setActive(!stage.hidden);
+    dock.setMood(s.phase === 'live' ? (s.activity === 'speaking' ? 'speaking' : s.muted ? 'idle' : 'listening') : 'idle');
   }
 
   // ---- behaviour

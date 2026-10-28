@@ -37,7 +37,7 @@ async function saveVerification(page) {
   await page.check('#ver-mine'); await page.click('button:has-text("Save my check")');
 }
 const toPack = async (page) => {
-  await tile(page, 'A suspicious message or link').click(); await page.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await page.waitForSelector('#evidence-files');
+  await tile(page, 'A suspicious message or link').click(); await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await page.waitForSelector('#evidence-files');
   await page.click('text=Review what goes in the pack'); await page.click('text=Make incident pack'); await page.waitForSelector('.pack-summary');
 };
 const evidencePanel = async (page) => { await page.click('summary:has-text("Add evidence from your own files")'); };

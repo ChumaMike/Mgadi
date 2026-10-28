@@ -76,16 +76,17 @@ function openSign(targets,messageId,call=false){
 }
 export function installAccessibility(){
   const host=document.querySelector('#accessibility');
-  const details=el('details');const summary=el('summary','Language & accessibility');details.append(summary);
+  const details=el('details');const summary=el('summary');const selected=el('span','English',{class:'selected-language'});
+  summary.append(el('span','Language & accessibility'),selected);details.append(summary);
   const panel=el('div','',{class:'access-panel'});
   const label=el('label','Language / Ulimi / Ulwimi / Taal',{for:'language'});
   const select=el('select','',{id:'language'});
   for(const [id,name] of Object.entries(languages))select.append(el('option',name,{value:id}));
-  select.addEventListener('change',()=>{locale=select.value;updateLanguage();});
+  select.addEventListener('change',()=>{locale=select.value;updateLanguage();selected.textContent=locale==='en'?'English':`${languages[locale]} · draft`;selected.lang='en';});
   const notice=el('p','Draft isiZulu, isiXhosa and Afrikaans translations need speaker review. Missing translations remain in English. Signing is SASL, a separate language.',{class:'notice',lang:'en'});
   const size=el('select','',{id:'text-size'});for(const [v,t]of [['normal','100%'],['large','125%'],['larger','150%'],['largest','200%']])size.append(el('option',t,{value:v}));size.addEventListener('change',()=>document.documentElement.dataset.textSize=size.value);
   const toggle=(id,text,fn)=>{const l=el('label','',{class:'toggle',for:id});const n=el('input','',{type:'checkbox',id});l.append(n,document.createTextNode(text));n.addEventListener('change',()=>fn(n.checked));return l;};
-  voiceStatus=el('p','Audio is optional. No microphone or camera is used.',{role:'status',tabindex:'-1',lang:'en',class:'audio-status'});
+  voiceStatus=el('p','',{role:'status',tabindex:'-1',lang:'en',class:'audio-status'});
   panel.append(label,select,el('label','Text size',{for:'text-size'}),size,
     toggle('contrast','High contrast',v=>document.documentElement.dataset.contrast=String(v)),
     toggle('reduced-motion','Reduce movement',v=>{document.documentElement.dataset.reducedMotion=String(v);if(v)avatar?.pause();}),
@@ -93,7 +94,7 @@ export function installAccessibility(){
     toggle('hover-sign','Open signing panel when hovering over guidance',()=>{}),
     toggle('voice-consent','Allow read aloud. The device voice service may process guidance online.',v=>{voiceConsent=v;if(!v)stopSpeech();}),
     button('Stop audio',()=>stopSpeech(true)),button('Pause audio',()=>synth?.pause()),button('Resume audio',()=>synth?.resume()));
-  details.append(panel);host.append(details,notice,voiceStatus);
+  panel.append(notice);details.append(panel);host.append(details,voiceStatus);
   dialog=el('dialog','',{class:'sign-dialog','aria-labelledby':'sign-title'});
   const title=el('h2','Signing studio',{id:'sign-title'});
   signStatus=el('p','',{role:'status',class:'notice'});

@@ -71,7 +71,7 @@ try {
   const intercepted = []; page.on('response', (r) => { if (r.url().includes('/api/') && r.fromServiceWorker()) intercepted.push(r.url()); });
   await page.reload(); await page.waitForSelector('h1');
   const before = await page.evaluate(async () => (await (await caches.open((await caches.keys()).find((k) => k.startsWith('mgadi-shell-')))).keys()).length);
-  await page.fill('#incident-description', `${SENTINEL} Our files are encrypted and there is a ransom note.`); await page.click('text=Get safe next step'); await page.waitForSelector('text=Step 1 of');
+  await page.locator('.describe-incident > summary').click(); await page.fill('#incident-description', `${SENTINEL} Our files are encrypted and there is a ransom note.`); await page.click('text=Get safe next step'); await page.waitForSelector('text=Step 1 of');
   await page.evaluate(() => fetch('/api/voice/config').then((r) => r.json())); await page.evaluate(() => fetch('/api/health').then((r) => r.json()));
   const after = await page.evaluate(async () => (await (await caches.open((await caches.keys()).find((k) => k.startsWith('mgadi-shell-')))).keys()).length);
   check('triage, voice config and health requests are not intercepted by the worker', intercepted.length === 0, JSON.stringify(intercepted));
@@ -94,11 +94,11 @@ try {
 
   // typed words, classified by the local rules (the server is gone)
   const started = Date.now();
-  await page.fill('#incident-description', `${SENTINEL} Every file on the server is encrypted and a ransom note demands bitcoin.`); await page.click('text=Get safe next step'); await page.waitForSelector('text=Step 1 of', { timeout: 12_000 });
+  await page.locator('.describe-incident > summary').click(); await page.fill('#incident-description', `${SENTINEL} Every file on the server is encrypted and a ransom note demands bitcoin.`); await page.click('text=Get safe next step'); await page.waitForSelector('text=Step 1 of', { timeout: 12_000 });
   check('offline: typed words fall back to the local rules, quickly, and reach the ransomware guide', (await page.locator('.step-count').innerText()).includes('Possible ransomware') && Date.now() - started < 9000, `${Date.now() - started} ms`);
 
   // the whole guided journey, evidence fingerprint, pack and verification, offline
-  for (let i = 0; i < 7; i += 1) { await page.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await page.waitForTimeout(60); }
+  for (let i = 0; i < 7; i += 1) { await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await page.waitForTimeout(60); }
   await page.waitForSelector('#evidence-files');
   await page.setInputFiles('#evidence-files', { name: 'proof.txt', mimeType: 'text/plain', buffer: Buffer.from(FILE_SENTINEL) });
   await page.waitForSelector('li:has-text("SHA-256")');
