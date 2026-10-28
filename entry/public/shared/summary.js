@@ -119,7 +119,7 @@ export function defaultPackOptions(state) {
   // The step outcomes are the owner's own taps (Done, Need help, Not applicable) and hold no free text, so once any step has been reported
   // they are in the pack by default. The owner still sees them in the preview and can untick the box before the pack is made.
   const reported = (Array.isArray(state.steps) ? state.steps : []).some((step) => step?.state && step.state !== 'pending');
-  return { includeOriginal: false, includeBusiness: Boolean(clean(state.business)), includeAmount: Boolean(clean(state.amount)), includeHandoff: Boolean(sanitizeHandoff(state.handoff)) || reported };
+  return { includeEvidence: true, includeTimeline: true, includeOriginal: false, includeBusiness: Boolean(clean(state.business)), includeAmount: Boolean(clean(state.amount)), includeHandoff: Boolean(sanitizeHandoff(state.handoff)) || reported };
 }
 
 function clean(value) { return String(value ?? '').trim(); }
@@ -154,8 +154,8 @@ export function buildPackData(state, options = defaultPackOptions(state), genera
     },
     bank: bankStatus(state),
     guide: { reviewedByPractitioner: Boolean(state.guideReviewed), note: state.guideReviewed ? 'Reviewed.' : 'Draft guidance; practitioner review pending.' },
-    timeline: state.timeline ?? [],
-    evidence: state.evidence ?? [],
+    timeline: options.includeTimeline === false ? [] : state.timeline ?? [],
+    evidence: options.includeEvidence === false ? [] : state.evidence ?? [],
     warning: PACK_WARNING,
   };
   if (options.includeHandoff) data.handoff = buildHandoff(state);
@@ -171,7 +171,7 @@ export function previewItems(state, options) {
   items.push({ id: 'story', label: story.version === 'original' ? 'Your own words, exactly as typed' : story.version === 'masked' ? 'Your description with personal details hidden' : 'Description', value: story.text || (state.source === 'manual-record' ? 'Nothing typed: the owner started a record without choosing a situation.' : 'Nothing typed: the situation was chosen from the buttons.') });
   items.push({ id: 'business', label: 'Business name', value: options.includeBusiness && clean(state.business) ? clean(state.business) : 'Not included' });
   items.push({ id: 'amount', label: 'Amount paid', value: options.includeAmount && clean(state.amount) ? clean(state.amount) : 'Not included' });
-  items.push({ id: 'evidence', label: 'Evidence', value: `${(state.evidence ?? []).length} file fingerprint(s): name, size and SHA-256 only. The files themselves are not included.` });
+  items.push({ id: 'evidence', label: 'Evidence', value: options.includeEvidence === false ? 'Not included' : `${(state.evidence ?? []).length} file fingerprint(s): name, size and SHA-256 only. The files themselves are not included.` });
   if (options.includeHandoff) {
     const h = buildHandoff(state);
     const typed = h.typedByOwner;
@@ -179,10 +179,10 @@ export function previewItems(state, options) {
       typed?.affected ? `Affected: ${AFFECTED[typed.affected]}${typed.affectedNote ? ` (${typed.affectedNote})` : ''}` : '', typed?.discoveredAt ? `First noticed: ${typed.discoveredAt}` : '',
       typed?.reference ? `Reference number you typed: ${typed.reference}` : (clean(state.handoff?.reference) ? "Reference number NOT included: it may only contain letters, numbers, spaces and . _ / # -, and a long number on its own can look like an account, card or phone number. Write 'Ref' before it if it really is a reference." : ''),
       typed?.followUp ? `Follow-up: ${typed.followUp}` : '', `How things stand: ${h.outcome.meaning.replace(/\.$/, '')}`,
-      `${h.actions.filter((a) => a.status === 'reported-by-owner').length} step(s) you reported by tapping; ${h.remainingSteps.length} not yet reported`,
+      ...h.actions.map((a) => `${a.step}: ${STEP_OUTCOME_WORDS[a.status]}`),
     ].filter(Boolean).join('. ') });
   } else items.push({ id: 'handoff', label: 'Handoff details for a bank or specialist', value: 'Not included' });
-  items.push({ id: 'timeline', label: 'Timeline', value: `${(state.timeline ?? []).length} entries with times` });
+  items.push({ id: 'timeline', label: 'Timeline', value: options.includeTimeline === false ? 'Not included' : `${(state.timeline ?? []).length} entries with times` });
   return items;
 }
 

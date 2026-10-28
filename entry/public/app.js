@@ -70,6 +70,7 @@ function resourceLinks(route, stepId = null) {
 }
 
 let bankDialog = null;
+let bankOpener = null;
 function showBankLines() {
   if (bankDialog?.open) { bankDialog.close(); return; }
   if (!bankDialog) {
@@ -88,12 +89,16 @@ function showBankLines() {
       button('Close bank numbers', () => bankDialog.close(), 'button secondary'));
     bankDialog.append(card);
     document.body.append(bankDialog);
+    bankDialog.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); bankDialog.close(); } });
     bankDialog.addEventListener('close', () => {
       inBank = false;
+      if (bankOpener?.isConnected) bankOpener.focus();
       emergencyButton.setAttribute('aria-expanded', 'false');
       if (afterBank) { const next = afterBank; afterBank = null; next(); }
     });
   }
+  bankOpener = document.activeElement;
+  bankDialog.querySelector('h2').tabIndex = -1;
   inBank = true;
   emergencyButton.setAttribute('aria-expanded', 'true');
   bankDialog.show();
@@ -102,6 +107,10 @@ function showBankLines() {
 
 let preferredMode = 'text';
 function showHome() {
+  voice.reset?.();
+  incident = { timeline: [], evidence: [], outcomes: {} };
+  journey = null; emitJourney();
+  if (bankDialog?.open) bankDialog.close();
   preferredMode = 'text';
   clear();
 
@@ -196,26 +205,15 @@ function showHome() {
   let selected = null;
   const beginText = () => {
     preferredMode = 'text';
+    if (selected) { chooseEntry(selected); return; }
     describe.open = true;
     description.focus();
     describe.scrollIntoView({ block: 'nearest', behavior: 'auto' });
   };
   const beginCall = () => {
     preferredMode = 'voice';
-    if (selected?.route) {
-      chooseEntry(selected); // Exact selected route gives immediate step-by-step guidance.
-      return;
-    }
-    // A payment or uncertain incident still needs a clarifying answer.
-    // Do not guess the answer or display old progress in a new voice session.
-    journey = null;
-    emitJourney();
-    incident = { timeline: [], evidence: [], outcomes: {}, source: 'voice-first' };
-    if (typeof voice.open === 'function') voice.open();
-    else {
-      modeSummary.textContent = 'Voice guidance could not load. Please choose text guidance.';
-      beginText();
-    }
+    if (selected) { chooseEntry(selected); return; }
+    startFromChoice('clarify'); showClarify();
   };
   const voiceChoice = button('Call Mgadi', beginCall, 'button landing-voice-button');
   const textChoice = button('Tell Mgadi by text', beginText, 'button secondary landing-text-button');
@@ -232,7 +230,8 @@ function showHome() {
         item.setAttribute('aria-pressed', String(item === choice)));
       modeSummary.textContent = 'Selected: ' + option.text;
       straightToGuide.hidden = false;
-      voiceChoice.focus({ preventScroll: true });
+      textChoice.focus({ preventScroll: true });
+      modeBox.scrollIntoView({ block: 'nearest', behavior: 'auto' });
     }, 'landing-choice');
     choice.setAttribute('aria-pressed', 'false');
     const iconBox = element('span', '', { className: 'landing-choice-icon' });
@@ -266,6 +265,7 @@ function showHome() {
       description.reportValidity();
       return;
     }
+    journey = null; emitJourney();
     const redacted = redactIncident(description.value, names.value.split(',').map((n) => n.trim()).filter(Boolean));
     incident = {
       description: description.value, redacted,
@@ -334,6 +334,7 @@ async function triage(redactedText) {
 
 // An entry choice either goes straight to a reviewed guide, asks a second plain question, or opens the one-question screen.
 function startFromChoice(route) {
+  journey = null; emitJourney();
   incident = { timeline: [], evidence: [], outcomes: {}, description: '', triage: { label: route === 'clarify' ? 'unsure' : route, confidence: 0 }, source: 'user-selected route' };
   log('Owner chose a situation from the buttons');
 }
@@ -384,6 +385,8 @@ const emitJourney = () => journeyListeners.forEach((fn) => fn());
 function showIncident(label) {
   const flow = playbook.incidents[label] ?? playbook.incidents.unsure;
   incident.title = flow.title;
+  incident.triage = { label, confidence: incident.triage?.label === label ? incident.triage.confidence : 0 };
+  incident.source ??= 'user-selected route';
   journey = { label, flow, position: 0, status: {} };
   emitJourney(); renderStep();
 }
@@ -394,6 +397,7 @@ function advance() {
 }
 function confirmCurrentStep() {
   const step = journey?.flow.steps[journey.position]; if (!step) return;
+  if (journey.finished) return;
   log(`Owner reported: ${step.done}`);
   if (step.id === 'bank') incident.bankReportedAt = new Date().toISOString();
   journey.status[step.id] = { state: 'confirmed', at: new Date().toISOString() };
@@ -408,6 +412,7 @@ function skipCurrentStep() {
 
 function reportOther(state) {
   const step = journey?.flow.steps[journey.position]; if (!step) return;
+  if (journey.finished) return;
   if (step.id === 'bank') delete incident.bankReportedAt;
   journey.status[step.id] = { state, at: new Date().toISOString() };
   log(`Owner marked ${state === 'needs_help' ? 'Need help' : 'Not applicable'}: ${step.title}`);
@@ -419,6 +424,8 @@ function reportOther(state) {
 async function recordSelectedEvidence(selectedFiles, feedback, onAdded = () => {}) {
   const currentIncident = incident;
   let recorded = 0;
+  const failed = [];
+  currentIncident.pendingEvidence = (currentIncident.pendingEvidence ?? 0) + 1;
   for (const file of Array.from(selectedFiles ?? [])) {
     if (incident !== currentIncident) break;
     try {
@@ -434,11 +441,11 @@ async function recordSelectedEvidence(selectedFiles, feedback, onAdded = () => {
       onAdded(item);
       recorded++;
     } catch (error) {
-      feedback.textContent = error?.message || 'This file could not be recorded. Try selecting it again.';
+      failed.push(file.name);
     }
   }
-  if (recorded && incident === currentIncident)
-    feedback.textContent = recorded + ' file' + (recorded === 1 ? '' : 's') + ' recorded in your incident pack. The original files stay on your device.';
+  currentIncident.pendingEvidence--;
+  if (incident === currentIncident) feedback.textContent = `${recorded} file(s) recorded. Originals stay on your device.${failed.length ? ' Could not read: ' + failed.join(', ') + '. Choose the file again, or continue without it.' : ''}`;
 }
 
 function attachEvidencePicker(input, feedback, onAdded) {
@@ -458,14 +465,15 @@ function makeEvidencePermissionPrompt(picker) {
   prompt.setAttribute('aria-modal', 'false');
   prompt.setAttribute('aria-labelledby', 'evidence-permission-title');
   const content = element('div', '', { className: 'evidence-permission-content' });
-  const close = button('×', () => prompt.remove(), 'evidence-permission-close');
+  const dismiss = () => { prompt.remove(); picker.focus(); };
+  const close = button('×', dismiss, 'evidence-permission-close');
   close.setAttribute('aria-label', 'Dismiss evidence prompt');
   content.append(close, element('p', 'OPTIONAL · EVIDENCE', { className: 'evidence-permission-eyebrow' }),
     element('h2', "Let's collect evidence", { id: 'evidence-permission-title' }),
     element('p', 'You can give Mgadi access to the files you choose, so it can record their fingerprints for your incident pack. Nothing is accessed automatically.'));
   const actions = element('div', '', { className: 'evidence-permission-actions' });
   actions.append(
-    button('Deny', () => prompt.remove(), 'button secondary'),
+    button('Deny', dismiss, 'button secondary'),
     button('Accept & choose files', () => {
       prompt.remove();
       picker.click(); // User gesture: opens the native file picker; no broad device permission.
@@ -526,8 +534,7 @@ function renderStep() {
     attachEvidencePicker(input, feedback, (item) => recordedList.append(plain('li', item.name + ' · fingerprint recorded')));
     const selectAgain = button('Choose evidence files', () => input.click(), 'button secondary');
     card.append(input, feedback, recordedList, selectAgain);
-    const suggestion = makeEvidencePermissionPrompt(input);
-    if (suggestion) card.append(suggestion);
+    // The optional prompt is shown on the evidence collection screen, after voice hands back to text.
   }
   card.append(reviewBadge(flow), button('Start again', showHome, 'button secondary')); app.append(card);
 }
@@ -545,9 +552,10 @@ function showEvidencePack(flow) {
   business.value = incident.business ?? ''; amount.value = incident.amount ?? '';
   business.addEventListener('input', () => { incident.business = business.value; });
   amount.addEventListener('input', () => { incident.amount = amount.value; });
-  card.append(element('h1', 'Keep evidence and make your incident pack'), element('p', 'Choose screenshots, emails or proof of payment. Files stay on this device; only their fingerprints go into the pack.'), element('label', 'Evidence files', {for:'evidence-files'}), files, feedback, list, element('label', 'Business', {for:'business-name'}), business, element('label', 'Amount paid', {for:'amount-paid'}), amount, handoffForm(), button('Review what goes in the pack', () => showPackReview(flow)), button('Start a new incident', showHome, 'button secondary'));
+  card.append(element('h1', 'Keep evidence and make your incident pack'), element('p', 'Choose screenshots, emails or proof of payment. Files stay on this device; only their fingerprints go into the pack.'), element('label', 'Evidence files', {for:'evidence-files'}), files, feedback, list, element('label', 'Business', {for:'business-name'}), business, element('label', 'Amount paid', {for:'amount-paid'}), amount, handoffForm(), button('Review what goes in the pack', () => { if (incident.pendingEvidence) { feedback.textContent = 'Still fingerprinting your files. Please wait, then review the pack.'; return; } showPackReview(flow); }), button('Start a new incident', showHome, 'button secondary'));
   const suggestion = makeEvidencePermissionPrompt(files);
   if (suggestion) card.append(suggestion);
+  if (journey) card.append(button('Back to response steps', () => { journey.finished = false; renderStep(); emitJourney(); }, 'button secondary'));
   app.append(card);
 }
 
@@ -615,6 +623,8 @@ function showPackReview(flow) {
     label.append(input, element('span', text)); card.append(label);
   };
   card.append(element('h1', 'Check what goes in your pack'), element('p', 'The pack may be shared with your bank, SAPS or insurer. By default it holds a version of your description with personal details hidden. Choose anything extra yourself.'));
+  check('include-evidence', 'Include evidence filenames and fingerprints', 'includeEvidence', Boolean(state.evidence.length));
+  check('include-timeline', 'Include the activity timeline (may contain evidence filenames)', 'includeTimeline', true);
   check('include-original', 'Also include my own words exactly as I typed them. They may contain names or numbers.', 'includeOriginal', Boolean(String(state.description ?? '').trim()));
   check('include-business', 'Include the business name', 'includeBusiness', Boolean(String(state.business ?? '').trim()));
   check('include-amount', 'Include the amount paid', 'includeAmount', Boolean(String(state.amount ?? '').trim()));
@@ -624,13 +634,15 @@ function showPackReview(flow) {
   const feedback = element('p', '', { role: 'alert', className: 'pack-feedback' });
   const makeButton = button('Make incident pack', async () => {
     makeButton.disabled = true; feedback.textContent = '';
+    const ownerIncident = incident;
     try {
       const event = { at: new Date().toISOString(), text: 'Generated incident pack' };
       const state = packState(); state.timeline = [...state.timeline, event];
       const pack = await makePack(buildPackData(state, options));
+      if (incident !== ownerIncident) return;
       incident.timeline.push(event); showPack(pack);
     } catch (error) {
-      feedback.textContent = error.message || 'The pack could not be created. Your entries are still here. Please try again.';
+      feedback.textContent = 'The pack could not be created. Your entries are still here. Please try again or go Back to review them.';
     } finally { makeButton.disabled = false; }
   });
   card.append(feedback, makeButton, button('Back', () => showEvidencePack(flow), 'button secondary'));
@@ -656,7 +668,7 @@ function showPack(pack) {
   technical.append(element('summary', 'Technical data and tamper check'), element('h2', 'Verify a downloaded pack'), element('p', 'Load a pack after changing a value to see the tamper check.'), checkFile, result, details);
   const actions = element('div', '', { className: 'pack-actions' });
   actions.append(download, button('Print or save as PDF', () => window.print(), 'button secondary'), tools.packButtons(pack, () => showPack(pack)), button('Start a new incident', showHome, 'button secondary'));
-  card.append(summary, actions, technical);
+  card.append(element('p', 'Your incident pack is ready. Download it and keep the original evidence files safely. Nothing has been sent to your bank.', { className: 'notice good', role: 'status' }), summary, actions, technical);
   app.append(card);
 }
 
@@ -691,6 +703,7 @@ const tools = initTools({
 window.addEventListener('hashchange', () => tools.openFromHash());
 emergencyButton.setAttribute('aria-expanded', 'false');
 emergencyButton.addEventListener('click', showBankLines);
+document.querySelector('#call-shortcut')?.addEventListener('click', () => { if (journey) voice.open?.(); else { preferredMode = 'voice'; startFromChoice('clarify'); showClarify(); } });
 // The offline copy is saved in the background. It must never delay or break the emergency screens, so failures are swallowed.
 // "Idle" is the only moment a newer version may replace the page by itself: the start screen, nothing typed, no incident or evidence in
 // progress, no voice panel or dialog open. Anything else keeps its screen, and the person chooses when to switch.
@@ -717,5 +730,5 @@ const voiceBridge = {
 };
 const voiceReady = initVoice({ bridge: voiceBridge }).catch(() => ({ launchButton: () => document.createDocumentFragment() }));
 Promise.all([fetch('/data/playbook.json').then((response) => response.json()), fetch('/data/fraud-lines.json').then((response) => response.json()), fetch('/data/resources.json').then((response) => response.json()).catch(() => null)])
-  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; if (!tools.openFromHash()) showHome(); })
-  .catch(() => { clear(); app.append(element('p', 'Mgadi could not load its local safety guide. Please call the fraud number on the back of your bank card.')); });
+  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; if (!tools.openFromHash()) { showHome(); if (new URLSearchParams(location.search).get('talk') === '1') { preferredMode = 'voice'; startFromChoice('clarify'); showClarify(); } } })
+  .catch(() => { clear(); emergencyButton.disabled = true; app.append(element('h1', 'The safety guide could not load'), element('p', 'Call the fraud number on the back of your bank card. Check your connection and retry.'), button('Retry loading the guide', () => location.reload())); });

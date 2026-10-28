@@ -428,3 +428,17 @@ test('"No sound? Tap to enable" appears when no assistant audio has been heard a
   hooks.onAudioLevel(0.1); assert.equal(s.controller.getState().needsSoundTap, false);
   assert.equal(s.controller.getState().audioHeard, true);
 });
+
+test('closing while the provider is connecting releases a handle that arrives late and ignores its old events', async () => {
+  let resolveStart; let hooks; let ended = 0;
+  const controller = createVoiceController({
+    adapterFactory: () => ({ captionsExpected: true, start: request => { hooks = request.hooks; return new Promise(resolve => { resolveStart = resolve; }); } }),
+    getContext: () => ctx(),
+  });
+  controller.giveConsent(); const pending = controller.start();
+  controller.end();
+  resolveStart({ end() { ended++; } }); await pending;
+  hooks.onStatus('live'); hooks.onTranscript([{ id: 'late', role: 'agent', content: 'late message' }]);
+  assert.equal(ended, 1); assert.equal(controller.getState().phase, 'ended');
+  assert.equal(controller.getState().messages.some(message => message.text === 'late message'), false);
+});

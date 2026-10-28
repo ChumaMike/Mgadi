@@ -426,3 +426,20 @@ html[data-reduced-motion='true'] .landing-choice{transition:none;transform:none}
  .evidence-permission-actions .button{flex:1 1 125px;}
 }
 @media(prefers-reduced-motion:reduce){.evidence-permission-prompt *{scroll-behavior:auto}}
+.landing-selected-eyebrow{color:#3e6250}
+.landing-mode-note{color:#425d50}
+.landing-choice-text{min-width:0;overflow-wrap:anywhere}
+.landing-choice-arrow{flex:0 0 auto}
+.step-outcomes{display:flex;flex-wrap:wrap}
+.step-outcomes .button{flex:1 1 8rem;word-break:normal;overflow-wrap:normal}
+/* Non-modal permission card stays in flow so it cannot cover emergency or review buttons. */
+.evidence-permission-prompt{position:relative;inset:auto;width:100%;max-height:none;margin:1rem 0;z-index:auto}
+.evidence-permission-eyebrow{color:#3d604c}
+.landing-page .landing-mode-note{color:#344f42}
+.check > span{min-width:0;overflow-wrap:anywhere}
+.preview-box{overflow-wrap:anywhere;min-width:0}
+@media(min-width:760px){
+ .landing-page .landing-choices{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .landing-page .landing-hero{min-height:240px;padding-top:1.5rem;padding-bottom:4rem}
+ .landing-page .landing-hero h1{font-size:2.8rem;max-width:600px}
+}

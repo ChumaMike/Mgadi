@@ -54,7 +54,7 @@ const manifestVersion = async (page) => (await (await page.request.get(`${base}/
 const nudge = (page) => page.evaluate(() => window.dispatchEvent(new Event('online'))); // makes the page look for a newer version now
 const until = async (fn, ms = 25_000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await fn().catch(() => false)) return true; await new Promise((r) => setTimeout(r, 250)); } return false; };
 const bannerState = (page) => page.evaluate(() => { const b = document.querySelector('#update-banner'); const btn = b?.querySelector('button'); const r = b?.getBoundingClientRect(); const br = btn?.getBoundingClientRect(); return b ? { open: b.dataset.open === 'true', text: b.querySelector('p')?.textContent ?? '', top: r.top, bottom: r.bottom, btnHeight: br.height, btnVisible: br.height > 0 && br.top < innerHeight, state: document.querySelector('#offline-status')?.dataset.state } : null; });
-const typeSomething = async (page, text = 'We paid a supplier SENTINEL-DRAFT-5521 and now they say nothing arrived') => { await page.click('summary:has-text("Prefer to describe it in your own words?")'); await page.fill('#incident-description', text); return text; };
+const typeSomething = async (page, text = 'We paid a supplier SENTINEL-DRAFT-5521 and now they say nothing arrived') => { await page.click('.describe-incident > summary'); await page.fill('#incident-description', text); return text; };
 
 try {
   // ---- 1. A fresh visit gets the newest version straight from the network and saves it.

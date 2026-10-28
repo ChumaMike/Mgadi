@@ -14,7 +14,9 @@ const ai = apiKey && process.env.MGADI_AI !== 'off' ? (text) => classifyWithAI(t
 createApp({ classifyWithAI: ai }).listen(port, host, () => {
   console.log(`\nMgadi is running with ${ai ? `AI triage (${model}) and rules fallback` : 'safe rules-only triage'}.`);
   console.log(`Laptop: http://localhost:${port}`);
-  for (const network of Object.values(os.networkInterfaces())) {
+  let networks = {};
+  try { networks = os.networkInterfaces(); } catch { /* Restricted hosts may not enumerate interfaces. The server still works. */ }
+  for (const network of Object.values(networks)) {
     for (const item of network ?? []) {
       if (item.family === 'IPv4' && !item.internal) console.log(`Phone:  http://${item.address}:${port}`);
     }

@@ -53,6 +53,7 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
   gesturePreview.hidden = true;
   const gestureArea = gestureSection.querySelector('.vp-gesture-area');
   const gestureToggle = gestureSection.querySelector('.vp-gesture-heading button');
+  gestureToggle?.remove(); // The main gesture toggle owns this view; avoid a second disconnected display control.
   const gestureCanvas = gestureArea?.querySelector('canvas');
   const gestureWord = gestureArea?.querySelector('.vp-gesture-word');
   if (gestureCanvas) gesturePreview.append(gestureCanvas);
@@ -123,26 +124,30 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
   textCheck.addEventListener('change', () => { document.documentElement.dataset.textSize = textCheck.checked ? 'large' : 'normal'; });
   motionCheck.addEventListener('change', () => { document.documentElement.dataset.reducedMotion = String(motionCheck.checked); });
 
+  let companionVisible = true;
   let gesturesOn = false;
   const setGestureMode = (on) => {
     gesturesOn = Boolean(on);
     if (gesturesOn && gestureArea?.hidden) gestureToggle?.click();
     if (!gesturesOn && gestureArea && !gestureArea.hidden) gestureToggle?.click();
     gesturePreview.hidden = !gesturesOn;
-    avatarArea.hidden = gesturesOn;
+    avatarArea.hidden = gesturesOn || !companionVisible;
+    gesturePreview.hidden = !gesturesOn || !companionVisible;
     stage.dataset.gestures = String(gesturesOn);
     visualToggle.textContent = gesturesOn ? 'Hide 3D signing preview' : 'Show 3D signing preview';
     visualToggle.setAttribute('aria-pressed', String(gesturesOn));
   };
   visualToggle.addEventListener('click', () => setGestureMode(!gesturesOn));
   const syncAvatarButton = () => {
-    const visible = !dock.isHidden() && dock.root.hidden === false;
-    avatarToggle.textContent = visible ? 'Hide 3D' : 'Show 3D';
-    avatarToggle.setAttribute('aria-pressed', String(visible));
+    companionVisible = !dock.isHidden();
+    avatarToggle.textContent = companionVisible ? 'Hide 3D' : 'Show 3D';
+    avatarToggle.setAttribute('aria-pressed', String(companionVisible));
   };
   avatarToggle.addEventListener('click', () => {
-    if (dock.isHidden()) dock.show();
-    else dock.hide();
+    companionVisible = !companionVisible;
+    if (companionVisible) dock.show(); else dock.hide();
+    avatarArea.hidden = gesturesOn || !companionVisible;
+    gesturePreview.hidden = !gesturesOn || !companionVisible;
     syncAvatarButton();
   });
   captionToggle.addEventListener('click', () => {
@@ -219,16 +224,24 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
     drawer.append(button, box);
     button.classList.add('vp-extra-preview');
   }
+  let accessSlot = null;
+  const accessibility = document.querySelector('#accessibility');
   function open() {
+    if (accessibility && !accessSlot) { accessSlot = document.createComment('accessibility home'); accessibility.before(accessSlot); drawer.append(accessibility); }
+    accessibility?.removeAttribute('inert');
+    document.querySelector('.site-header')?.setAttribute('inert', '');
     document.querySelector('main')?.setAttribute('inert', '');
-    document.querySelector('#accessibility')?.setAttribute('inert', '');
+
     if (interval) clearInterval(interval);
     interval = setInterval(tick, 1000);
     // Start with the gesture-capable 3D character, not the voice mouth avatar.
-    setGestureMode(true);
+    companionVisible = true;
+    setGestureMode(false);
     if (drawer.hidden === false) setDrawer(false);
   }
   function close() {
+    if (accessSlot) { accessSlot.after(accessibility); accessSlot.remove(); accessSlot = null; }
+    document.querySelector('.site-header')?.removeAttribute('inert');
     document.querySelector('main')?.removeAttribute('inert');
     document.querySelector('#accessibility')?.removeAttribute('inert');
     if (interval) clearInterval(interval);

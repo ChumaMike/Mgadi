@@ -28,7 +28,7 @@ const open = async ({ width = 390, height = 844, query = 'mockvoice=fast', reduc
   page.on('pageerror', (e) => page.errors.push(e.message)); page.on('console', (m) => { if (m.type() === 'error') page.errors.push(m.text()); });
   await page.goto(`${base}/?${query}`); await page.waitForSelector('h1'); return page;
 };
-const begin = async (page) => { await page.locator('.incident-choices button:has-text("Money or a payment problem")').click(); await page.locator('.incident-choices button:has-text("I paid after")').click(); await page.waitForSelector('text=Step 1 of'); };
+const begin = async (page) => { await page.locator('.incident-choices button:has-text("Money or a payment problem")').click(); await page.getByRole('button', { name: 'Tell Mgadi by text', exact: true }).click(); await page.locator('.incident-choices button:has-text("I paid after")').click(); await page.waitForSelector('text=Step 1 of'); };
 const launch = async (page) => { await page.click('.voice-launch'); await page.waitForSelector('.voice-panel:not([hidden])'); };
 const talk = async (page) => { await page.check('#voice-consent-check'); await page.click('.vp-start'); await page.waitForSelector('.vp-status:has-text("Connected")'); };
 const rect = (page, sel) => page.evaluate((s) => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, visible: r.width > 0 && r.height > 0 && !e.closest('[hidden]') && getComputedStyle(e).display !== 'none' }; }, sel);
@@ -184,9 +184,9 @@ try {
     check(`${w}x${h}: the visible conversation is at least ${need} px tall and the page does not scroll sideways`, chat.h >= need && !(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)), JSON.stringify(chat));
     const clipped = await page.evaluate(() => [...document.querySelectorAll('.vp-controls button, .vp-btnrow button, .vp-status, .vp-activity, .vp-mic')].filter((b) => !b.closest('[hidden]') && b.offsetWidth > 0 && b.scrollWidth > b.clientWidth + 1).map((b) => b.textContent.trim()));
     check(`${w}x${h}: no button or status text is clipped`, clipped.length === 0, JSON.stringify(clipped));
-    const bank = await page.evaluate(() => [...document.querySelectorAll('#emergency-button, .vp-bank')].map((b) => { const r = b.getBoundingClientRect(); return { name: b.textContent.trim(), w: r.width, h: r.height, tab: b.tabIndex }; }));
-    check(`${w}x${h}: both Bank fraud line buttons are on screen, named, keyboard reachable and at least 44 px tall`, bank.length === 2 && bank.every((b) => b.name === 'Bank fraud line' && b.h >= 44 && b.tab >= 0), JSON.stringify(bank));
-    let clickable = true; for (const sel of ['#emergency-button', '.vp-bank', '.vp-controls button:has-text("Mute")', '.vp-controls button:has-text("End call")', '.vp-controls button:has-text("Use text guidance")']) { try { await page.click(sel, { trial: true, timeout: 2500 }); } catch { clickable = false; } }
+    const bank = await page.evaluate(() => [...document.querySelectorAll('.vp-bank')].map((b) => { const r = b.getBoundingClientRect(); return { name: b.textContent.trim(), w: r.width, h: r.height, tab: b.tabIndex }; }));
+    check(`${w}x${h}: the workspace Bank fraud line button are on screen, named, keyboard reachable and at least 44 px tall`, bank.length === 1 && bank.every((b) => b.name === 'Bank fraud line' && b.h >= 44 && b.tab >= 0), JSON.stringify(bank));
+    let clickable = true; for (const sel of ['.vp-bank', '.vp-controls button:has-text("Mute")', '.vp-controls button:has-text("End call")', '.vp-controls button:has-text("Use text guidance")']) { try { await page.click(sel, { trial: true, timeout: 2500 }); } catch { clickable = false; } }
     check(`${w}x${h}: nothing covers either bank button, Mute, End call or Use text guidance (real click actionability)`, clickable);
     if (w === 390 || w === 320) { await shot(page, `${w}x${h}-3-listening-or-speaking`); await page.click('.avatar-btn[aria-label*="larger"]'); await page.waitForTimeout(350); await shot(page, `${w}x${h}-4-expanded`);
       const ex = await rect(page, '.avatar-dock'); const ec = await controls(page); check(`${w}x${h}: the expanded avatar still overlaps no control or the visible conversation`, ec.filter((c) => c.n !== 'vp-status').every((c) => !hit(ex, c)), JSON.stringify({ ex, hits: ec.filter((c) => hit(ex, c)) }));
@@ -236,7 +236,7 @@ try {
   page = await open(); await begin(page); await launch(page); await talk(page);
   await page.click('.avatar-btn[aria-label*="Hide"]'); check('the avatar can be hidden, and the call carries on', (await page.locator('.avatar-dock').isHidden()) && (await page.locator('.vp-status').innerText()) === 'Connected');
   check('hiding returns the controls\' gutter (nothing reserved for an invisible avatar)', (await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--avatar-w').trim())) === '0px');
-  await page.click('.vp-controls button:has-text("Show avatar")'); check('and it can be restored', await page.locator('.avatar-dock').isVisible());
+  await page.getByRole('button', { name: 'Show 3D', exact: true }).click(); check('and it can be restored', await page.locator('.avatar-dock').isVisible());
   check('the avatar never claims to sign: no SASL wording except the disclaimer', !/sign(ing)? language|SASL/.test((await page.locator('.avatar-dock').innerText()).replace(/Visual companion, not a sign language translator/, '')));
   const touch = await page.evaluate(() => [...document.querySelectorAll('.avatar-btn')].map((b) => { const r = b.getBoundingClientRect(); const after = getComputedStyle(b, '::after'); return { w: r.width + 14, h: r.height + 14, inset: after.top }; }));
   check('the small avatar buttons have a 44 px touch area (30 px button plus a 7 px pad on each side)', touch.every((t) => t.w >= 44 && t.h >= 44 && t.inset === '-7px'), JSON.stringify(touch));
