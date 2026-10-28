@@ -97,3 +97,11 @@ html[data-reduced-motion='true'] .avatar-dock { transition: none; }
   .vp-chat { flex-basis: 14rem; }
 }
 @media print { .avatar-dock { display: none !important; } }
+
+/* An explicit no-cost renderer preview when the user has not joined a live call. */
+.vp-preview { margin: .45rem 0; padding: .65rem .75rem; border: 1px solid var(--mg-line); border-radius: 12px; background: #f3f6ef; color: var(--mg-forest); }
+.vp-preview[hidden], .vp-preview-toggle[hidden] { display: none !important; }
+.vp-preview .vp-note { margin: 0 0 .45rem; font-size: .84rem; line-height: 1.45; }
+.vp-preview-modes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .45rem; }
+.vp-preview-modes .button { min-width: 0; min-height: 44px; padding: .5rem .4rem; font-size: .88rem; }
+.vp-preview-modes .button[aria-pressed='true'] { border-color: var(--mg-forest); background: #e0eee4; color: var(--mg-forest); font-weight: 800; }
