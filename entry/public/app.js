@@ -111,7 +111,7 @@ function showHome() {
   intro.append(
     element('p', 'MGADI  /  FIRST-HOUR CYBER HELP', { className: 'landing-eyebrow' }),
     element('h1', 'Something feels wrong?'),
-    element('p', 'Tell us what happened. We’ll help you take the next safe step.', { className: 'landing-intro' })
+    element('p', 'Let’s take the next step, together.', { className: 'landing-intro' })
   );
   const heroMark = element('div', '', { className: 'landing-hero-emblem', 'aria-hidden': 'true' });
   const emblem = element('div', '', { className: 'landing-emblem-image' });
@@ -140,7 +140,7 @@ function showHome() {
   };
   window.addEventListener('online', showReadiness, { once: true });
   window.addEventListener('offline', showReadiness, { once: true });
-  hero.append(intro, heroMark, ready);
+  hero.append(heroMark, intro, ready);
   page.append(hero);
 
   const issue = element('section', '', { className: 'landing-issues', 'aria-labelledby': 'landing-issues-title' });
@@ -247,7 +247,7 @@ function showHome() {
   issue.append(choices, modeBox);
 
   const describe = element('details', '', { className: 'landing-describe describe-incident' });
-  describe.append(element('summary', 'Not sure what to choose? Describe it instead'));
+  describe.append(element('summary', 'Tell us what’s worrying you'));
   const description = element('textarea', '', {
     id: 'incident-description',
     placeholder: 'For example: A supplier emailed new banking details, then I made a payment.',
@@ -256,7 +256,7 @@ function showHome() {
   description.lang = 'en';
   const names = element('input', '', { id: 'names-to-hide', placeholder: 'Optional names to hide, separated by commas' });
   describe.append(
-    element('p', 'Please describe it in English for now. Never enter passwords, PINs or OTPs.', { className: 'privacy' }),
+    element('p', 'I’m sorry you’re dealing with this. Tell me what’s worrying you, in your own words. English is supported for now. Leave out passwords, PINs and OTPs.', { className: 'privacy' }),
     element('label', 'What happened?', { for: 'incident-description' }), description,
     element('label', 'Names to hide from your description', { for: 'names-to-hide' }), names
   );

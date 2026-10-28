@@ -7,20 +7,20 @@ marked `lang="en"` so screen readers pronounce it correctly. Nothing here is a c
 
 | Part of Mgadi | Strings | Dynamic (built at run time) | isiZulu | isiXhosa | Afrikaans |
 |---|---:|---:|---:|---:|---:|
-| Emergency entry screens (choices, money question, one quick question) | 41 | 0 | 29 (71%) | 29 (71%) | 29 (71%) |
+| Emergency entry screens (choices, money question, one quick question) | 45 | 0 | 17 (38%) | 17 (38%) | 17 (38%) |
 | Payment-diversion guide | 26 | 0 | 24 (92%) | 24 (92%) | 24 (92%) |
 | Hacked-mailbox guide | 13 | 0 | 6 (46%) | 6 (46%) | 6 (46%) |
 | Suspicious-message guide | 7 | 0 | 3 (43%) | 3 (43%) | 3 (43%) |
 | Not-a-cyber-incident and unsure guides | 21 | 0 | 1 (5%) | 1 (5%) | 1 (5%) |
 | Ransomware guide (steps, organisation note, trusted resources) | 66 | 2 | 0 (0%) | 0 (0%) | 0 (0%) |
-| Bank directory and step screens | 15 | 3 | 10 (56%) | 10 (56%) | 10 (56%) |
+| Bank directory and step screens | 18 | 1 | 9 (47%) | 9 (47%) | 9 (47%) |
 | Voice panel: controls, consent and conversation states | 28 | 0 | 10 (36%) | 10 (36%) | 10 (36%) |
 | Errors and connectivity notices | 15 | 7 | 0 (0%) | 0 (0%) | 0 (0%) |
 | Evidence and incident packs | 30 | 2 | 1 (3%) | 1 (3%) | 1 (3%) |
 | Accessibility settings and signing dialog | 22 | 0 | 5 (23%) | 5 (23%) | 5 (23%) |
 | Supplier check, responder handoff and POPIA draft (screens and the texts they build) | 164 | 53 | 3 (1%) | 3 (1%) | 3 (1%) |
 
-Catalog size: 89 entries per language (English, isiZulu, isiXhosa, Afrikaans).
+Catalog size: 89 entries per language (English, Afrikaans, isiNdebele, isiXhosa, isiZulu, Sepedi, Sesotho, siSwati, Setswana, itsonga, Tshivenda, South African Sign Language).
 Percentages are translated strings divided by strings plus dynamic strings. Dynamic strings count as untranslated.
 
 ## What this means for people
