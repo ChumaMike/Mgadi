@@ -7,7 +7,7 @@ const status=byId('status'),chat=byId('chat'),text=byId('message'),token=byId('t
 const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
 const history=[];let listening=false,recognizer=null,busy=false,speaking=null,callActive=false,visualOn=true,lastReply='',gestureTimer=null;
 const phase=byId('call-phase'),stage=byId('visual-stage'),visualButton=byId('toggle-visual'),caption=byId('live-caption'),startCall=byId('start-call'),endCall=byId('end-call');
-function setPhase(next){phase.textContent=next;phase.dataset.phase=next.toLowerCase().replace(/[^a-z]+/g,'-');avatar.setMood(next==='Speaking'?'speaking':next==='Listening'?'listening':'idle');}
+function setPhase(next){phase.textContent=next;phase.dataset.phase=next.toLowerCase().replace(/[^a-z]+/g,'-');avatar.setMood(next==='Speaking'?'speaking':next==='Listening'?'listening':next==='Thinking'?'thinking':'idle');}
 function toggleVisual(){visualOn=!visualOn;byId('workspace').dataset.visual=visualOn?'on':'off';stage.hidden=!visualOn;visualButton.textContent=visualOn?'Hide gesture companion':'Show gesture companion';visualButton.setAttribute('aria-pressed',String(visualOn));if(visualOn){if(!reduced.matches)avatar.play();}else avatar.pause();}
 visualButton.addEventListener('click',toggleVisual);
 function startSession(){callActive=true;startCall.disabled=true;endCall.disabled=false;setPhase('Ready');report('TalkBack call started. Tap Speak or type a question.');}
