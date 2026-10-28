@@ -267,3 +267,30 @@ html[data-voice="open"]{overflow:hidden}
 @media(max-width:360px){.vp-brand .vp-title{font-size:.94rem}.vp-duration{font-size:.7rem}.vp-speaking-display{position:relative;align-self:flex-start}.vp-avatar-scene{flex-direction:column;gap:.3rem}.vp-actions{grid-template-columns:1fr}.vp-actions .button{min-height:44px}}
 @media(prefers-reduced-motion:reduce){.vp-wave-bar{animation:none!important}}
 html[data-reduced-motion="true"] .vp-wave-bar{animation:none!important}
+
+/* Demo journey polish: real logo and name stay visible, tools remain secondary. */
+.site-header{display:flex;align-items:center;gap:.6rem;justify-content:space-between;padding:.65rem max(.8rem,calc((100vw - 950px)/2));}
+.site-header .brand{display:flex;align-items:center;gap:.5rem;flex:1 1 auto;min-width:0;color:#103d34;text-decoration:none;font-size:1.35rem;letter-spacing:-.04em;white-space:nowrap}
+.site-header .brand .brand-logo{flex:0 0 40px;width:40px;height:40px;display:block}
+.site-header .brand-logo img{display:block;width:100%;height:100%;object-fit:contain}
+.site-header .brand-wordmark{display:inline;font-weight:850;color:#103d34}
+.site-header .brand-tagline{display:none}
+.site-header #emergency-button{flex:0 0 auto;margin:0;background:#fff7f5;border:1px solid #c94138;color:#a92722;border-radius:999px;padding:.6rem .9rem;font-size:.82rem;min-height:44px}
+.simple-home .welcome-copy{padding-top:.15rem}
+.simple-home .welcome-choices .situation-card{display:flex;align-items:center;gap:.8rem;text-align:left;padding:.75rem .95rem;line-height:1.35}
+.simple-home .choice-icon{flex:none;display:inline-grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#eef4ea;color:#1b5948;font-size:1.1rem}
+.simple-home .choice-arrow{margin-left:auto}
+.simple-home .incident-mode-choice{margin-top:1rem}
+.simple-home .practical-tools{margin-top:3rem}
+.simple-home .practical-tools .tool-grid{gap:.7rem}
+.bank-popover{z-index:120}
+.voice-panel:not([hidden]) .vp-workspace-brand{gap:.35rem}
+.voice-panel .vp-workspace-brand .vp-title{color:#123c35}
+.voice-panel .vp-btnrow .vp-bank{white-space:nowrap}
+@media(max-width:600px){
+.site-header{gap:.35rem;padding:.6rem .65rem}
+.site-header .brand{font-size:1.15rem;gap:.35rem}
+.site-header .brand .brand-logo{width:32px;height:32px;flex-basis:32px}
+.site-header #emergency-button{padding:.55rem .6rem;font-size:.73rem}
+.simple-home .welcome-copy{padding-top:0}
+}

@@ -445,7 +445,7 @@ export async function initVoice({ bridge }) {
     opPill.hidden = config.access !== 'operator';
     micPill.hidden = !inCall || config.mode === 'mock'; micPill.textContent = s.muted ? 'Mic muted' : 'Mic on'; micPill.dataset.muted = String(s.muted);
     renderChips(s); renderMessages(s); renderControls(s); if (progress.open) renderProgress();
-    if (inCall && gestureArea.hidden) gestureToggle.click();
+    // Optional visual gesture examples stay collapsed until the owner opens them.
     if(inCall && localRecognizer)stopLocal();
     if(inCall && guideMode){guideMode=false;guideButton.textContent='Start guided voice replies';globalThis.speechSynthesis?.cancel();}
     if (inCall && gestureAvatar) {
