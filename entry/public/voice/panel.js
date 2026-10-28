@@ -183,15 +183,44 @@ export async function initVoice({ bridge }) {
   const guideButton=make('button','button secondary vp-small','Start guided voice replies'); guideButton.type='button';
   const guideLog=make('div','vp-local-dialogue'); guideLog.setAttribute('role','log'); guideLog.setAttribute('aria-label','Browser-guided voice captions');
   const guideStatus=make('p','vp-note','Browser guided voice: live text and spoken safety replies without Retell. Uses predefined guidance, not an AI model. Your browser may use online speech recognition.');
-  gestureArea.append(localButton,localStatus,guideButton,guideStatus,guideLog);
-  let guideMode=false;
+  const aiTokenInput=make('input');aiTokenInput.type='password';aiTokenInput.autocomplete='off';aiTokenInput.placeholder='AI test access token from Vercel';aiTokenInput.setAttribute('aria-label','Private AI test token');
+  const aiButton=make('button','button secondary vp-small','Use Claude AI replies');aiButton.type='button';aiButton.setAttribute('aria-pressed','false');
+  gestureArea.append(localButton,localStatus,guideButton,guideStatus,aiTokenInput,aiButton,guideLog);
+  let guideMode=false,aiMode=false,aiBusy=false,aiHistory=[],lastProcessed='';
+  aiButton.addEventListener('click',()=>{
+    aiMode=!aiMode;aiHistory=[];aiButton.setAttribute('aria-pressed',String(aiMode));
+    aiButton.textContent=aiMode?'Claude AI replies selected':'Use Claude AI replies';
+    guideStatus.textContent=aiMode?'Claude AI mode: your final recognized words are sent to Mgadi server and Anthropic for a reply. Paid operator test token required.':'Guided predefined replies selected.';
+  });
   const safeSpeech=(text)=>{
     if(!('speechSynthesis' in globalThis)) {guideStatus.textContent='Speech playback unavailable here. Read the captions below.';return;}
     globalThis.speechSynthesis.cancel();
     const utterance=new SpeechSynthesisUtterance(text); utterance.lang='en-ZA'; utterance.rate=.93;utterance.volume=1;
     globalThis.speechSynthesis.speak(utterance);
   };
-  const guideReply=(spoken)=>{
+  const guideReply=async(spoken)=>{
+    if(aiBusy)return;
+    if(aiMode){
+      if(!aiTokenInput.value.trim()){guideStatus.textContent='Enter the AI test access token from Vercel. Using guided reply instead.';}
+      else {
+        aiBusy=true; guideStatus.textContent='Claude is preparing a reply…';guideButton.disabled=true;
+        const userLine=make('p',null,'You: '+spoken);guideLog.append(userLine);
+        try{
+          const response=await fetch('/api/ai-chat',{method:'POST',cache:'no-store',headers:{'content-type':'application/json','x-mgadi-ai-test-token':aiTokenInput.value.trim()},body:JSON.stringify({text:spoken,history:aiHistory})});
+          const data=await response.json();
+          if(!response.ok || typeof data.reply!=='string')throw Error(data.error||'ai_unavailable');
+          const reply=data.reply.slice(0,1100);
+          guideLog.append(make('p',null,'Mgadi (Claude AI): '+reply));while(guideLog.children.length>12)guideLog.firstChild.remove();
+          aiHistory.push({role:'user',text:spoken},{role:'assistant',text:reply});aiHistory=aiHistory.slice(-8);
+          const match=recognizeGesture(reply)||recognizeGesture(spoken);if(match)setGesture(match.key,'live');
+          safeSpeech(reply);
+          guideStatus.textContent='Claude AI replied. Speak again when ready.';
+          return;
+        }catch(error){guideStatus.textContent='Claude unavailable ('+String(error.message).slice(0,50)+'). Giving the safe on-screen guide instead.';}
+        finally{aiBusy=false;guideButton.disabled=false;}
+      }
+    }
+
     const match=recognizeGesture(spoken);
     const responses={
       stop:'Stop. Do not pay using changed bank details until you verify them independently with your supplier.',
@@ -214,7 +243,7 @@ export async function initVoice({ bridge }) {
       if(!Recognition){guideMode=false;guideButton.textContent='Start guided voice replies';guideStatus.textContent='This browser cannot recognize speech. Use the gesture buttons.';return;}
       if(!gestureArea.hidden && !localRecognizer)localButton.click();
       guideStatus.textContent='Guided voice active. Say STOP, CALL, SAVE, HELP, CHECK or PROTECT.';
-    }else {stopLocal();globalThis.speechSynthesis?.cancel();}
+    }else {stopLocal();globalThis.speechSynthesis?.cancel();lastProcessed='';}
   });
   gestureSection.append(gestureHeader,gestureArea);
   let gestureAvatar = null, gestureLast = '', gestureTimeout = null;
@@ -229,7 +258,7 @@ export async function initVoice({ bridge }) {
     rec.onresult=(e)=>{const words=e.results[e.results.length-1]?.[0]?.transcript||'';
       localStatus.textContent='Heard: '+words;
       const match=recognizeGesture(words);if(match)setGesture(match.key,'microphone');
-      if(guideMode && e.results[e.results.length-1]?.isFinal && words.trim()) guideReply(words.trim());
+      if(guideMode && e.results[e.results.length-1]?.isFinal && words.trim() && words.trim()!==lastProcessed){lastProcessed=words.trim();guideReply(words.trim());}
     };
     rec.onerror=(e)=>{localStatus.textContent='Microphone recognition error: '+e.error;};
     rec.onend=()=>{if(localRecognizer===rec){localRecognizer=null;localButton.textContent='Speak gesture words';}};
