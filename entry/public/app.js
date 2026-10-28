@@ -147,7 +147,7 @@ function showHome() {
   const issueHead = element('div', '', { className: 'landing-issues-heading' });
   issueHead.append(
     element('div', '', { className: 'landing-section-intro' }),
-    element('span', '01 / CHOOSE YOUR SITUATION', { className: 'landing-section-id' })
+    element('span', 'FIRST · YOUR SITUATION', { className: 'landing-section-id' })
   );
   issueHead.firstChild.append(
     element('h2', 'What happened?', { id: 'landing-issues-title' }),
@@ -189,13 +189,14 @@ function showHome() {
     'aria-label': 'Choose text or voice guidance'
   });
   const modeHeading = element('div', '', { className: 'landing-mode-heading' });
-  modeHeading.append(element('span', '02 / CHOOSE HOW TO CONTINUE', { className: 'landing-selected-eyebrow' }),
-    element('h3', 'How would you like to tell Mgadi?'));
+  modeHeading.append(element('span', 'NEXT · HOW TO CONTINUE', { className: 'landing-selected-eyebrow' }),
+    element('h3', 'Choose how to continue'));
   const modeSummary = element('p', 'You can start without choosing an incident above.', { className: 'landing-mode-summary', role: 'status' });
   const modeButtons = element('div', '', { className: 'landing-mode-buttons' });
   let selected = null;
   const beginText = () => {
     preferredMode = 'text';
+    if (selected) { chooseEntry(selected); return; }
     describe.open = true;
     description.focus();
     describe.scrollIntoView({ block: 'nearest', behavior: 'auto' });
@@ -221,7 +222,7 @@ function showHome() {
   const textChoice = button('Tell Mgadi by text', beginText, 'button secondary landing-text-button');
   modeButtons.append(textChoice, voiceChoice);
   const modeNote = element('p',
-    'Calling opens the 3D companion and captions. Reviewed SASL video guidance is not yet available.',
+    'Calls require your permission. Illustrative 3D movements are not verified SASL.',
     { className: 'landing-mode-note' });
   modeBox.append(modeHeading, modeSummary, modeButtons, modeNote);
 
@@ -232,7 +233,7 @@ function showHome() {
         item.setAttribute('aria-pressed', String(item === choice)));
       modeSummary.textContent = 'Selected: ' + option.text;
       straightToGuide.hidden = false;
-      voiceChoice.focus({ preventScroll: true });
+      // Keep keyboard focus on the selected situation; do not unexpectedly scroll.
     }, 'landing-choice');
     choice.setAttribute('aria-pressed', 'false');
     const iconBox = element('span', '', { className: 'landing-choice-icon' });
@@ -348,11 +349,12 @@ function chooseEntry(option) {
 }
 function showPaymentChoice() {
   const flow = playbook.entry.payment;
-  clear(); const card = element('section', '', { className: 'card' });
-  card.append(element('h1', flow.title), element('p', 'Your bank fraud line stays at the top of every screen.', { className: 'notice' }));
-  const choices = element('div', '', { className: 'incident-choices' });
+  clear();
+  const card = element('section', '', { className: 'card clarification-card' });
+  card.append(element('p', 'ONE QUICK QUESTION', { className: 'screen-eyebrow' }), element('h1', flow.title));
+  const choices = element('div', '', { className: 'clarification-choices' });
   for (const option of flow.options) choices.append(button(option.text, () => chooseEntry(option), 'button secondary'));
-  card.append(choices, button('Back', showHome, 'button secondary'));
+  card.append(choices, button('← Back', showHome, 'button secondary back-link'));
   app.append(card);
 }
 
@@ -360,18 +362,19 @@ function showPaymentChoice() {
 // No label is invented here, and nothing waits on this screen: the bank button stays in the header.
 function showClarify() {
   const flow = playbook.clarify;
-  clear(); const card = element('section', '', { className: 'card' });
-  const intro = element('p', flow.intro); const question = element('h2', flow.question);
-  card.append(element('h1', flow.title), reviewBadge(), intro, question);
-  const choices = element('div', '', { className: 'incident-choices' });
+  clear();
+  const card = element('section', '', { className: 'card clarification-card' });
+  card.append(element('p', 'ONE QUICK QUESTION', { className: 'screen-eyebrow' }), element('h1', flow.question));
+  const choices = element('div', '', { className: 'clarification-choices' });
   for (const option of flow.options) {
     choices.append(button(option.text, () => {
-      incident.ownerAnswer = option.text; log(`Owner answered: ${option.text}`);
+      incident.ownerAnswer = option.text;
+      log(`Owner answered: ${option.text}`);
       showIncident(option.route);
       if (preferredMode === 'voice') voice.open?.();
     }, 'button secondary'));
   }
-  card.append(choices, guidanceControls([intro, question], 'clarify'), voice.launchButton(), button('Start again', showHome, 'button secondary'));
+  card.append(choices, button('← Back', showHome, 'button secondary back-link'));
   app.append(card);
 }
 
@@ -462,7 +465,7 @@ function makeEvidencePermissionPrompt(picker) {
   close.setAttribute('aria-label', 'Dismiss evidence prompt');
   content.append(close, element('p', 'OPTIONAL · EVIDENCE', { className: 'evidence-permission-eyebrow' }),
     element('h2', "Let's collect evidence", { id: 'evidence-permission-title' }),
-    element('p', 'You can give Mgadi access to the files you choose, so it can record their fingerprints for your incident pack. Nothing is accessed automatically.'));
+    element('p', 'You can choose files for Mgadi to record in your incident pack. Only the files you select are read.'));
   const actions = element('div', '', { className: 'evidence-permission-actions' });
   actions.append(
     button('Deny', () => prompt.remove(), 'button secondary'),
@@ -499,13 +502,17 @@ function renderStep() {
     revisit.append(element('span', mark, { className: 'step-number', 'aria-hidden': 'true' }), words);
     row.append(revisit); progress.append(row);
   });
-  card.append(progress, element('p', `${flow.title} · Step ${position + 1} of ${flow.steps.length}`, { className: 'step-count' }), element('h1', step.title));
+  card.append(element('p', flow.title, { className: 'screen-eyebrow' }),
+    element('p', `Step ${position + 1} of ${flow.steps.length}`, { className: 'step-count', role: 'status' }),
+    progress, element('h1', step.title));
   if (flow.orgNote) card.append(element('p', flow.orgNote, { className: 'notice org-note' }));
   const list = element('ol', '', { className: 'action-list' });
   step.do.forEach((item) => list.append(element('li', item))); card.append(list);
   if (step.id === 'bank') card.append(button('Choose a bank fraud line', showBankLines, 'button danger primary-action'));
   const why = element('details', '', { className: 'step-context' });
-  why.append(element('summary', 'Why this matters'), element('p', step.why), element('p', flow.summary));
+  why.append(element('summary', 'Why this matters / Sources'), element('p', step.why), element('p', flow.summary));
+  const sourceDetails = resourceLinks(label, step.id);
+  if (sourceDetails) why.append(sourceDetails);
 
   card.append(why);
   const formats = element('div', '', { className: 'step-formats' });
@@ -516,8 +523,8 @@ function renderStep() {
   const detail = element('span', '', { className: 'sr-only' }); detail.append(document.createTextNode(' — '), element('span', step.done));
   done.append(element('span', 'Done'), detail); done.dataset.report = step.done;
   outcomes.append(done, button('Need help', () => reportOther('needs_help'), 'button secondary'), button('Not applicable', () => reportOther('not_applicable'), 'button secondary'));
-  card.append(element('h2', 'How did this step go?'), outcomes, element('p', 'Your choice is saved in your incident pack. You can revisit any step above.', { className: 'privacy' }), element('p', 'Need help only marks this step in your pack. Mgadi does not contact anyone for you.', { className: 'privacy need-help-note' }));
-  const links = resourceLinks(label, step.id); if (links) card.append(links);
+  card.append(element('h2', 'Mark this step'), outcomes,
+    element('p', 'Only you confirm progress. “Need help” records a request; Mgadi does not contact anyone.', { className: 'privacy need-help-note' }));
   if (step.id === 'evidence') {
     const input = element('input', '', { type: 'file', id: 'step-evidence-picker', multiple: 'multiple', accept: 'image/*,.pdf,.eml,.msg,.txt', className: 'evidence-step-picker' });
     const feedback = element('p', '', { className: 'evidence-feedback', role: 'status' });
@@ -533,19 +540,36 @@ function renderStep() {
 }
 
 function showEvidencePack(flow) {
-  clear(); const card = element('section', '', { className: 'card' });
+  clear();
+  const card = element('section', '', { className: 'card evidence-screen' });
+  card.append(element('p', 'YOUR INCIDENT · EVIDENCE', { className: 'screen-eyebrow' }),
+    element('h1', 'Keep your evidence together'),
+    element('p', 'Choose screenshots, messages or proof of payment. Mgadi records the file name, size and fingerprint. Original files stay on your device.', { className: 'screen-intro' }));
   const files = element('input', '', { id: 'evidence-files', type: 'file', multiple: 'multiple', accept: 'image/*,.pdf,.eml,.msg,.txt' });
-  const list = element('ul');
-  const addRow = (item) => list.append(plain('li', `${item.name} — SHA-256 ${item.sha256}`));
+  const list = element('ul', '', { className: 'evidence-selected-files' });
+  const empty = element('p', 'No files selected yet. You can continue without any.', { className: 'privacy evidence-empty' });
+  const addRow = (item) => {
+    empty.hidden = true;
+    list.append(plain('li', `${item.name} · ${Math.max(1, Math.round(item.size / 1024))} KB · fingerprint recorded`));
+  };
   incident.evidence.forEach(addRow);
-  const feedback = element('p', '', { className: 'privacy', role: 'status' });
+  const feedback = element('p', '', { className: 'evidence-feedback', role: 'status', 'aria-live': 'polite' });
   attachEvidencePicker(files, feedback, addRow);
-  const business = element('input', '', { id:'business-name', placeholder: 'Business name (optional)' });
-  const amount = element('input', '', { id:'amount-paid', placeholder: 'Amount paid, e.g. R 70 000,00 (optional)' });
+  card.append(element('label', 'Choose files (optional)', { for: 'evidence-files' }), files, feedback, empty, list);
+  const business = element('input', '', { id: 'business-name', placeholder: 'Optional' });
+  const amount = element('input', '', { id: 'amount-paid', placeholder: 'Optional, e.g. R 2 000' });
   business.value = incident.business ?? ''; amount.value = incident.amount ?? '';
   business.addEventListener('input', () => { incident.business = business.value; });
   amount.addEventListener('input', () => { incident.amount = amount.value; });
-  card.append(element('h1', 'Keep evidence and make your incident pack'), element('p', 'Choose screenshots, emails or proof of payment. Files stay on this device; only their fingerprints go into the pack.'), element('label', 'Evidence files', {for:'evidence-files'}), files, feedback, list, element('label', 'Business', {for:'business-name'}), business, element('label', 'Amount paid', {for:'amount-paid'}), amount, handoffForm(), button('Review what goes in the pack', () => showPackReview(flow)), button('Start a new incident', showHome, 'button secondary'));
+  const optional = element('details', '', { className: 'evidence-optional' });
+  optional.append(element('summary', 'Add business or payment details (optional)'),
+    element('label', 'Business name', { for: 'business-name' }), business,
+    element('label', 'Amount paid', { for: 'amount-paid' }), amount, handoffForm());
+  card.append(optional);
+  const actions = element('div', '', { className: 'page-actions' });
+  actions.append(button('Review incident pack', () => showPackReview(flow)),
+    button('Start a new incident', showHome, 'button secondary'));
+  card.append(actions);
   const suggestion = makeEvidencePermissionPrompt(files);
   if (suggestion) card.append(suggestion);
   app.append(card);
@@ -614,15 +638,19 @@ function showPackReview(flow) {
     input.checked = options[key]; input.addEventListener('change', () => { options[key] = input.checked; render(); });
     label.append(input, element('span', text)); card.append(label);
   };
-  card.append(element('h1', 'Check what goes in your pack'), element('p', 'The pack may be shared with your bank, SAPS or insurer. By default it holds a version of your description with personal details hidden. Choose anything extra yourself.'));
+  card.classList.add('pack-review-screen');
+  card.append(element('p', 'YOUR INCIDENT · REVIEW', { className: 'screen-eyebrow' }),
+    element('h1', 'Review your incident pack'),
+    element('p', 'Nothing has been sent. Check the description, your step outcomes and selected evidence before creating a report.', { className: 'screen-intro' }));
   check('include-original', 'Also include my own words exactly as I typed them. They may contain names or numbers.', 'includeOriginal', Boolean(String(state.description ?? '').trim()));
   check('include-business', 'Include the business name', 'includeBusiness', Boolean(String(state.business ?? '').trim()));
   check('include-amount', 'Include the amount paid', 'includeAmount', Boolean(String(state.amount ?? '').trim()));
   check('include-handoff', 'Include handoff details: the steps you reported, what is still open and anything you typed for a bank or specialist', 'includeHandoff', true);
-  card.append(element('h2', 'What will be in the pack'), preview, element('p', 'Hiding is pattern based: names are only hidden if you listed them, so read the text above before sharing.', { className: 'privacy' }));
+  card.append(element('h2', 'Information in your report'), preview,
+    element('p', 'Read carefully before sharing. Hiding is pattern based: names are only hidden if you listed them.', { className: 'privacy' }));
   render();
   const feedback = element('p', '', { role: 'alert', className: 'pack-feedback' });
-  const makeButton = button('Make incident pack', async () => {
+  const makeButton = button('Generate my report', async () => {
     makeButton.disabled = true; feedback.textContent = '';
     try {
       const event = { at: new Date().toISOString(), text: 'Generated incident pack' };
@@ -633,30 +661,67 @@ function showPackReview(flow) {
       feedback.textContent = error.message || 'The pack could not be created. Your entries are still here. Please try again.';
     } finally { makeButton.disabled = false; }
   });
-  card.append(feedback, makeButton, button('Back', () => showEvidencePack(flow), 'button secondary'));
+  const actions = element('div', '', { className: 'page-actions' });
+  actions.append(makeButton, button('Back to evidence', () => showEvidencePack(flow), 'button secondary'));
+  card.append(feedback, actions);
   app.append(card);
 }
 
 function showPack(pack) {
-  clear(); const card = element('section', '', { className: 'card' });
+  clear();
+  const card = element('section', '', { className: 'card pack-result-screen' });
+  card.append(element('p', 'YOUR INCIDENT · REPORT READY', { className: 'screen-eyebrow' }),
+    element('h1', 'Your incident pack is ready'),
+    element('p', 'Your report was prepared on this device. It has not been sent to anyone.', { className: 'screen-intro' }));
   const summary = element('section', '', { className: 'pack-summary' });
-  summary.append(element('h1', 'Incident summary'), plain('p', `Prepared ${formatTime(pack.generatedAt)}`, 'privacy'), reviewBadge());
+  summary.append(element('h2', 'Incident summary'),
+    element('p', incident.title || 'Incident record'),
+    plain('p', `Prepared ${formatTime(pack.generatedAt)}`, 'privacy'));
+  const details = element('details', '', { className: 'pack-full-details' });
+  details.append(element('summary', 'See all report details'));
   for (const section of summarySections(pack)) {
-    summary.append(element('h2', section.heading));
-    if (section.heading === 'Timeline' || section.heading === 'Evidence fingerprints') { const ul = document.createElement('ul'); section.lines.forEach((line) => ul.append(plain('li', line))); summary.append(ul); }
-    else section.lines.forEach((line) => summary.append(plain('p', line)));
+    details.append(element('h3', section.heading));
+    const rows = section.heading === 'Timeline' || section.heading === 'Evidence fingerprints';
+    if (rows) {
+      const list = element('ul');
+      section.lines.forEach(line => list.append(plain('li', line)));
+      details.append(list);
+    } else section.lines.forEach(line => details.append(plain('p', line)));
   }
-  summary.append(element('h2', 'Pack fingerprint'), plain('p', pack.fingerprint, 'hash'));
-  const details = element('pre', JSON.stringify(pack, null, 2));
-  details.className = 'pack-json';
-  const download = button('Download incident pack (.json)', () => { const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' }); const link = element('a', '', { href: URL.createObjectURL(blob), download: 'mgadi-incident-pack.json' }); document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); });
-  const checkFile = element('input', '', { type: 'file', accept: '.json,application/json', 'aria-label':'Incident pack to verify' }); const result = element('p', '', { role: 'status' });
-  checkFile.addEventListener('change', async () => { try { const candidate = JSON.parse(await checkFile.files[0].text()); const ok = await verifyPack(candidate); result.textContent = ok ? 'Pack unchanged: its fingerprint matches.' : 'Pack has been changed: use the original file.'; result.className = ok ? 'notice good' : 'notice bad'; } catch { result.textContent = 'That is not a valid Mgadi incident pack.'; result.className = 'notice bad'; } });
+  const pre = element('pre', JSON.stringify(pack, null, 2), { className: 'pack-json' });
+  const download = button('Download report (.json)', () => {
+    const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
+    const link = element('a', '', { href: URL.createObjectURL(blob), download: 'mgadi-incident-pack.json' });
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  });
+  const checkFile = element('input', '', { type: 'file', accept: '.json,application/json', 'aria-label': 'Incident pack to verify' });
+  const result = element('p', '', { role: 'status' });
+  checkFile.addEventListener('change', async () => {
+    if (!checkFile.files?.length) return;
+    try {
+      const candidate = JSON.parse(await checkFile.files[0].text());
+      const ok = await verifyPack(candidate);
+      result.textContent = ok ? 'Fingerprint matches: this file has not changed.' : 'Fingerprint mismatch: use the original report.';
+      result.className = ok ? 'notice good' : 'notice bad';
+    } catch {
+      result.textContent = 'That is not a valid Mgadi incident pack.';
+      result.className = 'notice bad';
+    }
+  });
   const technical = element('details', '', { className: 'pack-technical' });
-  technical.append(element('summary', 'Technical data and tamper check'), element('h2', 'Verify a downloaded pack'), element('p', 'Load a pack after changing a value to see the tamper check.'), checkFile, result, details);
-  const actions = element('div', '', { className: 'pack-actions' });
-  actions.append(download, button('Print or save as PDF', () => window.print(), 'button secondary'), tools.packButtons(pack, () => showPack(pack)), button('Start a new incident', showHome, 'button secondary'));
-  card.append(summary, actions, technical);
+  technical.append(element('summary', 'Fingerprint and technical verification'),
+    element('p', 'Report fingerprint'), plain('p', pack.fingerprint, 'hash'),
+    element('label', 'Verify a downloaded report'), checkFile, result, pre);
+  const actions = element('div', '', { className: 'page-actions' });
+  actions.append(download,
+    button('Review again', () => showPackReview(journey?.flow || playbook.incidents.unsure), 'button secondary'),
+    button('Start a new incident', showHome, 'button secondary'));
+  const extras = element('details', '', { className: 'pack-more-actions' });
+  extras.append(element('summary', 'More report options'),
+    button('Print or save as PDF', () => window.print(), 'button secondary'),
+    tools.packButtons(pack, () => showPack(pack)));
+  card.append(summary, actions, details, technical, extras, reviewBadge());
   app.append(card);
 }
 
