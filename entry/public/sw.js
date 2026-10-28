@@ -5,9 +5,13 @@
 //  - There is NO runtime caching. Nothing the person types, no API reply, no voice session, no evidence and no pack is ever stored.
 //  - /api/, /vendor/, non-GET, ranged and cross-origin requests are never touched.
 //  - Each cached response keeps the server's security headers, so the offline page still runs under the same CSP.
-//  - A waiting update never takes over a screen that is open; it is used the next time Mgadi is opened.
+//  - A waiting update never takes over a screen that is open on its own. The page decides when it is safe (see offline/register.js):
+//    at once if the person has typed or started nothing, otherwise only when they choose or return to the start screen.
+//    Exception: a page from before that logic existed (its worker URL has no p=2) cannot show a usable prompt, so for those the new
+//    worker takes over as soon as it is saved. The open screen is NOT reloaded; the next open or reload shows the new version.
 const PREFIX = 'mgadi-shell-';
 const VERSION = new URL(self.location.href).searchParams.get('v') || '';
+const PROTOCOL = '2'; // pages that register /sw.js?v=...&p=2 can apply an update themselves
 const CACHE = `${PREFIX}${VERSION}`;
 const MANIFEST_URL = '/precache-manifest.json';
 const BYPASS = ['/api/', '/vendor/'];
@@ -46,9 +50,17 @@ async function installAssets() {
   } catch (error) { await caches.delete(CACHE); throw error; }
 }
 
+const protocolOf = (scriptURL) => { try { return new URL(scriptURL).searchParams.get('p') || ''; } catch { return ''; } };
 self.addEventListener('install', (event) => {
-  // First ever install: take over at once so the very first visit becomes offline-ready. An UPDATE waits instead.
-  event.waitUntil(installAssets().then(() => (self.registration.active ? undefined : self.skipWaiting())));
+  // First ever install: take over at once so the very first visit becomes offline-ready.
+  // An update from a page that can manage updates (p=2) WAITS; the page applies it when it is safe.
+  // An update replacing an older worker whose page cannot (no p=2) takes over now, or that person would stay on the old screens
+  // until every tab is closed. Taking over does not reload anything that is open.
+  event.waitUntil(installAssets().then(() => {
+    const previous = self.registration.active;
+    if (!previous || protocolOf(previous.scriptURL) !== PROTOCOL) return self.skipWaiting();
+    return undefined;
+  }));
 });
 
 self.addEventListener('activate', (event) => {
