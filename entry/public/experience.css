@@ -375,3 +375,25 @@ html[data-reduced-motion='true'] .landing-choice{transition:none;transform:none}
 .landing-straight-to-guide{margin:.35rem 0}
 .landing-straight-to-guide[hidden]{display:none!important}
 @media(max-width:560px){.landing-entry-modes{padding:1.05rem}.landing-entry-modes .landing-mode-buttons{grid-template-columns:1fr}.landing-entry-modes .landing-mode-buttons .button{min-height:54px}}
+
+
+/* Real Mgadi artwork contains the full icon + wordmark. Display it as one unit,
+   not a cropped 40px square with a second text label. */
+.site-header .brand{display:flex;align-items:center;flex:0 1 auto;min-width:0;max-width:210px;padding:0;margin:0;line-height:1}
+.site-header .brand .brand-logo{position:relative;display:block;flex:0 0 155px;width:155px;height:60px;overflow:hidden;background:transparent;border-radius:0;margin:0}
+.site-header .brand-logo img{position:absolute;display:block;left:50%;top:50%;width:155px;height:155px;max-width:none;transform:translate(-50%,-50%);object-fit:contain;mix-blend-mode:normal}
+.site-header{min-height:74px}
+.site-header .brand::before{content:none!important;display:none!important}
+.landing-hero .landing-hero-emblem{overflow:hidden}
+.landing-hero .landing-emblem-image{position:relative;overflow:hidden}
+.landing-hero .landing-emblem-image img{left:50%;top:39%;transform:translate(-50%,-50%);mix-blend-mode:normal}
+@media(max-width:560px){
+ .site-header{min-height:68px}
+ .site-header .brand{max-width:150px}
+ .site-header .brand .brand-logo{flex-basis:118px;width:118px;height:52px}
+ .site-header .brand-logo img{width:118px;height:118px;left:50%;top:50%}
+}
+@media(max-width:360px){
+ .site-header .brand .brand-logo{flex-basis:100px;width:100px;height:48px}
+ .site-header .brand-logo img{width:100px;height:100px}
+}
