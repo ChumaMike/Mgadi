@@ -1,3 +1,4 @@
+import { createAssistanceFlow } from './assistance-flow.js';
 import { bindText, installAccessibility, guidanceControls, stopSpeech } from './accessibility/accessibility.js';
 import { redactIncident } from './shared/redact.js';
 import { routeTriage } from './shared/labels.js';
@@ -13,6 +14,7 @@ const app = document.querySelector('#app');
 const emergencyButton = document.querySelector('#emergency-button');
 let playbook;
 let fraudLines;
+let assistance;
 let resources = null; // external links live apart from the guidance text, and only reviewed hosts may be linked
 let incident = { timeline: [], evidence: [], outcomes: {} };
 // Placeholder until the voice panel is ready; the launch button is created through it so every screen shares one panel.
@@ -385,7 +387,9 @@ function showIncident(label) {
   const flow = playbook.incidents[label] ?? playbook.incidents.unsure;
   incident.title = flow.title;
   journey = { label, flow, position: 0, status: {} };
-  emitJourney(); renderStep();
+  emitJourney();
+  if(preferredMode==='text'&&assistance){assistance.start({incident,label,flow});return;}
+  renderStep();
 }
 
 function advance() {
@@ -717,5 +721,5 @@ const voiceBridge = {
 };
 const voiceReady = initVoice({ bridge: voiceBridge }).catch(() => ({ launchButton: () => document.createDocumentFragment() }));
 Promise.all([fetch('/data/playbook.json').then((response) => response.json()), fetch('/data/fraud-lines.json').then((response) => response.json()), fetch('/data/resources.json').then((response) => response.json()).catch(() => null)])
-  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; if (!tools.openFromHash()) showHome(); })
+  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; assistance=createAssistanceFlow({root:app,clear,goHome:showHome,banks:fraudLines}); if (!tools.openFromHash() && !assistance.resume()) showHome(); })
   .catch(() => { clear(); app.append(element('p', 'Mgadi could not load its local safety guide. Please call the fraud number on the back of your bank card.')); });
