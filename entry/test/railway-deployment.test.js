@@ -14,9 +14,10 @@ test('Railway production gets the same operator restriction as Vercel production
   assert.equal(isProductionDeployment({ NODE_ENV: 'production' }), true);
   assert.equal(isProductionDeployment({ VERCEL_ENV: 'production' }), true);
   assert.equal(isProductionDeployment({ VERCEL_ENV: 'preview' }), false);
+  assert.equal(isProductionDeployment({ NODE_ENV: 'production', RAILWAY_ENVIRONMENT_NAME: 'staging' }), false);
   assert.equal(loadVoiceConfig({ ...base, RAILWAY_ENVIRONMENT_NAME: 'production' }).operatorEnabled, false);
   assert.equal(loadVoiceConfig({ ...base, NODE_ENV: 'production' }).operatorEnabled, false);
-  assert.equal(loadVoiceConfig({ ...base, RAILWAY_ENVIRONMENT_NAME: 'staging' }).operatorEnabled, true);
+  assert.equal(loadVoiceConfig({ ...base, NODE_ENV: 'production', RAILWAY_ENVIRONMENT_NAME: 'staging' }).operatorEnabled, true);
   assert.equal(loadVoiceConfig({ ...base, RAILWAY_ENVIRONMENT_NAME: 'production', MGADI_OPERATOR_ALLOW_PRODUCTION: 'yes' }).operatorEnabled, true);
 });
 
