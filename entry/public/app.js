@@ -232,7 +232,8 @@ function showHome() {
         item.setAttribute('aria-pressed', String(item === choice)));
       modeSummary.textContent = 'Selected: ' + option.text;
       straightToGuide.hidden = false;
-      voiceChoice.focus({ preventScroll: true });
+      // Keep both text and voice equally available after the person picks a situation.
+      modeBox.scrollIntoView({ block: 'nearest', behavior: 'auto' });
     }, 'landing-choice');
     choice.setAttribute('aria-pressed', 'false');
     const iconBox = element('span', '', { className: 'landing-choice-icon' });
@@ -529,14 +530,18 @@ function renderStep() {
     const suggestion = makeEvidencePermissionPrompt(input);
     if (suggestion) card.append(suggestion);
   }
-  card.append(reviewBadge(flow), button('Start again', showHome, 'button secondary')); app.append(card);
+  card.append(reviewBadge(flow));
+  const navigation = element('nav', '', { className: 'journey-navigation', 'aria-label': 'Step navigation' });
+  if (position > 0) navigation.append(button('← Previous step', () => { journey.position -= 1; journey.finished = false; emitJourney(); renderStep(); }, 'button secondary'));
+  navigation.append(button('Start a new incident', showHome, 'button secondary'));
+  card.append(navigation); app.append(card);
 }
 
 function showEvidencePack(flow) {
-  clear(); const card = element('section', '', { className: 'card' });
+  clear(); const card = element('section', '', { className: 'card pack-workspace' });
   const files = element('input', '', { id: 'evidence-files', type: 'file', multiple: 'multiple', accept: 'image/*,.pdf,.eml,.msg,.txt' });
   const list = element('ul');
-  const addRow = (item) => list.append(plain('li', `${item.name} — SHA-256 ${item.sha256}`));
+  const addRow = (item) => list.append(plain('li', `${item.name} · Fingerprint saved on this device`));
   incident.evidence.forEach(addRow);
   const feedback = element('p', '', { className: 'privacy', role: 'status' });
   attachEvidencePicker(files, feedback, addRow);
@@ -545,7 +550,11 @@ function showEvidencePack(flow) {
   business.value = incident.business ?? ''; amount.value = incident.amount ?? '';
   business.addEventListener('input', () => { incident.business = business.value; });
   amount.addEventListener('input', () => { incident.amount = amount.value; });
-  card.append(element('h1', 'Keep evidence and make your incident pack'), element('p', 'Choose screenshots, emails or proof of payment. Files stay on this device; only their fingerprints go into the pack.'), element('label', 'Evidence files', {for:'evidence-files'}), files, feedback, list, element('label', 'Business', {for:'business-name'}), business, element('label', 'Amount paid', {for:'amount-paid'}), amount, handoffForm(), button('Review what goes in the pack', () => showPackReview(flow)), button('Start a new incident', showHome, 'button secondary'));
+  const details = element('details', '', { className: 'pack-optional-details' });
+  details.append(element('summary', 'Add business and payment details (optional)'), element('label', 'Business name', { for: 'business-name' }), business, element('label', 'Amount paid', { for: 'amount-paid' }), amount);
+  const actions = element('div', '', { className: 'pack-next-actions' });
+  actions.append(button('Review my incident pack', () => showPackReview(flow)), button('Start a new incident', showHome, 'button secondary'));
+  card.append(element('p', 'YOUR INCIDENT · SAVE EVIDENCE', { className: 'pack-stage' }), element('h1', 'Save evidence for your report'), element('p', 'Choose any files you want to record. Mgadi keeps the original files on your device.'), element('label', 'Choose evidence files (optional)', {for:'evidence-files'}), files, feedback, list, details, handoffForm(), actions);
   const suggestion = makeEvidencePermissionPrompt(files);
   if (suggestion) card.append(suggestion);
   app.append(card);
@@ -598,7 +607,7 @@ function packState() { return { ...incident, steps: journeySteps(), guideReviewe
 
 // Privacy-first preview: the owner sees exactly what will be in the pack before it is made.
 function showPackReview(flow) {
-  clear(); const card = element('section', '', { className: 'card' });
+  clear(); const card = element('section', '', { className: 'card pack-workspace pack-review' });
   const state = packState();
   const options = incident.packOptions ?? defaultPackOptions(state);
   const preview = element('div', '', { className: 'preview-box', 'aria-live': 'polite' });
@@ -614,7 +623,7 @@ function showPackReview(flow) {
     input.checked = options[key]; input.addEventListener('change', () => { options[key] = input.checked; render(); });
     label.append(input, element('span', text)); card.append(label);
   };
-  card.append(element('h1', 'Check what goes in your pack'), element('p', 'The pack may be shared with your bank, SAPS or insurer. By default it holds a version of your description with personal details hidden. Choose anything extra yourself.'));
+  card.append(element('p', 'YOUR INCIDENT · PRIVACY REVIEW', { className: 'pack-stage' }), element('h1', 'Review before you download'), element('p', 'Nothing has been shared. Check exactly what your report will contain. Extra personal details are your choice.'));
   check('include-original', 'Also include my own words exactly as I typed them. They may contain names or numbers.', 'includeOriginal', Boolean(String(state.description ?? '').trim()));
   check('include-business', 'Include the business name', 'includeBusiness', Boolean(String(state.business ?? '').trim()));
   check('include-amount', 'Include the amount paid', 'includeAmount', Boolean(String(state.amount ?? '').trim()));
@@ -623,7 +632,7 @@ function showPackReview(flow) {
   render();
   const feedback = element('p', '', { role: 'alert', className: 'pack-feedback' });
   const makeButton = button('Make incident pack', async () => {
-    makeButton.disabled = true; feedback.textContent = '';
+    makeButton.disabled = true; makeButton.textContent = 'Preparing your pack…'; feedback.textContent = 'Creating your incident pack on this device…';
     try {
       const event = { at: new Date().toISOString(), text: 'Generated incident pack' };
       const state = packState(); state.timeline = [...state.timeline, event];
@@ -631,16 +640,16 @@ function showPackReview(flow) {
       incident.timeline.push(event); showPack(pack);
     } catch (error) {
       feedback.textContent = error.message || 'The pack could not be created. Your entries are still here. Please try again.';
-    } finally { makeButton.disabled = false; }
+    } finally { makeButton.disabled = false; makeButton.textContent = 'Create my incident pack'; }
   });
-  card.append(feedback, makeButton, button('Back', () => showEvidencePack(flow), 'button secondary'));
+  card.append(feedback, makeButton, button('Back to evidence', () => showEvidencePack(flow), 'button secondary'));
   app.append(card);
 }
 
 function showPack(pack) {
   clear(); const card = element('section', '', { className: 'card' });
   const summary = element('section', '', { className: 'pack-summary' });
-  summary.append(element('h1', 'Incident summary'), plain('p', `Prepared ${formatTime(pack.generatedAt)}`, 'privacy'), reviewBadge());
+  summary.append(element('h2', 'What your pack contains'), plain('p', `Prepared ${formatTime(pack.generatedAt)}`, 'privacy'), reviewBadge());
   for (const section of summarySections(pack)) {
     summary.append(element('h2', section.heading));
     if (section.heading === 'Timeline' || section.heading === 'Evidence fingerprints') { const ul = document.createElement('ul'); section.lines.forEach((line) => ul.append(plain('li', line))); summary.append(ul); }
@@ -649,14 +658,15 @@ function showPack(pack) {
   summary.append(element('h2', 'Pack fingerprint'), plain('p', pack.fingerprint, 'hash'));
   const details = element('pre', JSON.stringify(pack, null, 2));
   details.className = 'pack-json';
-  const download = button('Download incident pack (.json)', () => { const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' }); const link = element('a', '', { href: URL.createObjectURL(blob), download: 'mgadi-incident-pack.json' }); document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); });
+  const download = button('Download incident pack', () => { const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' }); const link = element('a', '', { href: URL.createObjectURL(blob), download: 'mgadi-incident-pack.json' }); document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); });
   const checkFile = element('input', '', { type: 'file', accept: '.json,application/json', 'aria-label':'Incident pack to verify' }); const result = element('p', '', { role: 'status' });
   checkFile.addEventListener('change', async () => { try { const candidate = JSON.parse(await checkFile.files[0].text()); const ok = await verifyPack(candidate); result.textContent = ok ? 'Pack unchanged: its fingerprint matches.' : 'Pack has been changed: use the original file.'; result.className = ok ? 'notice good' : 'notice bad'; } catch { result.textContent = 'That is not a valid Mgadi incident pack.'; result.className = 'notice bad'; } });
   const technical = element('details', '', { className: 'pack-technical' });
   technical.append(element('summary', 'Technical data and tamper check'), element('h2', 'Verify a downloaded pack'), element('p', 'Load a pack after changing a value to see the tamper check.'), checkFile, result, details);
   const actions = element('div', '', { className: 'pack-actions' });
   actions.append(download, button('Print or save as PDF', () => window.print(), 'button secondary'), tools.packButtons(pack, () => showPack(pack)), button('Start a new incident', showHome, 'button secondary'));
-  card.append(summary, actions, technical);
+  card.classList.add('pack-workspace', 'pack-ready');
+  card.append(element('p', 'YOUR INCIDENT · READY TO SAVE', { className: 'pack-stage' }), element('h1', 'Your incident pack is ready'), element('p', 'Download and keep this file safely. Nothing has been sent to a bank or anyone else.'), actions, summary, technical);
   app.append(card);
 }
 
