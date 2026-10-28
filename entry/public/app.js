@@ -153,6 +153,11 @@ function showHome() {
   window.addEventListener('offline', showReadiness, { once: true });
   hero.append(heroMark, intro, ready);
   page.append(hero);
+  if(assistance?.hasSaved()){
+    const saved=element('section','',{className:'saved-incident-banner','aria-label':'Saved incident'});
+    saved.append(element('p','Your incident is saved. You can pick up where you left off.'),button('Resume my incident',()=>assistance.openSaved(),'button'));
+    page.prepend(saved);
+  }
 
   const issue = element('section', '', { className: 'landing-issues', 'aria-labelledby': 'landing-issues-title' });
   const issueHead = element('div', '', { className: 'landing-issues-heading' });

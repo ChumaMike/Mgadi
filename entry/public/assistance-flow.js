@@ -31,14 +31,25 @@ export function createAssistanceFlow({root,clear,goHome,banks}){
  const field=(label,key,{type='text',max=1000}={})=>{const box=el('div','',{class:'field'}),id='assistance-'+key,input=el(type==='textarea'?'textarea':'input','',{id,...(type==='textarea'?{}:{type}),maxlength:String(max)});input.value=current[key]||'';input.addEventListener('input',()=>{current[key]=input.value;save();});box.append(el('label',label,{for:id}),input);return box;};
  const event=text=>current.timeline.push({at:new Date().toISOString(),text});
  function save(){try{localStorage.setItem(KEY,JSON.stringify(current));storageWarning='';}catch{storageWarning='Progress could not be saved on this browser. Keep this tab open and download your pack before leaving.';}}
- function go(phase){stopReading();current.phase=phase;save();render();window.scrollTo(0,0);}
+ function go(phase){stopReading();if(phase==='permission'&&['guidance','feedback'].includes(current.phase))current.permissionBack=current.phase;current.phase=phase;save();render();window.scrollTo(0,0);}
  function stopReading(){clearInterval(callTimer);callTimer=null;if('speechSynthesis'in window)window.speechSynthesis.cancel();companion?.destroy();companion=null;}
  function start({incident,label,flow}){
   const launch=()=>{current={version:1,id:'MG-'+Date.now().toString(36).toUpperCase(),startedAt:new Date().toISOString(),phase:'incoming',label,flow,description:incident.redacted?.text||incident.description||'',evidence:[],timeline:[{at:new Date().toISOString(),text:'Incident report received'}],bankStatus:'not_reported'};pack=null;save();render();};
   if(current&&current.phase!=='pack'){const card=screen('Keep your current report?', 'Your active report is saved on this browser.');card.append(row(b('Resume my report',render),b('Replace with this new report',launch,'button secondary')));return;}
   launch();
  }
- function screen(title,description){clear();const card=el('section','',{class:'card assistance-card'});card.append(el('p','MGADI · YOUR NEXT SAFE STEP',{class:'assistance-eyebrow'}),el('h1',title));if(description)card.append(p(description));const stages=['Get help','Evidence','Review','Your pack'],active=current?({incoming:0,guidance:0,feedback:0,permission:1,evidence:1,review:2,pack:3}[current.phase]??0):0,progress=el('ol','',{class:'assistance-progress','aria-label':'Incident progress'});stages.forEach((name,index)=>{const item=el('li',name);if(index===active)item.setAttribute('aria-current','step');if(index<active)item.classList.add('done');progress.append(item);});card.append(progress);if(storageWarning)card.append(el('p',storageWarning,{role:'alert',class:'notice bad'}));root.append(card);return card;}
+ function back(){
+  if(processing)return;
+  const previous={guidance:'incoming',feedback:'guidance',permission:current.permissionBack==='guidance'?'guidance':'feedback',evidence:'permission',review:'evidence',pack:'review'}[current.phase];
+  if(previous)go(previous);else home();
+ }
+ function home(){if(processing)return;stopReading();save();goHome();window.scrollTo(0,0);}
+ function openSaved(){if(current){render();window.scrollTo(0,0);return true;}return resume();}
+ function screen(title,description){clear();const card=el('section','',{class:'card assistance-card'});
+  const navigation=el('nav','',{class:'assistance-navigation','aria-label':'Incident navigation'});
+  navigation.append(b('← Back',back,'button secondary'),b('Home',home,'button secondary'));
+  card.append(navigation);
+  card.append(el('p','MGADI · YOUR NEXT SAFE STEP',{class:'assistance-eyebrow'}),el('h1',title));if(description)card.append(p(description));const stages=['Get help','Evidence','Review','Your pack'],active=current?({incoming:0,guidance:0,feedback:0,permission:1,evidence:1,review:2,pack:3}[current.phase]??0):0,progress=el('ol','',{class:'assistance-progress','aria-label':'Incident progress'});stages.forEach((name,index)=>{const item=el('li',name);if(index===active)item.setAttribute('aria-current','step');if(index<active)item.classList.add('done');progress.append(item);});card.append(progress);if(storageWarning)card.append(el('p',storageWarning,{role:'alert',class:'notice bad'}));root.append(card);return card;}
  function getInstruction(){
   const bankStep=current.flow.steps.find(s=>s.id==='bank');
   return bankStep?{title:'Please contact your bank now',body:'If you haven’t already, call your bank through an official contact. Tell them about the suspected payment scam and ask whether the payment can be stopped or recalled. Keep the reference they give you.'}:{title:current.flow.steps[0]?.title||'Let’s take the next safe step',body:(current.flow.steps[0]?.do||['If money may be at risk, contact your bank through its official app or card.']).join(' ')};
@@ -94,5 +105,5 @@ export function createAssistanceFlow({root,clear,goHome,banks}){
   const verifier=el('details'),input=el('input','',{type:'file',accept:'.json,application/json',id:'assistance-verify'}),result=el('p','',{role:'status'});input.addEventListener('change',async()=>{try{const f=input.files[0];if(!f)return;if(f.size>5*1024*1024)throw Error();result.textContent=await verifyPack(JSON.parse(await f.text()))?'Checksum matches. Compare with your retained original.':'Checksum mismatch — this differs from its recorded checksum.';}catch{result.textContent='This is not a readable incident pack.';}});verifier.append(el('summary','Check a downloaded pack'),el('label','Choose a Mgadi JSON pack',{for:'assistance-verify'}),input,result);card.append(verifier,small('Saved on this browser until you clear it. The incident and any bank recovery remain separate from creating this record.'),b('Close and clear this report',()=>{const d=el('dialog','',{'aria-label':'Clear saved incident'});d.append(el('h2','Clear this saved report?'),p('Download your pack first if you need to keep it. This removes the record from this browser.'),row(b('Keep report',()=>{d.close();d.remove();}),b('Clear report',()=>{localStorage.removeItem(KEY);stopReading();current=null;pack=null;d.close();d.remove();goHome();},'button secondary')));document.body.append(d);d.showModal();},'button secondary'));
  }
  function render(){if(!current)return;({incoming,guidance,feedback,permission,evidence,review,pack:complete}[current.phase]||incoming)();}
- return {start,resume,stop:stopReading};
+ return {start,resume,stop:stopReading,hasSaved:()=>Boolean(current),openSaved};
 }

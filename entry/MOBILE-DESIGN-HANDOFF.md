@@ -15,3 +15,9 @@ Logo follow-up: render the original raster logo through an inline SVG viewport t
 - AI-provider options remain expandable; working guided path stays immediate.
 - Portable readable HTML report download with timeline, bank feedback and evidence fingerprints, alongside the original verifiable JSON.
 - No tests run for this follow-up, as requested. Provider deployment and reviewed SASL remain blocked as previously documented.
+
+## Saved incident navigation
+- Back and Home controls are visible at the top of every assisted incident screen.
+- Back returns to the preceding stage; evidence access returns to guidance when reached through Skip to evidence.
+- Home preserves the saved incident and shows a Resume my incident button.
+- No tests run, following the user's request to publish quickly.
