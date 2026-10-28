@@ -7,7 +7,7 @@ marked `lang="en"` so screen readers pronounce it correctly. Nothing here is a c
 
 | Part of Mgadi | Strings | Dynamic (built at run time) | isiZulu | isiXhosa | Afrikaans |
 |---|---:|---:|---:|---:|---:|
-| Emergency entry screens (choices, money question, one quick question) | 45 | 0 | 16 (36%) | 16 (36%) | 16 (36%) |
+| Emergency entry screens (choices, money question, one quick question) | 45 | 0 | 17 (38%) | 17 (38%) | 17 (38%) |
 | Payment-diversion guide | 26 | 0 | 24 (92%) | 24 (92%) | 24 (92%) |
 | Hacked-mailbox guide | 13 | 0 | 6 (46%) | 6 (46%) | 6 (46%) |
 | Suspicious-message guide | 7 | 0 | 3 (43%) | 3 (43%) | 3 (43%) |

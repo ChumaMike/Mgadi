@@ -1,3 +1,4 @@
+import { createAssistanceFlow } from './assistance-flow.js';
 import { bindText, installAccessibility, guidanceControls, stopSpeech } from './accessibility/accessibility.js';
 import { redactIncident } from './shared/redact.js';
 import { routeTriage } from './shared/labels.js';
@@ -13,6 +14,7 @@ const app = document.querySelector('#app');
 const emergencyButton = document.querySelector('#emergency-button');
 let playbook;
 let fraudLines;
+let assistance;
 let resources = null; // external links live apart from the guidance text, and only reviewed hosts may be linked
 let incident = { timeline: [], evidence: [], outcomes: {} };
 // Placeholder until the voice panel is ready; the launch button is created through it so every screen shares one panel.
@@ -31,7 +33,7 @@ function button(text, onClick, className = 'button') { const node = element('but
 // Focus moves to the new screen's heading so a screen reader says where you are, but NOT on the very first screen: stealing focus
 // on load would leave the header (the bank button) behind a keyboard user.
 let hasRendered = false;
-function clear() { stopSpeech(); app.replaceChildren(); const moveFocus = hasRendered; hasRendered = true; if (moveFocus) requestAnimationFrame(() => { const heading = app.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus(); } }); }
+function clear() { assistance?.stop(); stopSpeech(); app.replaceChildren(); const moveFocus = hasRendered; hasRendered = true; if (moveFocus) requestAnimationFrame(() => { const heading = app.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus(); } }); }
 function log(text) { incident.timeline.push({ at: new Date().toISOString(), text }); }
 
 // While the owner has the bank numbers open, a late triage result must not replace that screen.
@@ -120,7 +122,7 @@ function showHome() {
   intro.append(
     element('p', 'MGADI  /  FIRST-HOUR CYBER HELP', { className: 'landing-eyebrow' }),
     element('h1', 'Something feels wrong?'),
-    element('p', 'Tell us what happened. We’ll help you take the next safe step.', { className: 'landing-intro' })
+    element('p', 'Let’s take the next step, together.', { className: 'landing-intro' })
   );
   const heroMark = element('div', '', { className: 'landing-hero-emblem', 'aria-hidden': 'true' });
   const emblem = element('div', '', { className: 'landing-emblem-image' });
@@ -149,8 +151,13 @@ function showHome() {
   };
   window.addEventListener('online', showReadiness, { once: true });
   window.addEventListener('offline', showReadiness, { once: true });
-  hero.append(intro, heroMark, ready);
+  hero.append(heroMark, intro, ready);
   page.append(hero);
+  if(assistance?.hasSaved()){
+    const saved=element('section','',{className:'saved-incident-banner','aria-label':'Saved incident'});
+    saved.append(element('p','Your incident is saved. You can pick up where you left off.'),button('Resume my incident',()=>assistance.openSaved(),'button'));
+    page.prepend(saved);
+  }
 
   const issue = element('section', '', { className: 'landing-issues', 'aria-labelledby': 'landing-issues-title' });
   const issueHead = element('div', '', { className: 'landing-issues-heading' });
@@ -246,7 +253,7 @@ function showHome() {
   issue.append(choices, modeBox);
 
   const describe = element('details', '', { className: 'landing-describe describe-incident' });
-  describe.append(element('summary', 'Not sure what to choose? Describe it instead'));
+  describe.append(element('summary', 'Tell us what’s worrying you'));
   const description = element('textarea', '', {
     id: 'incident-description',
     placeholder: 'For example: A supplier emailed new banking details, then I made a payment.',
@@ -255,7 +262,7 @@ function showHome() {
   description.lang = 'en';
   const names = element('input', '', { id: 'names-to-hide', placeholder: 'Optional names to hide, separated by commas' });
   describe.append(
-    element('p', 'Please describe it in English for now. Never enter passwords, PINs or OTPs.', { className: 'privacy' }),
+    element('p', 'I’m sorry you’re dealing with this. Tell me what’s worrying you, in your own words. English is supported for now. Leave out passwords, PINs and OTPs.', { className: 'privacy' }),
     element('label', 'What happened?', { for: 'incident-description' }), description,
     element('label', 'Names to hide from your description', { for: 'names-to-hide' }), names
   );
@@ -330,7 +337,7 @@ async function triage(redactedText) {
   const route = routeTriage(schema);
   const proceed = () => {
     if (route === 'clarify') { incident.offerCallAfterClarify = true; showClarify(); }
-    else { showIncident(route); voice.offerCall?.(); }
+    else { showIncident(route); if(preferredMode==='voice'||!assistance)voice.offerCall?.(); }
   };
   if (inBank) afterBank = proceed; else proceed();
 }
@@ -373,7 +380,7 @@ function showClarify() {
       incident.ownerAnswer = option.text; log(`Owner answered: ${option.text}`);
       showIncident(option.route);
       if (preferredMode === 'voice') voice.open?.();
-      else if (incident.offerCallAfterClarify) { delete incident.offerCallAfterClarify; voice.offerCall?.(); }
+      else if ((!assistance || preferredMode==='voice') && incident.offerCallAfterClarify) { delete incident.offerCallAfterClarify; voice.offerCall?.(); }
     }, 'button secondary'));
   }
   card.append(choices, guidanceControls([intro, question], 'clarify'), voice.launchButton(), button('Start again', showHome, 'button secondary'));
@@ -392,7 +399,9 @@ function showIncident(label) {
   incident.triage = { label, confidence: incident.triage?.label === label ? incident.triage.confidence : 0 };
   incident.source ??= 'user-selected route';
   journey = { label, flow, position: 0, status: {} };
-  emitJourney(); renderStep();
+  emitJourney();
+  if(preferredMode==='text'&&assistance){assistance.start({incident,label,flow});return;}
+  renderStep();
 }
 
 function advance() {
@@ -741,5 +750,5 @@ const voiceBridge = {
 };
 const voiceReady = initVoice({ bridge: voiceBridge }).catch(() => ({ launchButton: () => document.createDocumentFragment() }));
 Promise.all([fetch('/data/playbook.json').then((response) => response.json()), fetch('/data/fraud-lines.json').then((response) => response.json()), fetch('/data/resources.json').then((response) => response.json()).catch(() => null)])
-  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; if (!tools.openFromHash()) { showHome(); if (new URLSearchParams(location.search).get('talk') === '1') { preferredMode = 'voice'; startFromChoice('clarify'); showClarify(); } } })
+  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; assistance=createAssistanceFlow({root:app,clear,goHome:showHome,banks:fraudLines}); if (!tools.openFromHash() && !assistance.resume()) { showHome(); if (new URLSearchParams(location.search).get('talk') === '1') { preferredMode = 'voice'; startFromChoice('clarify'); showClarify(); } } })
   .catch(() => { clear(); emergencyButton.disabled = true; app.append(element('h1', 'The safety guide could not load'), element('p', 'Call the fraud number on the back of your bank card. Check your connection and retry.'), button('Retry loading the guide', () => location.reload())); });

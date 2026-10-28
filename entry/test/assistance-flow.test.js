@@ -1,0 +1,9 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readAssistance,assistancePackData} from '../public/assistance-flow.js';
+import {makePack,verifyPack} from '../public/shared/pack.js';
+const c=()=>({version:1,id:'MG-TEST',phase:'review',description:'Fictional supplier payment',label:'payment_diversion',startedAt:'2026-10-28T10:00:00Z',flow:{title:'Payment incident',steps:[{id:'bank',title:'Contact bank'},{id:'evidence',title:'Keep records'}]},timeline:[],evidence:[],permission:'denied_then_manual',bankStatus:'unreachable',reference:'TEST-123',feedback:'Unable to reach the bank'});
+test('denied evidence selection, feedback and review stage survive browser storage restore',()=>{const caseData=c();caseData.evidence=[{name:'demo.txt',size:2,sha256:'a'.repeat(64)}];assert.deepEqual(readAssistance({getItem:()=>JSON.stringify(caseData)}),caseData);});
+test('malformed saved cases and invalid fingerprints are rejected',()=>{assert.throws(()=>readAssistance({getItem:()=>JSON.stringify({...c(),phase:'missing'})}));assert.throws(()=>readAssistance({getItem:()=>JSON.stringify({...c(),evidence:[{name:'x',size:1,sha256:'invalid'}]})}));});
+test('pack keeps denied access and pending work distinct from reported bank contact',()=>{const data=assistancePackData(c());assert.equal(data.evidenceChoice,'denied_then_manual');assert.ok(data.actions.every(a=>a.status==='not_confirmed'));const contacted=c();contacted.bankStatus='contacted';const pack=assistancePackData(contacted);assert.equal(pack.actions[0].status,'user_reported_contact');assert.equal(pack.actions[1].status,'not_confirmed');});
+test('downloadable incident record has a valid SHA-256 and edits are detected',async()=>{const pack=await makePack(assistancePackData(c()));assert.match(pack.fingerprint,/^[a-f0-9]{64}$/);assert.equal(await verifyPack(pack),true);pack.bank.reference='altered';assert.equal(await verifyPack(pack),false);});
