@@ -122,6 +122,9 @@ try {
     await until(async () => (await bannerState(p))?.open); await p.waitForTimeout(300);
     const fits = await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
     let serious = [];
+    // Axe measures overlap between targets, so a sticky banner that has scrolled over a button would be reported. That depends only on where the page happens
+    // to be scrolled; whether focused content stays clear of the banner is checked on its own (experience-smoke). Audit at the top of the page.
+    await p.evaluate(() => window.scrollTo(0, 0));
     if (axeSource) { await p.evaluate(axeSource); serious = (await p.evaluate(async () => (await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] }, resultTypes: ['violations'] })).violations.filter((v) => ['serious', 'critical'].includes(v.impact)).map((v) => `${v.id}: ${v.nodes[0].target.join(' ')}`))); }
     else console.log('SKIPPED  axe not found; not counted as a pass');
     const b = await bannerState(p);
