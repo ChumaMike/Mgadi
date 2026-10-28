@@ -116,7 +116,7 @@ export async function initVoice({ bridge }) {
   const empty = tr('p', 'vp-empty', 'Your conversation will appear here as captions, kept on this screen only.');
   chat.append(empty);
   const jump = tr('button', 'button secondary vp-small vp-jump', 'Latest messages'); jump.type = 'button'; jump.hidden = true;
-  const progress = make('details', 'vp-progress'); progress.append(tr('summary', null, 'Steps and timeline'));
+  const progress = make('details', 'vp-progress'); progress.open = true; progress.append(tr('summary', null, 'Steps and timeline'));
   const tasks = make('ul', 'vp-tasks'); const timeline = make('ol', 'vp-timeline'); progress.append(tr('h3', null, 'Steps'), tasks, tr('h3', null, 'Timeline'), timeline);
   const announce = make('p', 'sr-only'); announce.setAttribute('role', 'status'); live.announce = announce;
   body.append(chips, notice, consentBox, operatorBox, chat, jump, action, progress, announce);
@@ -196,6 +196,12 @@ export async function initVoice({ bridge }) {
       const track = make('track'); track.kind = 'captions'; track.src = clip.captions; track.srclang = 'en'; track.label = 'Captions'; track.default = true; video.append(track);
       more.append(tr('h4', null, 'Reviewed SASL video'), video, make('p', 'vp-note', `Reviewed by ${clip.reviewer} on ${clip.reviewedOn}.`));
     } else more.append(tr('p', 'vp-note', 'No reviewed SASL video exists for this step yet. The avatar is a visual companion, not a sign language translator.'));
+    const sources = bridge.getSources?.(journey.label, step.id) ?? [];
+    if (sources.length) {
+      const refs = make('details', 'vp-sources'); refs.append(make('summary', null, 'Sources for this step'));
+      for (const source of sources) { const p = make('p', 'vp-note'); const a = make('a', null, source.title); a.href = source.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; p.append(a, document.createTextNode(' · ' + source.publisher)); refs.append(p); }
+      more.append(refs);
+    }
     action.append(more);
   }
   function renderProgress() {
