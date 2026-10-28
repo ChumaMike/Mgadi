@@ -252,9 +252,11 @@ function renderStep() {
     const row = element('li', '', { className: index === position ? 'current' : status ? 'reported' : '' });
     if (index === position) row.setAttribute('aria-current', 'step');
     const revisit = button('', () => { journey.position = index; journey.finished = false; emitJourney(); renderStep(); }, 'step-link');
-    const words = element('span');
+    const words = element('span', '', { className: 'step-words' });
     words.append(element('span', item.title), element('small', status === 'confirmed' ? 'Done' : status === 'needs_help' ? 'Need help' : status === 'not_applicable' ? 'Not applicable' : 'Not yet', { className: 'step-state' }));
-    revisit.append(element('span', status === 'confirmed' ? '✓' : String(index + 1), { className: 'step-number', 'aria-hidden': 'true' }), words);
+    // The state is a symbol as well as words, so it never depends on colour: tick = done, ! = need help, dash = not applicable.
+    const mark = status === 'confirmed' ? '✓' : status === 'needs_help' ? '!' : status === 'not_applicable' ? '–' : String(index + 1);
+    revisit.append(element('span', mark, { className: 'step-number', 'aria-hidden': 'true' }), words);
     row.append(revisit); progress.append(row);
   });
   card.append(progress, element('p', `${flow.title} · Step ${position + 1} of ${flow.steps.length}`, { className: 'step-count' }), element('h1', step.title));
@@ -274,7 +276,7 @@ function renderStep() {
   const detail = element('span', '', { className: 'sr-only' }); detail.append(document.createTextNode(' — '), element('span', step.done));
   done.append(element('span', 'Done'), detail); done.dataset.report = step.done;
   outcomes.append(done, button('Need help', () => reportOther('needs_help'), 'button secondary'), button('Not applicable', () => reportOther('not_applicable'), 'button secondary'));
-  card.append(element('h2', 'How did this step go?'), outcomes, element('p', 'Your choice is saved in your incident pack. You can revisit any step above.', { className: 'privacy' }));
+  card.append(element('h2', 'How did this step go?'), outcomes, element('p', 'Your choice is saved in your incident pack. You can revisit any step above.', { className: 'privacy' }), element('p', 'Need help only marks this step in your pack. Mgadi does not contact anyone for you.', { className: 'privacy need-help-note' }));
   const links = resourceLinks(label); if (links) card.append(links);
   card.append(reviewBadge(flow), button('Start again', showHome, 'button secondary')); app.append(card);
 }
@@ -417,6 +419,28 @@ function showPack(pack) {
 }
 
 installAccessibility();
+// What the person is reading right now: a draft translation, part draft and part English, or English only. It is worked out from the
+// screen itself (text that fell back to English is tagged lang="en"), so it cannot claim more than is true. There is deliberately no
+// "reviewed" state: no language has had a native speaker's review. When one has, add that state here together with the recorded review
+// (and change test/translation-coverage.test.js on purpose), never before.
+const LANGUAGE_NAMES = { zu: 'isiZulu', xh: 'isiXhosa', af: 'Afrikaans' };
+const translationNote = document.querySelector('#translation-note');
+function updateTranslationNote() {
+  const name = LANGUAGE_NAMES[document.documentElement.lang];
+  if (!name) { translationNote.hidden = true; translationNote.textContent = ''; delete translationNote.dataset.state; return; }
+  const shown = [...app.querySelectorAll('[lang]')].filter((node) => !['TEXTAREA', 'INPUT', 'SELECT'].includes(node.tagName) && node.textContent.trim());
+  const english = shown.filter((node) => node.lang === 'en').length;
+  const state = !shown.length || english === 0 ? 'draft' : english === shown.length ? 'english' : 'partial';
+  translationNote.dataset.state = state; translationNote.hidden = false;
+  translationNote.textContent = {
+    draft: `${name}: draft translation, not yet checked by a ${name} speaker.`,
+    partial: `${name}: part of this screen is a draft translation. The rest is still in English.`,
+    english: `This screen is in English: there is no ${name} translation for it yet.`,
+  }[state];
+}
+let noteTimer = 0;
+new MutationObserver(() => { clearTimeout(noteTimer); noteTimer = setTimeout(updateTranslationNote, 60); }).observe(app, { childList: true, subtree: true });
+document.addEventListener('mgadi:language', () => { clearTimeout(noteTimer); noteTimer = setTimeout(updateTranslationNote, 60); });
 // POPIA draft, supplier payment-change check and responder handoff (see public/tools/tools.js). "Already paid" always goes to the bank-first guide.
 const tools = initTools({
   ui: { element, button, plain, clear, mount: (node) => app.append(node) },
