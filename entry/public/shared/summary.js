@@ -62,6 +62,14 @@ const STEP_STATE = {
   not_applicable: { status: 'not-applicable-by-owner', words: 'The owner marked this step not applicable. Mgadi has not verified that assessment.' },
   pending: { status: 'not-reported', words: 'Not reported yet.' },
 };
+// The words a person reads for each recorded outcome. None of them says that anyone was contacted or that a step worked.
+const STEP_OUTCOME_WORDS = {
+  'reported-by-owner': 'Done (the owner reported doing this; Mgadi cannot confirm it)',
+  'help-requested-by-owner': 'Need help (the owner asked for help with this step; Mgadi did not contact anyone)',
+  'not-applicable-by-owner': "Not applicable (the owner's own assessment; Mgadi has not verified it)",
+  'skipped-by-owner': 'Continued without reporting this step',
+  'not-reported': 'Not reported yet',
+};
 export function actionsFrom(steps) {
   return (Array.isArray(steps) ? steps : []).slice(0, 20).map((step) => {
     const state = Object.hasOwn(STEP_STATE, step.state) ? step.state : 'pending';
@@ -108,7 +116,10 @@ export function buildHandoff(state) {
 }
 
 export function defaultPackOptions(state) {
-  return { includeOriginal: false, includeBusiness: Boolean(clean(state.business)), includeAmount: Boolean(clean(state.amount)), includeHandoff: Boolean(sanitizeHandoff(state.handoff)) };
+  // The step outcomes are the owner's own taps (Done, Need help, Not applicable) and hold no free text, so once any step has been reported
+  // they are in the pack by default. The owner still sees them in the preview and can untick the box before the pack is made.
+  const reported = (Array.isArray(state.steps) ? state.steps : []).some((step) => step?.state && step.state !== 'pending');
+  return { includeOriginal: false, includeBusiness: Boolean(clean(state.business)), includeAmount: Boolean(clean(state.amount)), includeHandoff: Boolean(sanitizeHandoff(state.handoff)) || reported };
 }
 
 function clean(value) { return String(value ?? '').trim(); }
@@ -212,7 +223,9 @@ export function summarySections(pack) {
       ...(t?.discoveredAt && !h.specialistSummary ? [`First noticed (as typed by the owner): ${t.discoveredAt}.`] : []),
       ...(t?.reference ? [`Reference number the owner typed (Mgadi cannot check it): ${t.reference}.`] : []),
       `How things stand: ${h.outcome?.meaning ?? OUTCOMES.unknown}`,
-      ...(h.remainingSteps?.length ? [`Not yet reported by the owner: ${h.remainingSteps.join('; ')}.`] : ['Every step has been reported by the owner.']),
+      // Each step in the owner's own terms. Need help and Not applicable are outcomes the owner reported; they are not "not yet reported".
+      ...(h.actions?.length ? ['Steps, as the owner reported them:', ...h.actions.map((a) => `${a.step}: ${STEP_OUTCOME_WORDS[a.status] ?? a.status}.`)] : []),
+      ...(h.remainingSteps?.length ? [`Not reported as done by the owner: ${h.remainingSteps.join('; ')}.`] : ['Every step has been reported by the owner.']),
       ...(t?.followUp ? [`Next follow-up (as typed by the owner): ${t.followUp}.`] : []),
       h.contacts?.referral ?? '',
     ].filter(Boolean) });
