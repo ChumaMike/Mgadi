@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createVoiceController, describeError, timelineTextFor, FAILURE_COPY, trimOldest, safeTranscriptText } from '../public/voice/controller.js';
+import { createVoiceController, describeError, timelineTextFor, FAILURE_COPY, trimOldest, safeTranscriptText, deriveVoiceState, VOICE_STATES } from '../public/voice/controller.js';
 
 function clock() {
   let t = 1_000_000; let id = 0; const jobs = new Map();
@@ -305,4 +305,126 @@ test('the bookkeeping collections are trimmed oldest-first once they pass their 
   assert.equal(set.size, 400); assert.equal(set.has('s899'), true); assert.equal(set.has('s0'), false);
   const small = new Map([['a', 1]]); trimOldest(small, 800, 400); assert.equal(small.size, 1, 'under the limit nothing is dropped');
   assert.equal(safeTranscriptText('ok'), 'ok'); assert.equal(safeTranscriptText('\u202E'), '');
+});
+
+// ---- the nine voice states, thinking, ordering, the level channel and the "no sound" hint (final voice and avatar work)
+
+test('deriveVoiceState: exactly the nine states, and while live the assistant speaking wins, then muted, then thinking, then listening', () => {
+  assert.deepEqual([...VOICE_STATES], ['idle', 'connecting', 'listening', 'thinking', 'speaking', 'muted', 'reconnecting', 'failed', 'ended']);
+  for (const phase of ['idle', 'connecting', 'reconnecting', 'failed', 'ended']) assert.equal(deriveVoiceState({ phase, activity: 'speaking', muted: true }), phase, `${phase} ignores activity and mute`);
+  assert.equal(deriveVoiceState({ phase: 'live', activity: 'listening', muted: false }), 'listening');
+  assert.equal(deriveVoiceState({ phase: 'live', activity: 'you-speaking', muted: false }), 'listening');
+  assert.equal(deriveVoiceState({ phase: 'live', activity: 'thinking', muted: false }), 'thinking');
+  assert.equal(deriveVoiceState({ phase: 'live', activity: 'listening', muted: true }), 'muted');
+  assert.equal(deriveVoiceState({ phase: 'live', activity: 'speaking', muted: true }), 'speaking', 'a muted person still hears the assistant');
+  assert.equal(deriveVoiceState({ phase: 'nonsense' }), 'idle');
+});
+
+test('the controller publishes uiState on every transition: idle, connecting, listening, muted, speaking, ended, failed', async () => {
+  const s = setup(); const seen = []; s.controller.subscribe((st) => { if (seen.at(-1) !== st.uiState) seen.push(st.uiState); });
+  s.controller.giveConsent(); await s.controller.start();
+  const hooks = s.provider.last().request.hooks; hooks.onStatus('live');
+  s.controller.mute(); s.controller.unmute();
+  hooks.onAudioLevel(0.1); s.c.advance(300);
+  s.c.advance(2000);
+  s.controller.end();
+  assert.deepEqual(seen, ['idle', 'connecting', 'listening', 'muted', 'listening', 'speaking', 'listening', 'ended']);
+  const failed = setup({ provider: { startError: new Error('voice_unavailable') } }); failed.controller.giveConsent(); await failed.controller.start();
+  assert.equal(failed.controller.getState().uiState, 'failed');
+});
+
+test('thinking is inferred only from real captions: the person finished a turn and nothing has come back', async () => {
+  const s = setup(); const hooks = await goLive(s);
+  s.c.advance(600);
+  hooks.onTranscript([{ id: 'agent_0', role: 'agent', content: 'Hello', time_sec: 1 }]); s.c.advance(1500);
+  hooks.onTranscript([{ id: 'user_0', role: 'user', content: 'I paid a supplier', time_sec: 3 }]);
+  s.c.advance(600); assert.equal(s.controller.getState().uiState, 'listening', 'the person is still speaking (text changed under a second ago)');
+  s.c.advance(700); assert.equal(s.controller.getState().uiState, 'thinking');
+  hooks.onTranscript([{ id: 'agent_1', role: 'agent', content: 'I am sorry', time_sec: 6 }]);
+  s.c.advance(250); assert.equal(s.controller.getState().uiState, 'speaking', 'the assistant answered');
+  s.c.advance(3000); assert.equal(s.controller.getState().uiState, 'listening', 'and it does not stay "thinking" after the answer');
+});
+
+test('thinking never shows while muted, never without captions, and times out after 15 seconds', async () => {
+  const a = setup(); const ha = await goLive(a);
+  ha.onTranscript([{ id: 'user_0', role: 'user', content: 'hello', time_sec: 1 }]); a.controller.mute(); a.c.advance(2000);
+  assert.equal(a.controller.getState().uiState, 'muted', 'muted: the assistant cannot have been asked anything');
+  assert.notEqual(a.controller.getState().activity, 'thinking', 'and the internal activity is not "thinking" either');
+  const b = setup({ provider: { captionsExpected: false } }); await goLive(b); b.c.advance(5000);
+  assert.equal(b.controller.getState().uiState, 'listening', 'no captions: Mgadi cannot know the person finished a turn, so it never claims thinking');
+  const c = setup(); const hc = await goLive(c);
+  hc.onTranscript([{ id: 'user_0', role: 'user', content: 'hello', time_sec: 1 }]); c.c.advance(2000);
+  assert.equal(c.controller.getState().uiState, 'thinking'); c.c.advance(14_000);
+  assert.equal(c.controller.getState().uiState, 'listening', 'it gives up after 15 s instead of claiming to think forever');
+});
+
+test('transcript order follows the provider time, even when the snapshot arrives after newer updates', async () => {
+  const s = setup(); const hooks = await goLive(s);
+  hooks.onTranscript([{ id: 'agent_1', role: 'agent', content: 'Second', time_sec: 8 }]);
+  hooks.onTranscript([{ id: 'agent_0', role: 'agent', content: 'First', time_sec: 1 }, { id: 'user_0', role: 'user', content: 'Middle', time_sec: 4 }, { id: 'agent_1', role: 'agent', content: 'Second', time_sec: 8 }]);
+  const spoken = s.controller.getState().messages.filter((m) => m.role !== 'system').map((m) => m.text);
+  assert.deepEqual(spoken, ['First', 'Middle', 'Second']);
+});
+
+test('items without word timing yet (time_sec 0) keep their place and do not jump to the top when timing arrives later', async () => {
+  const s = setup(); const hooks = await goLive(s);
+  hooks.onTranscript([{ id: 'agent_0', role: 'agent', content: 'One', time_sec: 2 }]);
+  hooks.onTranscript([{ id: 'user_0', role: 'user', content: 'Two', time_sec: 0 }]);
+  hooks.onTranscript([{ id: 'agent_1', role: 'agent', content: 'Three', time_sec: 9 }]);
+  hooks.onTranscript([{ id: 'user_0', role: 'user', content: 'Two, and more', time_sec: 5 }]);
+  assert.deepEqual(s.controller.getState().messages.filter((m) => m.role !== 'system').map((m) => m.text), ['One', 'Two, and more', 'Three']);
+});
+
+test('a late snapshot with an older, shorter copy of a message never makes it shrink, but a real correction still replaces it', async () => {
+  const s = setup(); const hooks = await goLive(s);
+  hooks.onTranscript([{ id: 'user_0', role: 'user', content: 'I paid a supplier but they say', time_sec: 2 }]);
+  hooks.onTranscript([{ id: 'user_0', role: 'user', content: 'I paid a supplier', time_sec: 2 }]); // older copy arrives late
+  assert.equal(s.controller.getState().messages.find((m) => m.role === 'user').text, 'I paid a supplier but they say');
+  hooks.onTranscript([{ id: 'user_0', role: 'user', content: 'I paid a supplier but they said no', time_sec: 2 }]);
+  assert.equal(s.controller.getState().messages.find((m) => m.role === 'user').text, 'I paid a supplier but they said no', 'a correction is not a prefix, so it is accepted');
+  assert.equal(s.controller.getState().messages.filter((m) => m.role === 'user').length, 1, 'never duplicated');
+});
+
+test('duplicate transcript events (same id, same text) change nothing and create no extra message', async () => {
+  const s = setup(); const hooks = await goLive(s);
+  for (let i = 0; i < 25; i += 1) hooks.onTranscript([{ id: 'agent_0', role: 'agent', content: 'Please call your bank', time_sec: 1 }]);
+  assert.equal(s.controller.getState().messages.filter((m) => m.role === 'assistant').length, 1);
+});
+
+test('a long conversation stays ordered and bounded', async () => {
+  const s = setup(); const hooks = await goLive(s);
+  for (let i = 0; i < 300; i += 1) hooks.onTranscript([{ id: `${i % 2 ? 'user' : 'agent'}_${i}`, role: i % 2 ? 'user' : 'agent', content: `turn ${i}`, time_sec: i + 1 }]);
+  const spoken = s.controller.getState().messages.filter((m) => m.role !== 'system');
+  assert.ok(spoken.length <= 200);
+  assert.equal(spoken.at(-1).text, 'turn 299');
+  assert.deepEqual(spoken.map((m) => m.sortTime), [...spoken.map((m) => m.sortTime)].sort((a, b) => a - b), 'still in time order after trimming');
+});
+
+test('the audio-level channel carries the ASSISTANT level to listeners and never goes through state; it stops when the call ends', async () => {
+  const s = setup(); const hooks = await goLive(s);
+  const got = []; const off = s.controller.onLevel((level) => got.push(level));
+  let renders = 0; s.controller.subscribe(() => { renders += 1; });
+  const before = renders;
+  for (let i = 0; i < 50; i += 1) hooks.onAudioLevel(0.005 + i * 0.001);
+  assert.equal(got.length, 50);
+  assert.ok(renders - before <= 2, `levels must not re-render the panel (rendered ${renders - before} times)`);
+  assert.equal(s.controller.getState().levelsSeen, true);
+  s.controller.end(); hooks.onAudioLevel(0.2);
+  assert.equal(got.length, 50, 'nothing after the call ended');
+  off();
+});
+
+test('audio levels also arrive as "speaking" only above the noise gate', async () => {
+  const s = setup({ provider: { captionsExpected: false } }); const hooks = await goLive(s);
+  hooks.onAudioLevel(0.004); s.c.advance(300); assert.equal(s.controller.getState().uiState, 'listening', 'line noise is not speech');
+  hooks.onAudioLevel(0.06); s.c.advance(250); assert.equal(s.controller.getState().uiState, 'speaking');
+  s.c.advance(1500); assert.equal(s.controller.getState().uiState, 'listening', 'and it stops when the audio stops');
+});
+
+test('"No sound? Tap to enable" appears when no assistant audio has been heard after 5 seconds, with or without captions, and goes away once audio plays', async () => {
+  const s = setup({ provider: { captionsExpected: false } }); const hooks = await goLive(s);
+  s.c.advance(4000); assert.equal(s.controller.getState().needsSoundTap, false);
+  s.c.advance(1500); assert.equal(s.controller.getState().needsSoundTap, true, 'captions are off, the hint must still appear');
+  hooks.onAudioLevel(0.1); assert.equal(s.controller.getState().needsSoundTap, false);
+  assert.equal(s.controller.getState().audioHeard, true);
 });
