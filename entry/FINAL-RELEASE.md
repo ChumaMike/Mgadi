@@ -6,7 +6,7 @@ Branch `feature/final-demo-integration`. Read this first for what is ready, what
 
 The application is integrated and tested on a laptop: the supplier check now compares **trusted details against the request**, reads **PDFs locally**, and compares sources; the voice, avatar, packs, links, POPIA draft and offline copy are all on the branch and pass their tests. **It is not deployed, real voice has never been run, and nothing has been tested on a phone.** Those three need things only you can provide (a Vercel login, Retell credentials and a physical phone). Sections 2 to 4 say exactly what to do.
 
-## 1. What this branch adds on top of `main` (9dc1c14) plus the open docs PR #7
+## 1. What this branch adds on top of `main` (def0aaf)
 
 | Area | What |
 |---|---|
@@ -21,9 +21,9 @@ Not changed, on purpose: the voice controller, avatar dock and Retell adapter. I
 
 | | |
 |---|---|
-| Integration branch | `feature/final-demo-integration` (from `feature/popia-supplier-check-handoff` 8b0c5b5, which is `main` plus the PR #7 documentation) |
-| Already on `main` | all earlier code, tests and scripts (PR #6, merged by Chuma) |
-| Open | PR #7 (docs, draft). PR #4 is redundant and can be closed (your call). The integration PR for this branch is listed in the hand-over message |
+| Integration branch | `feature/final-demo-integration`. It was created from 8b0c5b5; Chuma merged that earlier state as PR #8 at 23:39 UTC on 27 October, so `main` already holds it, and this branch now holds only what is new (18 files) |
+| Already on `main` | all earlier code, tests and scripts, and the documentation from PR #7 (PRs #2, #3, #6 and #8, merged by Chuma) |
+| Open | **PR #9** (this branch, draft, base `main`). PR #4 (a stacked draft from an older branch) is redundant and can be closed: your call |
 | Not merged by me | Nothing. Merge only with your explicit go-ahead |
 
 ## 3. D. Testing (this branch, desktop Chromium, synthetic data, local server)
