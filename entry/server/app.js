@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { isIP } from 'node:net';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -49,6 +50,14 @@ function reply(response, status, body, type = 'application/json; charset=utf-8',
 // Behind Vercel the socket address is the platform proxy, so every visitor would share one bucket.
 // Only trust forwarding headers when running on Vercel, where the platform sets them; locally they are ignorable.
 export function clientKey(request, env = process.env) {
+  // For Railway's PUBLIC edge, X-Real-IP is normalized by Railway. Never
+  // use it for private-network requests, which bypass edge sanitation.
+  // This is an advisory per-client limiter; paid voice still uses shared quotas.
+  if (env.RAILWAY_PROJECT_ID && request.headers?.['x-railway-edge'] &&
+      request.headers?.['x-forwarded-proto'] === 'https') {
+    const realIp = String(request.headers?.['x-real-ip'] ?? '').trim();
+    if (isIP(realIp)) return realIp;
+  }
   if (env.VERCEL) {
     const forwarded = request.headers?.['x-vercel-forwarded-for'] ?? request.headers?.['x-forwarded-for'];
     const first = String(Array.isArray(forwarded) ? forwarded[0] : forwarded ?? '').split(',')[0].trim();
