@@ -328,7 +328,10 @@ async function triage(redactedText) {
   incident.triage = schema; incident.source = source;
   if (fallbackReason) log('Used the guide on this phone because the server did not answer in time');
   const route = routeTriage(schema);
-  const proceed = () => (route === 'clarify' ? showClarify() : showIncident(route));
+  const proceed = () => {
+    if (route === 'clarify') { incident.offerCallAfterClarify = true; showClarify(); }
+    else { showIncident(route); voice.offerCall?.(); }
+  };
   if (inBank) afterBank = proceed; else proceed();
 }
 
@@ -370,6 +373,7 @@ function showClarify() {
       incident.ownerAnswer = option.text; log(`Owner answered: ${option.text}`);
       showIncident(option.route);
       if (preferredMode === 'voice') voice.open?.();
+      else if (incident.offerCallAfterClarify) { delete incident.offerCallAfterClarify; voice.offerCall?.(); }
     }, 'button secondary'));
   }
   card.append(choices, guidanceControls([intro, question], 'clarify'), voice.launchButton(), button('Start again', showHome, 'button secondary'));
@@ -469,8 +473,8 @@ function makeEvidencePermissionPrompt(picker) {
   const close = button('×', dismiss, 'evidence-permission-close');
   close.setAttribute('aria-label', 'Dismiss evidence prompt');
   content.append(close, element('p', 'OPTIONAL · EVIDENCE', { className: 'evidence-permission-eyebrow' }),
-    element('h2', "Let's collect evidence", { id: 'evidence-permission-title' }),
-    element('p', 'You can give Mgadi access to the files you choose, so it can record their fingerprints for your incident pack. Nothing is accessed automatically.'));
+    element('h2', 'Would you like help adding evidence?', { id: 'evidence-permission-title' }),
+    element('p', 'Mgadi can help record evidence you select. Accept opens the file picker; Deny lets you choose files yourself below. Mgadi cannot search your device or upload files automatically.'));
   const actions = element('div', '', { className: 'evidence-permission-actions' });
   actions.append(
     button('Deny', dismiss, 'button secondary'),
@@ -524,6 +528,12 @@ function renderStep() {
   const detail = element('span', '', { className: 'sr-only' }); detail.append(document.createTextNode(' — '), element('span', step.done));
   done.append(element('span', 'Done'), detail); done.dataset.report = step.done;
   outcomes.append(done, button('Need help', () => reportOther('needs_help'), 'button secondary'), button('Not applicable', () => reportOther('not_applicable'), 'button secondary'));
+  if (step.id === 'bank') {
+    const feedback = element('textarea', '', { id: 'bank-feedback', maxlength: '600', placeholder: 'What did the bank tell you? Add a reference only if you were given one.' });
+    feedback.value = incident.bankFeedback ?? '';
+    feedback.addEventListener('input', () => { incident.bankFeedback = feedback.value; });
+    card.append(element('label', 'Bank feedback (optional)', { for: 'bank-feedback' }), feedback);
+  }
   card.append(element('h2', 'How did this step go?'), outcomes, element('p', 'Your choice is saved in your incident pack. You can revisit any step above.', { className: 'privacy' }), element('p', 'Need help only marks this step in your pack. Mgadi does not contact anyone for you.', { className: 'privacy need-help-note' }));
   const links = resourceLinks(label, step.id); if (links) card.append(links);
   if (step.id === 'evidence') {
@@ -536,6 +546,7 @@ function renderStep() {
     card.append(input, feedback, recordedList, selectAgain);
     // The optional prompt is shown on the evidence collection screen, after voice hands back to text.
   }
+  card.append(button('Skip to evidence and incident pack', () => showEvidencePack(flow), 'button secondary'), element('p', 'Unfinished steps remain not reported in your pack.', { className: 'privacy' }));
   card.append(reviewBadge(flow), button('Start again', showHome, 'button secondary')); app.append(card);
 }
 
@@ -552,9 +563,9 @@ function showEvidencePack(flow) {
   business.value = incident.business ?? ''; amount.value = incident.amount ?? '';
   business.addEventListener('input', () => { incident.business = business.value; });
   amount.addEventListener('input', () => { incident.amount = amount.value; });
-  card.append(element('h1', 'Keep evidence and make your incident pack'), element('p', 'Choose screenshots, emails or proof of payment. Files stay on this device; only their fingerprints go into the pack.'), element('label', 'Evidence files', {for:'evidence-files'}), files, feedback, list, element('label', 'Business', {for:'business-name'}), business, element('label', 'Amount paid', {for:'amount-paid'}), amount, handoffForm(), button('Review what goes in the pack', () => { if (incident.pendingEvidence) { feedback.textContent = 'Still fingerprinting your files. Please wait, then review the pack.'; return; } showPackReview(flow); }), button('Start a new incident', showHome, 'button secondary'));
+  card.append(element('h1', 'Keep evidence and make your incident pack'), element('p', 'Choose files yourself below. Mgadi records filenames and SHA-256 fingerprints on this device; the original files are not uploaded.'), element('label', 'Evidence files', {for:'evidence-files'}), files, feedback, list, element('label', 'Business', {for:'business-name'}), business, element('label', 'Amount paid', {for:'amount-paid'}), amount, handoffForm(), button('Review what goes in the pack', () => { if (incident.pendingEvidence) { feedback.textContent = 'Still fingerprinting your files. Please wait, then review the pack.'; return; } showPackReview(flow); }), button('Start a new incident', showHome, 'button secondary'));
   const suggestion = makeEvidencePermissionPrompt(files);
-  if (suggestion) card.append(suggestion);
+  if (suggestion) { card.querySelector('h1').after(suggestion); }
   if (journey) card.append(button('Back to response steps', () => { journey.finished = false; renderStep(); emitJourney(); }, 'button secondary'));
   app.append(card);
 }

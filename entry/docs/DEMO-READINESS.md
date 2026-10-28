@@ -150,3 +150,17 @@ Desktop and mobile voice workspace captures from the local hero regression (simu
 ![Desktop voice workspace](qa/voice-desktop.png)
 
 ![Mobile voice workspace](qa/voice-mobile.png)
+
+## Presenter sketch implemented
+
+The attached handwritten flow adds a second, faster presentation path:
+
+1. Scroll to Describe it instead and type the payment-diversion story.
+2. The resolved incident shows an **Answer Mgadi** invitation. In mock mode it explicitly says simulated in-app call, no microphone or real telephone call; answering starts the scripted companion/captions. A real provider still requires its voice consent/setup.
+3. Open the bank contact directory during the call. Hang up with End call; calls answered through this invitation return directly to the bank feedback screen.
+4. Enter optional bank feedback/reference. Only press Done if reporting that you called. Use **Skip to evidence and incident pack** to leave other actions pending.
+5. Evidence assistance offers Deny, Accept & choose files, and the formal access explanation. Deny leaves the manual picker available. Accept also requires choosing files; Mgadi cannot search the device or upload automatically.
+6. Review now displays each chosen filename, size, type and complete SHA-256 fingerprint, plus bank feedback and honest pending-action states.
+7. Generate and download the checksummed incident pack. Preserve the original evidence separately.
+
+A new `presentation-smoke` browser regression follows this exact sequence, denies assistance, selects a file manually, verifies the visible filename/fingerprint and bank feedback, checks unfinished actions, recomputes the pack SHA-256 and compares the actual download bytes: **13/13 passed**. The preceding complete browser run finished with **11/12 suites passing**; only the restricted-runtime mocked WebRTC audio suite failed, 27/35. The revised presentation flow is separately rerun after these changes.

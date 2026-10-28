@@ -490,7 +490,7 @@ export async function initVoice({ bridge }) {
     render(controller.getState());
   });
   startBtn.addEventListener('click', () => { if (consentCheck.checked) controller.giveConsent(); controller.start(); });
-  endBtn.addEventListener('click', () => controller.end());
+  endBtn.addEventListener('click', () => { controller.end(); if (returnToTextOnEnd) { returnToTextOnEnd = false; close({ keepFocus: true }); bridge.showText(); } });
   muteBtn.addEventListener('click', () => (controller.getState().muted ? controller.unmute() : controller.mute()));
   sound.addEventListener('click', () => controller.startAudioPlayback());
   clearBtn.addEventListener('click', () => { controller.clearMessages(); controller.systemNote('Conversation cleared. Your incident response progress is kept. Start voice conversation to continue.'); });
@@ -533,11 +533,35 @@ export async function initVoice({ bridge }) {
     stopLocal();globalThis.speechSynthesis?.cancel(); avatarPreviewing = false; panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setApproximate(false); dock.setActive(false); workspace.close();
     if (!keepFocus && opener?.isConnected) opener.focus();
   }
+  let invitation = null;
+  let returnToTextOnEnd = false;
+  function offerCall() {
+    invitation?.remove();
+    const host = document.querySelector('#app');
+    if (!host) return;
+    invitation = make('section', 'call-invitation');
+    invitation.setAttribute('aria-label', 'Mgadi call invitation');
+    invitation.setAttribute('role', 'region');
+    const simulated = config.mode === 'mock';
+    invitation.append(make('p', 'call-invitation-label', simulated ? 'SIMULATED IN-APP CALL · NO MICROPHONE' : 'IN-APP VOICE INVITATION'),
+      make('h2', null, simulated ? 'Mgadi is calling — simulation' : 'Mgadi is ready to talk'),
+      make('p', null, simulated ? 'Answer to see the companion and scripted captions. No real telephone call, microphone or AI audio is used.' : 'Answer to open voice setup. Your microphone is used only after you agree. You can keep using text.'));
+    const answer = make('button', 'button', 'Answer Mgadi'); answer.type = 'button';
+    answer.addEventListener('click', () => {
+      invitation?.remove(); invitation = null; returnToTextOnEnd = true; open();
+      if (simulated) { consentCheck.checked = true; controller.giveConsent(); controller.start(); }
+    });
+    const decline = make('button', 'button secondary', 'Keep using text'); decline.type = 'button';
+    decline.addEventListener('click', () => { invitation?.remove(); invitation = null; bridge.showText(); });
+    invitation.append(answer, decline); host.prepend(invitation);
+    invitation.scrollIntoView({ block: 'start', behavior: 'auto' }); answer.focus();
+  }
   refresh();
   // The homepage call shortcut opens this same consent-gated Retell workspace, not the older TalkBack demo.
   // Call deep links are handled after the incident guide is ready in app.js.
   return {
-    reset() { controller.end(); controller.clearMessages(); close({ keepFocus: true }); },
+    offerCall,
+    reset() { returnToTextOnEnd = false; invitation?.remove(); invitation = null; controller.end(); controller.clearMessages(); close({ keepFocus: true }); },
     open,
     launchButton() { const b = tr('button', 'button secondary voice-launch', 'Talk to Mgadi'); b.type = 'button'; b.addEventListener('click', open); return b; },
     controller, dock, config,

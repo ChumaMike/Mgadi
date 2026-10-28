@@ -104,6 +104,7 @@ export function buildHandoff(state) {
   const handoff = {
     typedByOwner: typed,
     actions,
+    bankFeedback: clean(state.bankFeedback) ? redactIncident(clean(state.bankFeedback).slice(0, 600)).text : '',
     contacts: {
       bank: bank.status === 'user-reported-called' ? { status: 'reported-by-owner', at: bank.reportedAt } : { status: 'not-reported', at: null },
       referral: 'No referral was made. Mgadi shows contact options only. Showing a contact does not mean anyone has accepted a request for help.',
@@ -119,7 +120,7 @@ export function defaultPackOptions(state) {
   // The step outcomes are the owner's own taps (Done, Need help, Not applicable) and hold no free text, so once any step has been reported
   // they are in the pack by default. The owner still sees them in the preview and can untick the box before the pack is made.
   const reported = (Array.isArray(state.steps) ? state.steps : []).some((step) => step?.state && step.state !== 'pending');
-  return { includeEvidence: true, includeTimeline: true, includeOriginal: false, includeBusiness: Boolean(clean(state.business)), includeAmount: Boolean(clean(state.amount)), includeHandoff: Boolean(sanitizeHandoff(state.handoff)) || reported };
+  return { includeEvidence: true, includeTimeline: true, includeOriginal: false, includeBusiness: Boolean(clean(state.business)), includeAmount: Boolean(clean(state.amount)), includeHandoff: Boolean(sanitizeHandoff(state.handoff)) || Boolean(clean(state.bankFeedback)) || reported };
 }
 
 function clean(value) { return String(value ?? '').trim(); }
@@ -171,7 +172,7 @@ export function previewItems(state, options) {
   items.push({ id: 'story', label: story.version === 'original' ? 'Your own words, exactly as typed' : story.version === 'masked' ? 'Your description with personal details hidden' : 'Description', value: story.text || (state.source === 'manual-record' ? 'Nothing typed: the owner started a record without choosing a situation.' : 'Nothing typed: the situation was chosen from the buttons.') });
   items.push({ id: 'business', label: 'Business name', value: options.includeBusiness && clean(state.business) ? clean(state.business) : 'Not included' });
   items.push({ id: 'amount', label: 'Amount paid', value: options.includeAmount && clean(state.amount) ? clean(state.amount) : 'Not included' });
-  items.push({ id: 'evidence', label: 'Evidence', value: options.includeEvidence === false ? 'Not included' : `${(state.evidence ?? []).length} file fingerprint(s): name, size and SHA-256 only. The files themselves are not included.` });
+  items.push({ id: 'evidence', label: 'Evidence', value: options.includeEvidence === false ? 'Not included' : [(state.evidence ?? []).length + ' file fingerprint(s). The files themselves are not included.', ...(state.evidence ?? []).map(file => `${file.name} · ${formatBytes(file.size)} · ${file.type} · SHA-256 ${file.sha256}`)].join('\n') });
   if (options.includeHandoff) {
     const h = buildHandoff(state);
     const typed = h.typedByOwner;
@@ -179,6 +180,7 @@ export function previewItems(state, options) {
       typed?.affected ? `Affected: ${AFFECTED[typed.affected]}${typed.affectedNote ? ` (${typed.affectedNote})` : ''}` : '', typed?.discoveredAt ? `First noticed: ${typed.discoveredAt}` : '',
       typed?.reference ? `Reference number you typed: ${typed.reference}` : (clean(state.handoff?.reference) ? "Reference number NOT included: it may only contain letters, numbers, spaces and . _ / # -, and a long number on its own can look like an account, card or phone number. Write 'Ref' before it if it really is a reference." : ''),
       typed?.followUp ? `Follow-up: ${typed.followUp}` : '', `How things stand: ${h.outcome.meaning.replace(/\.$/, '')}`,
+      h.bankFeedback ? `Bank feedback (owner supplied): ${h.bankFeedback}` : '',
       ...h.actions.map((a) => `${a.step}: ${STEP_OUTCOME_WORDS[a.status]}`),
     ].filter(Boolean).join('. ') });
   } else items.push({ id: 'handoff', label: 'Handoff details for a bank or specialist', value: 'Not included' });
@@ -222,6 +224,7 @@ export function summarySections(pack) {
       ...(t?.affected && !h.specialistSummary ? [`Affected: ${AFFECTED[t.affected]}${t.affectedNote ? `. Note: ${t.affectedNote}` : ''}.`] : []),
       ...(t?.discoveredAt && !h.specialistSummary ? [`First noticed (as typed by the owner): ${t.discoveredAt}.`] : []),
       ...(t?.reference ? [`Reference number the owner typed (Mgadi cannot check it): ${t.reference}.`] : []),
+      ...(h.bankFeedback ? [`Bank feedback (owner supplied): ${h.bankFeedback}`] : []),
       `How things stand: ${h.outcome?.meaning ?? OUTCOMES.unknown}`,
       // Each step in the owner's own terms. Need help and Not applicable are outcomes the owner reported; they are not "not yet reported".
       ...(h.actions?.length ? ['Steps, as the owner reported them:', ...h.actions.map((a) => `${a.step}: ${STEP_OUTCOME_WORDS[a.status] ?? a.status}.`)] : []),

@@ -443,3 +443,9 @@ html[data-reduced-motion='true'] .landing-choice{transition:none;transform:none}
  .landing-page .landing-hero{min-height:240px;padding-top:1.5rem;padding-bottom:4rem}
  .landing-page .landing-hero h1{font-size:2.8rem;max-width:600px}
 }
+
+.call-invitation{max-width:760px;margin:0 auto 1rem;padding:1.3rem;border:2px solid #d7aa49;border-radius:20px;background:#fff8e8;color:#173e35;box-shadow:0 8px 25px #123c3515}
+.call-invitation h2{margin:.3rem 0;font-size:1.6rem}
+.call-invitation-label{font-weight:800;font-size:.75rem;letter-spacing:.06em}
+.call-invitation .button{margin:.4rem .4rem 0 0}
+#bank-feedback{min-height:5rem}
