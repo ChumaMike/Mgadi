@@ -50,7 +50,7 @@ test('bank feedback is optional, redacted, and included only after the owner's c
   assert.equal(Object.hasOwn(noHandoff, 'handoff'), false);
   assert.doesNotMatch(JSON.stringify(noHandoff), /082 123 4567/);
   const withHandoff = buildPackData(state, { ...options, includeHandoff: true });
-  assert.match(withHandoff.handoff.bankFeedback, /\\[PHONE\\]/);
+  assert.match(withHandoff.handoff.bankFeedback, /\[PHONE\]/);
   assert.doesNotMatch(withHandoff.handoff.bankFeedback, /082 123 4567/);
   assert.match(previewItems(state, options).find(item => item.id === 'handoff').value, /bank/);
 });
