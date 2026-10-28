@@ -5,6 +5,7 @@ import { isProductionDeployment, requiresSharedStore } from '../server/deploymen
 import { loadVoiceConfig } from '../server/voice.js';
 import { chatConfig } from '../server/ai-chat.js';
 import { createLinkStoreFromEnv } from '../server/links.js';
+import { clientKey } from '../server/app.js';
 
 const base = { MGADI_VOICE_MODE: 'retell', RETELL_API_KEY: 'test-private', RETELL_AGENT_ID_EN: 'agent-test', MGADI_OPERATOR_TOKEN: 'test-operator-token-1234567890' };
 
@@ -41,4 +42,14 @@ test('Railway Dockerfile builds browser assets and starts the existing Node serv
   assert.match(docker, /CMD \["node", "server\.js"\]/);
   const ignore = fs.readFileSync(new URL('../.dockerignore', import.meta.url), 'utf8');
   assert.match(ignore, /^\.env\.\*/m);
+});
+
+test('Railway public edge client IP is used only when valid edge headers are present', () => {
+  const env = { RAILWAY_PROJECT_ID: 'test-project' };
+  const socket = { remoteAddress: '10.0.0.3' };
+  const edge = { 'x-railway-edge': 'jnb1', 'x-forwarded-proto': 'https', 'x-real-ip': '198.51.100.10' };
+  assert.equal(clientKey({ headers: edge, socket }, env), '198.51.100.10');
+  assert.equal(clientKey({ headers: { ...edge, 'x-real-ip': 'unsafe' }, socket }, env), '10.0.0.3');
+  assert.equal(clientKey({ headers: { 'x-real-ip': '198.51.100.10' }, socket }, env), '10.0.0.3');
+  assert.equal(clientKey({ headers: edge, socket }, {}), '10.0.0.3');
 });
