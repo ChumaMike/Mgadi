@@ -9,3 +9,9 @@ Build and 307 unit tests pass (executor Node 24.22.1; repository deployment targ
 Static phone preview does not host server-only AI or sharing APIs. Node/Vercel server security and provider configuration remain intact; use the main app directly on a phone there. Full real-device, real-call and screen-reader testing remains outstanding.
 
 Logo follow-up: render the original raster logo through an inline SVG viewport to remove only outer white space while keeping the complete M and wordmark visible. A three-column phone header keeps the bank button on the same row. The guidance screen now includes the animated visual companion, synchronised with optional read-aloud states, plus a link to the existing Anthropic TalkBack screen. Illustrative gestures remain explicitly distinct from reviewed SASL. Vercel project creation was rejected with 403 for the selected user team; no API key was stored or live deployment performed there.
+
+## Presentation build follow-up
+- Four-stage progress strip and in-app guidance session timer.
+- AI-provider options remain expandable; working guided path stays immediate.
+- Portable readable HTML report download with timeline, bank feedback and evidence fingerprints, alongside the original verifiable JSON.
+- No tests run for this follow-up, as requested. Provider deployment and reviewed SASL remain blocked as previously documented.
