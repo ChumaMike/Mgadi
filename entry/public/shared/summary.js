@@ -14,6 +14,7 @@ const SOURCE_TEXT = {
   rules: 'automatic suggestion from Mgadi\'s rules',
   'offline rules': 'automatic suggestion from the rules on this phone',
   'user-selected route': 'chosen by the owner',
+  'manual-record': 'record created by the owner without classification',
 };
 
 export const AFFECTED = Object.freeze({ computer: 'a computer or laptop', server: 'a server or shared drive', phone: 'a phone or tablet', email_account: 'an email account', online_account: 'another online account', bank_payment: 'a bank account or payment', other: 'something else', unsure: 'not sure' });
@@ -57,6 +58,8 @@ export function sanitizeHandoff(input) {
 const STEP_STATE = {
   confirmed: { status: 'reported-by-owner', words: 'The owner tapped that they did this. Mgadi cannot confirm it happened or that it worked.' },
   skipped: { status: 'skipped-by-owner', words: 'The owner chose to continue without doing or reporting this.' },
+  needs_help: { status: 'help-requested-by-owner', words: 'The owner needs help with this step. It has not been reported as done.' },
+  not_applicable: { status: 'not-applicable-by-owner', words: 'The owner marked this step not applicable. Mgadi has not verified that assessment.' },
   pending: { status: 'not-reported', words: 'Not reported yet.' },
 };
 export function actionsFrom(steps) {
@@ -71,7 +74,7 @@ function text80(value) { return clean(value).replace(/[\u0000-\u001f\u007f<>]/g,
 // the owner typed. No encrypted file, no ransom note and no private document is included or asked for.
 export function specialistSummary(state, handoff, actions) {
   const done = (id) => { const step = (state.steps ?? []).find((x) => x?.id === id); return step && Object.hasOwn(STEP_STATE, step.state) ? STEP_STATE[step.state].status : 'not-reported'; };
-  const word = { 'reported-by-owner': 'reported by the owner (a tap)', 'skipped-by-owner': 'skipped by the owner', 'not-reported': 'not reported' };
+  const word = { 'help-requested-by-owner': 'help requested by the owner', 'not-applicable-by-owner': 'marked not applicable by the owner', 'reported-by-owner': 'reported by the owner (a tap)', 'skipped-by-owner': 'skipped by the owner', 'not-reported': 'not reported' };
   const lines = [
     `Affected: ${handoff?.affected ? AFFECTED[handoff.affected] : 'not stated'}${handoff?.affectedNote ? `. Owner's note: ${handoff.affectedNote}` : ''}.`,
     `First noticed: ${handoff?.discoveredAt || 'not stated'} (as typed by the owner).`,
@@ -154,7 +157,7 @@ export function buildPackData(state, options = defaultPackOptions(state), genera
 export function previewItems(state, options) {
   const story = storyFor(state, options);
   const items = [];
-  items.push({ id: 'story', label: story.version === 'original' ? 'Your own words, exactly as typed' : story.version === 'masked' ? 'Your description with personal details hidden' : 'Description', value: story.text || 'Nothing typed: the situation was chosen from the buttons.' });
+  items.push({ id: 'story', label: story.version === 'original' ? 'Your own words, exactly as typed' : story.version === 'masked' ? 'Your description with personal details hidden' : 'Description', value: story.text || (state.source === 'manual-record' ? 'Nothing typed: the owner started a record without choosing a situation.' : 'Nothing typed: the situation was chosen from the buttons.') });
   items.push({ id: 'business', label: 'Business name', value: options.includeBusiness && clean(state.business) ? clean(state.business) : 'Not included' });
   items.push({ id: 'amount', label: 'Amount paid', value: options.includeAmount && clean(state.amount) ? clean(state.amount) : 'Not included' });
   items.push({ id: 'evidence', label: 'Evidence', value: `${(state.evidence ?? []).length} file fingerprint(s): name, size and SHA-256 only. The files themselves are not included.` });
@@ -192,7 +195,7 @@ export function summarySections(pack) {
   const sections = [];
   const sourceText = SOURCE_TEXT[pack.incident?.source] ?? 'automatic suggestion';
   sections.push({ heading: 'What happened', lines: [
-    pack.story?.text ? pack.story.text : 'No description was typed. The situation was chosen from the buttons.',
+    pack.story?.text ? pack.story.text : pack.incident?.source === 'manual-record' ? 'No description was typed. The owner started a record without choosing a situation.' : 'No description was typed. The situation was chosen from the buttons.',
     pack.story?.version === 'masked' ? 'Personal details such as numbers, links and listed names were hidden before this was written. Names that were not listed may still appear.' : pack.story?.version === 'original' ? 'These are the owner\'s own words and may contain names or numbers.' : '',
   ].filter(Boolean) });
   sections.push({ heading: 'Situation suggested by Mgadi', lines: [

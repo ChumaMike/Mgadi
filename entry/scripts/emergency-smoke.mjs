@@ -17,12 +17,12 @@ const fresh = async (width = 390, height = 844) => { const page = await (await b
 const h1 = (page) => page.locator('h1').first().innerText();
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
 const tile = (page, text) => page.locator(`.incident-choices button:has-text("${text}")`);
-const typeAndSend = async (page, text) => { await page.fill('#incident-description', text); await page.click('text=Get safe next step'); };
+const typeAndSend = async (page, text) => { await page.locator('.describe-incident > summary').click(); await page.fill('#incident-description', text); await page.click('text=Get safe next step'); };
 
 try {
   // 1. The entry screen: five plain-language choices, bank button first.
   let page = await fresh();
-  const tiles = await page.locator('.incident-choices button').allInnerTexts();
+  const tiles = await page.locator('.incident-choices button > span:not([aria-hidden])').allInnerTexts();
   check('the entry screen offers the five plain-language choices', JSON.stringify(tiles) === JSON.stringify(['Money or a payment problem', 'My device or files are locked', 'Someone accessed my email or account', 'A suspicious message or link', "I don't know what happened"]), JSON.stringify(tiles));
   check('the verified bank button is visible and first in the header', await page.locator('#emergency-button').isVisible());
   check('no choice asks the person to diagnose the attack', !tiles.some((t) => /ransomware|phishing|malware|BEC|compromise/i.test(t)));
@@ -31,7 +31,7 @@ try {
   await tile(page, 'My device or files are locked').click(); await page.waitForSelector('text=Step 1 of');
   check('locked files go to the ransomware guide', (await page.locator('.step-count').innerText()).includes('Possible ransomware'), await page.locator('.step-count').innerText());
   check('the first step is to look, not to call the bank or touch anything', (await h1(page)).includes('Look at what you can see'));
-  check('the guide says it is an unreviewed draft written from CISA and No More Ransom', /CISA and No More Ransom/.test(await page.locator('.review-status').first().innerText()) && /not been checked by a practitioner/.test(await page.locator('.review-status').first().innerText()));
+  check('the guide says it is an unreviewed draft written from CISA and No More Ransom', /CISA and No More Ransom/.test(await page.locator('.review-status').first().textContent()) && /not been checked by a practitioner/.test(await page.locator('.review-status').first().textContent()));
   check('people at larger organisations are told to go to IT or security first', (await page.locator('.org-note').innerText()).includes('IT or security team first'));
   check('the bank button stays in the header on this route', await page.locator('#emergency-button').isVisible());
   await page.click('#emergency-button'); await page.waitForSelector('text=Call your bank now'); await page.click('button:has-text("Back")');
@@ -42,7 +42,7 @@ try {
   for (let i = 0; i < 7; i += 1) {
     order.push((await h1(page)).slice(0, 28));
     check(`ransomware step ${i + 1}: no sideways scroll at 390px`, !(await overflow(page)));
-    const buttons = page.locator('#app .card > button.button:not(.secondary):not(.danger)');
+    const buttons = page.locator('#app .step-outcomes > button.button:not(.secondary)');
     await buttons.first().click(); await page.waitForTimeout(80);
   }
   check('all seven steps appear in order', order[0].startsWith('Look at what') && order[1].startsWith('Disconnect the affected') && order[2].startsWith('Do not pay') && order[3].startsWith('Get a trusted specialist') && order[6].startsWith('Prepare a handoff'), JSON.stringify(order));
@@ -89,15 +89,15 @@ try {
 
   // 8. Layout: 320px, and large text.
   page = await fresh(320, 640); await tile(page, 'My device or files are locked').click(); await page.waitForSelector('text=Step 1 of');
-  let bad = 0; for (let i = 0; i < 7; i += 1) { if (await overflow(page)) bad += 1; await page.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await page.waitForTimeout(60); }
+  let bad = 0; for (let i = 0; i < 7; i += 1) { if (await overflow(page)) bad += 1; await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await page.waitForTimeout(60); }
   check('all seven ransomware steps have no sideways scroll at 320px', bad === 0, `${bad} screens overflowed`);
-  page = await fresh(320, 640); await page.click('summary'); await page.selectOption('#text-size', 'largest'); await page.click('summary');
+  page = await fresh(320, 640); await page.click('#accessibility > details > summary'); await page.selectOption('#text-size', 'largest'); await page.click('#accessibility > details > summary');
   await tile(page, 'My device or files are locked').click(); await page.waitForSelector('text=Step 1 of');
   check('the ransomware guide has no sideways scroll at 320px with 200% text', !(await overflow(page)));
   check('the bank button is still tappable at 200% text', await page.locator('#emergency-button').isVisible());
 
   // 9. Handoff for a bank or an IT specialist: optional, typed text is bounded and hidden, taps are "reported", never "completed".
-  const tap = (pg, text) => pg.getByRole('button', { name: text, exact: true }).click();
+  const tap = (pg, text) => pg.getByRole('button', { name: /haven.t|not done|continue/i.test(text) ? 'Need help' : `Done — ${text}`, exact: true }).click();
   page = await fresh(); await typeAndSend(page, 'Every file on our server is encrypted and there is a ransom note. My PIN is 5521 and the supplier phoned 082 123 4567.'); await page.waitForSelector('text=Step 1 of');
   await tap(page, "I've looked and noted what I see"); await tap(page, "I haven't done this, continue"); await tap(page, 'I understand');
   await tap(page, "I haven't yet, continue"); await tap(page, "I haven't yet, continue"); await tap(page, "I've protected my backups"); await tap(page, "I've understood the next steps");
@@ -127,7 +127,7 @@ try {
   await page.check('#include-handoff');
   await page.click('button:has-text("Make incident pack")'); await page.waitForSelector('.pack-summary');
   const summaryText = await page.locator('.pack-summary').innerText();
-  check('the summary has a specialist section built from taps and typed words', /Handoff for an IT or security specialist/.test(summaryText) && /Disconnected from the network: skipped by the owner/.test(summaryText) && /Looked at the screen and noted signs: reported by the owner \(a tap\)/.test(summaryText), summaryText.slice(-900));
+  check('the summary has a specialist section built from taps and typed words', /Handoff for an IT or security specialist/.test(summaryText) && /Disconnected from the network: help requested by the owner/.test(summaryText) && /Looked at the screen and noted signs: reported by the owner \(a tap\)/.test(summaryText), summaryText.slice(-900));
   check('the summary never says a step was completed or that anyone accepted a referral', !/\bcompleted\b/i.test(summaryText) && /No referral was made/.test(summaryText) && /does not mean anyone has accepted/.test(summaryText));
   check('the summary says no encrypted file, ransom note or private document is included', /No encrypted file, ransom note or private document is included/.test(summaryText));
   check('the typed reference is labelled as something Mgadi cannot check', /Reference number the owner typed \(Mgadi cannot check it\): CAS 123\/10\/2026/.test(summaryText));
@@ -146,7 +146,7 @@ try {
 
   // 10. A non-ransomware journey: nothing typed means no handoff by default; ticking it gives the plain Handoff section.
   page = await fresh(); await tile(page, 'Money or a payment problem').click(); await tile(page, 'I paid after bank details changed').click(); await page.waitForSelector('text=Step 1 of');
-  for (let i = 0; i < 8 && (await page.locator('#evidence-files').count()) === 0; i += 1) { await page.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await page.waitForTimeout(80); }
+  for (let i = 0; i < 8 && (await page.locator('#evidence-files').count()) === 0; i += 1) { await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await page.waitForTimeout(80); }
   await page.waitForSelector('#evidence-files');
   await page.click('button:has-text("Review what goes in the pack")'); await page.waitForSelector('#include-handoff');
   check('with nothing typed the handoff is OFF by default but can be turned on', !(await page.locator('#include-handoff').isChecked()) && /Handoff details for a bank or specialist\s*Not included/.test(await page.locator('.preview-box').innerText()));
