@@ -518,6 +518,10 @@ export async function initVoice({ bridge }) {
 
   function open() {
     opener = document.activeElement; panel.hidden = false; panel.dataset.collapsed = 'false'; minBtn.setAttribute('aria-expanded', 'true'); minBtn.textContent = 'Minimise';
+    // Display the real 3D/lite visual companion as soon as the voice workspace opens.
+    // This is a renderer preview until the call is connected, never a claim of SASL signing.
+    const inCall = ['connecting', 'live', 'reconnecting'].includes(controller.getState().phase);
+    if (!inCall) { avatarPreviewing = true; avatarPreviewMood = 'idle'; dock.show(); }
     document.documentElement.dataset.voice = 'open'; workspace.open(); refresh(); title.focus();
   }
   function close({ keepFocus = false }) {
