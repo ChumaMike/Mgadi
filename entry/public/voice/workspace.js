@@ -61,7 +61,7 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
   const visualButtons = el('div', 'vp-compact-visual-buttons');
   const avatarToggle = el('button', 'vp-compact-toggle', 'Hide 3D');
   avatarToggle.type = 'button'; avatarToggle.setAttribute('aria-pressed', 'true');
-  const visualToggle = el('button', 'vp-compact-toggle', 'Show gestures');
+  const visualToggle = el('button', 'vp-compact-toggle', 'Show illustrative gestures');
   visualToggle.type = 'button'; visualToggle.setAttribute('aria-pressed', 'false');
   visualButtons.append(avatarToggle, visualToggle);
   const stageNote = el('p', 'vp-compact-stage-note', 'Gestures are illustrative, not SASL');
@@ -76,14 +76,17 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
   captionHead.append(captionToggle);
   const captionWrap = el('div', 'vp-compact-caption-wrap');
   captionWrap.append(chat, jump);
-  main.append(captionHead, captionWrap, action);
-  shell.append(side, main);
+  main.append(captionHead, captionWrap);
+  shell.append(side, main, action);
 
   const drawer = el('aside', 'vp-compact-tools');
   drawer.id = 'vp-compact-tools'; drawer.hidden = true;
   drawer.setAttribute('aria-label', 'Call options, privacy and step history');
   const drawerHeader = el('div', 'vp-compact-tools-header');
   const drawerTitle = el('h3', null, 'Call options');
+  const accessibility = document.querySelector('#accessibility');
+  const accessibilityHome = document.createComment('Language and accessibility settings');
+  accessibility?.before(accessibilityHome);
   drawerTitle.tabIndex = -1;
   const closeDrawer = el('button', 'vp-close-tools', 'Close');
   closeDrawer.type = 'button';
@@ -100,6 +103,11 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
   lessMotion.append(motionCheck, document.createTextNode('Reduce movement'));
   settings.append(bigText, lessMotion);
   drawer.append(drawerHeader, settings, gestureSection, progress, privacyLine, operatorBox);
+  const conversationPrivacy = consentBox.querySelector('.vp-privacy');
+  if (conversationPrivacy) drawer.append(conversationPrivacy);
+  const browserWorkspace = el('a', '', 'Open the separate TalkBack browser workspace');
+  browserWorkspace.href = '/talkback.html';
+  drawer.append(browserWorkspace);
   if (clearBtn) drawer.append(clearBtn);
   const liveAnnouncement = body.querySelector('.sr-only[role="status"]');
   body.replaceChildren(setup, shell, drawer);
@@ -109,6 +117,8 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
 
   const setDrawer = (show) => {
     drawer.hidden = !show;
+    shell.inert = show;
+    setup.inert = show;
     more.setAttribute('aria-expanded', String(show));
     if (show) drawerTitle.focus();
     else more.focus();
@@ -128,9 +138,9 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
     gesturesOn = Boolean(on);
     if (gesturesOn && gestureArea?.hidden) gestureToggle?.click();
     if (!gesturesOn && gestureArea && !gestureArea.hidden) gestureToggle?.click();
-    gesturePreview.hidden = !gesturesOn;
+    gesturePreview.hidden = !gesturesOn || dock.isHidden();
     stage.dataset.gestures = String(gesturesOn);
-    visualToggle.textContent = gesturesOn ? 'Hide gestures' : 'Show gestures';
+    visualToggle.textContent = gesturesOn ? 'Hide illustrative gestures' : 'Show illustrative gestures';
     visualToggle.setAttribute('aria-pressed', String(gesturesOn));
   };
   visualToggle.addEventListener('click', () => setGestureMode(!gesturesOn));
@@ -138,6 +148,7 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
     const visible = !dock.isHidden() && dock.root.hidden === false;
     avatarToggle.textContent = visible ? 'Hide 3D' : 'Show 3D';
     avatarToggle.setAttribute('aria-pressed', String(visible));
+    gesturePreview.hidden = !gesturesOn || dock.isHidden();
   };
   avatarToggle.addEventListener('click', () => {
     if (dock.isHidden()) dock.show();
@@ -179,8 +190,12 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
       doneButton.classList.add('vp-done');
     }
     const foot = el('details', 'vp-compact-references');
-    foot.append(el('summary', null, 'Why this step · sources'));
-    foot.append(el('p', '', step.why || 'Follow official advice for your situation.'));
+    foot.append(el('summary', null, 'Why this matters / Sources'));
+    const originalMore = action.querySelector('.vp-more');
+    if (originalMore) {
+      for (const node of [...originalMore.children]) if (node.tagName !== 'SUMMARY') foot.append(node);
+      originalMore.remove();
+    }
     foot.append(el('p', 'vp-draft-note', 'Draft guidance · practitioner review pending'));
     const references = (bridge.getSources?.(j.label, step.id) || []).filter(source => {
       try { const url = new URL(source.url); return url.protocol === 'https:' && allowedHosts.has(url.hostname); }
@@ -194,6 +209,8 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
       foot.append(entry);
     }
     action.append(foot);
+    const bankAction = actions.querySelector('.danger');
+    if (bankAction) { bankAction.classList.add('vp-bank-action'); actions.before(bankAction); }
     // Detailed explanations and real reviewed SASL clips remain inside the original section.
     // This compact overview deliberately shows only the current action.
   }
@@ -207,7 +224,7 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
     panel.dataset.activity = s.activity || 'idle';
     panel.dataset.callActive = String(['live', 'connecting', 'reconnecting'].includes(s.phase));
     spoken.textContent = s.phase === 'live'
-      ? s.muted ? 'Muted' : s.activity === 'speaking' ? 'Mgadi speaking' : s.activity === 'you-speaking' ? 'You speaking' : 'Listening'
+      ? s.activity === 'speaking' ? 'Mgadi speaking' : s.muted ? 'Muted' : s.activity === 'thinking' ? 'Thinking' : s.activity === 'you-speaking' ? 'You speaking' : 'Listening'
       : s.phase === 'connecting' ? 'Connecting' : s.phase === 'reconnecting' ? 'Reconnecting' : s.phase === 'ended' ? 'Call ended' : 'Ready to talk';
     tick();
     syncAvatarButton();
@@ -220,17 +237,22 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
   }
   function open() {
     document.querySelector('main')?.setAttribute('inert', '');
-    document.querySelector('#accessibility')?.setAttribute('inert', '');
+    if (accessibility) { drawer.append(accessibility); accessibility.removeAttribute('inert'); }
+    document.querySelector('.site-header')?.setAttribute('inert', '');
+    document.querySelector('footer')?.setAttribute('inert', '');
     if (interval) clearInterval(interval);
     interval = setInterval(tick, 1000);
     if (drawer.hidden === false) setDrawer(false);
   }
   function close() {
     document.querySelector('main')?.removeAttribute('inert');
-    document.querySelector('#accessibility')?.removeAttribute('inert');
+    if (accessibility) { accessibilityHome.after(accessibility); accessibility.removeAttribute('inert'); }
+    document.querySelector('.site-header')?.removeAttribute('inert');
+    document.querySelector('footer')?.removeAttribute('inert');
     if (interval) clearInterval(interval);
     interval = null;
     drawer.hidden = true; more.setAttribute('aria-expanded', 'false');
+    shell.inert = false; setup.inert = false;
     if (gesturesOn) setGestureMode(false);
   }
   return { open, close, render, actionUpdated, installPreview };
