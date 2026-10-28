@@ -1,5 +1,6 @@
 // Server-only Anthropic conversation adapter. NEVER put credentials in public/.
 import { redactIncident } from '../public/shared/redact.js';
+import { isProductionDeployment } from './deployment-env.js';
 const MAX_TURN = 850;
 const MAX_HISTORY = 8;
 const PROMPT = `You are Mgadi, a concise, calm, plain-English first-hour cyber-incident guide for South African small businesses.
@@ -11,8 +12,8 @@ When uncertain, say so and recommend the on-screen verified text guide and offic
 Reply only in plain English without markdown. The reply is spoken aloud and shown as captions. Never claim your simple visual gestures are South African Sign Language.`;
 const clean = (text, limit = MAX_TURN) => redactIncident(String(text || '').slice(0,limit)).text.slice(0,limit).trim();
 export function chatConfig(env = process.env) {
-  return { available: Boolean(env.ANTHROPIC_API_KEY && env.MGADI_AI !== 'off' && (env.VERCEL_ENV !== 'production' || env.MGADI_AI_PUBLIC_READY === 'yes')),
-    previewOnly: env.VERCEL_ENV !== 'production',
+  return { available: Boolean(env.ANTHROPIC_API_KEY && env.MGADI_AI !== 'off' && (!isProductionDeployment(env) || env.MGADI_AI_PUBLIC_READY === 'yes')),
+    previewOnly: !isProductionDeployment(env),
     provider: 'Anthropic', maxTurns: MAX_HISTORY, replyMode: 'AI' };
 }
 export function validateConversation(payload) {

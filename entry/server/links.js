@@ -13,6 +13,7 @@
 //
 // Anyone holding a link can use it: there are no accounts, so this cannot prove WHO pressed a button.
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { requiresSharedStore } from './deployment-env.js';
 
 export const DEFAULT_TTL_HOURS = 168;
 export const LIMITS = Object.freeze({ maxCiphertext: 6000, maxNoteCiphertext: 1200, ivChars: 16 });
@@ -66,7 +67,7 @@ export function createLinkStoreFromEnv(env = process.env, { fetchImpl, now } = {
   const token = env.UPSTASH_REDIS_REST_TOKEN || env.KV_REST_API_TOKEN;
   if (url && token && /^https:\/\//.test(url)) return { store: createLinkRestStore({ url, token, fetchImpl }), sharedRequired: false };
   // On a serverless host a memory store is per instance, so links would vanish at random: refuse instead of pretending.
-  return { store: createLinkMemoryStore({ now }), sharedRequired: Boolean(env.VERCEL) };
+  return { store: createLinkMemoryStore({ now }), sharedRequired: requiresSharedStore(env) };
 }
 
 const reply = (status, body) => ({ status, body });
