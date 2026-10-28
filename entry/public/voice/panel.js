@@ -23,8 +23,15 @@ const ACTIVITY = { listening: 'Listening', speaking: 'Mgadi is speaking', thinki
 
 export async function initVoice({ bridge }) {
   let config;
-  try { const response = await fetch('/api/voice/config', { cache: 'no-store' }); config = await response.json(); }
-  catch { config = { mode: 'off', configFailed: true, languages: {}, captions: false, maxCallMs: 600000, consentVersion: '' }; }
+  try {
+    const response = await fetch('/api/voice/config', { cache: 'no-store', redirect: 'follow' });
+    if (!response.ok || !(response.headers.get('content-type') || '').includes('application/json')) throw new Error('not_json');
+    const next = await response.json();
+    if (!next || typeof next.mode !== 'string') throw new Error('invalid_config');
+    config = next;
+  } catch {
+    config = { mode: 'off', configFailed: true, languages: {}, captions: false, maxCallMs: 600000, consentVersion: '' };
+  }
   const params = new URLSearchParams(location.search);
   // Operator test token: typed by the person testing, kept in memory only (never stored, never in the URL), and sent only as a header.
   let operatorToken = '';
@@ -90,8 +97,10 @@ export async function initVoice({ bridge }) {
   const opInput = make('input'); opInput.type = 'password'; opInput.id = 'voice-operator-token'; opInput.autocomplete = 'off'; opInput.spellcheck = false; opInput.setAttribute('autocapitalize', 'off');
   const opCheck = make('button', 'button secondary vp-small', 'Check test access'); opCheck.type = 'button';
   const opForget = make('button', 'button secondary vp-small', 'Forget token'); opForget.type = 'button'; opForget.hidden = true;
+  const opDiagnose = make('button', 'button secondary vp-small', 'Check Retell setup'); opDiagnose.type = 'button'; opDiagnose.hidden = true;
   const opStatus = make('p', 'vp-note'); opStatus.setAttribute('role', 'status');
-  operatorBox.append(make('summary', null, 'Operator test access'), make('p', 'vp-note', 'For the person testing this deployment only. It needs the operator token from the server settings. Test calls are short and limited, and they do not make a language available to the public.'), opLabel, opInput, opCheck, opForget, opStatus);
+  const opDiagnostics = make('div', 'vp-diagnostics'); opDiagnostics.hidden = true; opDiagnostics.setAttribute('role', 'status'); opDiagnostics.setAttribute('aria-live', 'polite');
+  operatorBox.append(make('summary', null, 'Operator test access'), make('p', 'vp-note', 'For the person testing this deployment only. Find MGADI_OPERATOR_TOKEN under Vercel project Settings → Environment Variables (Preview branch). Calls are short and limited, not public.'), opLabel, opInput, opCheck, opDiagnose, opForget, opStatus, opDiagnostics);
   // A token typed on a page that is not a secure context (plain http on a network address) could be read on the way, and the server
   // ignores it there anyway. So the field is switched off and the token is never sent.
   if (config.operatorAvailable && globalThis.isSecureContext === false) {
@@ -107,13 +116,41 @@ export async function initVoice({ bridge }) {
     try {
       const { response, next } = await reloadConfig({ 'x-mgadi-operator-token': value });
       if (response.status === 429) opStatus.textContent = 'Too many attempts. Wait a few minutes and try again.';
-      else if (next?.access === 'operator') { operatorToken = value; applyConfig(next); opForget.hidden = false; opStatus.textContent = `Test access is on. Calls are limited to ${Math.round(next.maxCallMs / 60000)} minutes and are not public.`; }
+      else if (next?.access === 'operator') { operatorToken = value; applyConfig(next); opForget.hidden = false; opDiagnose.hidden = false; opStatus.textContent = `Test access is on. Calls are limited to ${Math.round(next.maxCallMs / 60000)} minutes and are not public. Check Retell setup before starting.`; }
       else opStatus.textContent = 'That token was not accepted.';
     } catch { opStatus.textContent = 'Could not check the token. Is the connection working?'; }
     render(controller.getState());
   });
+  opDiagnose.addEventListener('click', async () => {
+    if (!operatorToken) return;
+    opDiagnose.disabled = true; opDiagnostics.hidden = false; opDiagnostics.replaceChildren(make('p', null, 'Checking Retell agent (read-only, no call charge)…'));
+    try {
+      const response = await fetch('/api/voice/config?diagnose=1', { cache: 'no-store', headers: { 'x-mgadi-operator-token': operatorToken } });
+      if (!response.ok || !(response.headers.get('content-type') || '').includes('application/json')) throw new Error('unavailable');
+      const report = await response.json();
+      const heading = make('p', null, report.ok ? 'English agent: eligible for an operator test.' : 'English agent: not ready for a test. Correct the failed checks.');
+      opDiagnostics.replaceChildren(heading);
+      opDiagnostics.append(make('p', null, report.captionsConfigured ? 'Captions key is configured; browser WebSocket still untested.' : 'Live-caption key is missing or turned off.'));
+      if (!report.agentVersionPinned) opDiagnostics.append(make('p', null, 'Agent version is not pinned; set RETELL_AGENT_VERSION after publishing.'));
+      for (const lang of report.languages || []) {
+        if (lang.code !== 'en') continue;
+        const list = make('ul');
+        for (const item of lang.checks || []) {
+          const li = make('li');
+          li.textContent = `${item.status.toUpperCase()}: ${item.name} — ${item.detail}`;
+          li.dataset.result = item.status;
+          list.append(li);
+        }
+        if (!lang.configured) opDiagnostics.append(make('p', null, lang.note || 'Agent not configured.'));
+        opDiagnostics.append(list);
+      }
+      opDiagnostics.append(make('p', null, 'This check cannot test microphone permission, Retell balance, the public-key domain allowlist or live captions.'));
+    } catch {
+      opDiagnostics.replaceChildren(make('p', null, 'Could not check Retell. Confirm this page is the protected Preview, refresh, and retry.'));
+    } finally { opDiagnose.disabled = false; }
+  });
   opForget.addEventListener('click', async () => {
-    operatorToken = ''; opForget.hidden = true; opStatus.textContent = 'Token forgotten.';
+    operatorToken = ''; opForget.hidden = true; opDiagnose.hidden = true; opDiagnostics.hidden = true; opStatus.textContent = 'Token forgotten.';
     try { const { next } = await reloadConfig(); if (next) applyConfig(next); } catch { /* keep the old view until the next load */ }
     render(controller.getState());
   });
@@ -231,7 +268,12 @@ export async function initVoice({ bridge }) {
       const video = make('video'); video.controls = true; video.preload = 'none'; video.src = clip.src; video.setAttribute('aria-label', 'Reviewed SASL guidance for this step');
       const track = make('track'); track.kind = 'captions'; track.src = clip.captions; track.srclang = 'en'; track.label = 'Captions'; track.default = true; video.append(track);
       more.append(tr('h4', null, 'Reviewed SASL video'), video, make('p', 'vp-note', `Reviewed by ${clip.reviewer} on ${clip.reviewedOn}.`));
-    } else more.append(tr('p', 'vp-note', 'No reviewed SASL video exists for this step yet. The avatar is a visual companion, not a sign language translator.'));
+    } else {
+      more.append(tr('p', 'vp-note', 'A reviewed SASL translation of this emergency instruction is not available yet. Do not rely on the talking avatar as signing.'));
+      const resource = make('a', 'button secondary', 'Explore authentic SASL videos (NID)');
+      resource.href = 'https://nid.org.za/resources/'; resource.target = '_blank'; resource.rel = 'noopener noreferrer';
+      more.append(resource, make('p', 'vp-note', 'This opens an independent SASL learning resource, not a translation of the current emergency step.'));
+    }
     action.append(more);
   }
   function renderProgress() {
