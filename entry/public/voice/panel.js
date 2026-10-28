@@ -11,6 +11,7 @@ import { createCompanion } from './avatar/index.js';
 import { createAvatar as createGestureAvatar } from '../accessibility/avatar.js';
 import { recognizeGesture, cueSignature } from './gesture-cues.js';
 import { watchKeyboard } from './viewport.js';
+import { installVoiceWorkspace } from './workspace.js';
 
 const make = (tag, className, text) => { const n = document.createElement(tag); if (className) n.className = className; if (text != null) n.textContent = text; return n; };
 const tr = (tag, className, source) => { const n = make(tag, className); bindText(n, source); return n; };
@@ -212,6 +213,7 @@ export async function initVoice({ bridge }) {
 
   // The avatar floats in a bottom corner (see voice.css); it is not part of the panel's scrolling content.
   const dock = createAvatarDock({ createCompanion, prefer: params.get('avatar') === 'lite' ? 'lite' : 'auto' });
+  const workspace = installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, dock, body, chat, action, progress, gestureSection, controller, bridge, findReviewedSign });
 
   // No-cost, honest character preview, independent of Retell and microphone permissions.
   // It uses the ACTUAL WebGL/lite renderer; it must never be labelled live voice or SASL.
@@ -368,6 +370,7 @@ export async function initVoice({ bridge }) {
     dock.setActive(inCall || avatarPreviewing);
     dock.setState({ uiState: inCall ? s.uiState : avatarPreviewing ? avatarPreviewMood : s.uiState, muted: inCall && s.muted });
     dock.setApproximate(avatarPreviewing && avatarPreviewMood === 'speaking');
+    workspace.render(s);
     publishState(s);
   }
   // The contract for the rest of the app: one attribute and one event carry the voice state, so any screen can react without
@@ -384,8 +387,8 @@ export async function initVoice({ bridge }) {
   controller.subscribe(render);
   // Loudness of the ASSISTANT's audio drives the mouth. It bypasses render(): it fires about 60 times a second.
   controller.onLevel((level) => dock.setLevel(level));
-  bridge.subscribe(() => { renderAction(); renderProgress(); });
-  const refresh = () => { renderAction(); renderProgress(); render(controller.getState()); };
+  bridge.subscribe(() => { renderAction(); workspace.actionUpdated(); renderProgress(); });
+  const refresh = () => { renderAction(); workspace.actionUpdated(); renderProgress(); render(controller.getState()); };
   progress.addEventListener('toggle', () => { if (progress.open) renderProgress(); });
   consentCheck.addEventListener('change', () => render(controller.getState()));
   avatarPreviewBtn.addEventListener('click', () => {
@@ -401,10 +404,10 @@ export async function initVoice({ bridge }) {
   sound.addEventListener('click', () => controller.startAudioPlayback());
   clearBtn.addEventListener('click', () => controller.clearMessages());
   const collapse = () => { panel.dataset.collapsed = 'true'; minBtn.setAttribute('aria-expanded', 'false'); minBtn.textContent = 'Expand'; };
-  // Opening the bank numbers minimises the panel so they are fully visible. A running call carries on.
-  showBank = () => { if (!panel.hidden) collapse(); bridge.showBank(); };
+  // The bank contact directory toggles over the full-screen workspace without hiding the call.
+  showBank = () => bridge.showBank();
   bankBtn.addEventListener('click', showBank);
-  document.querySelector('#emergency-button')?.addEventListener('click', () => { if (!panel.hidden) collapse(); });
+  // The header bank button retains the same toggle and no longer collapses voice.
   textBtn.addEventListener('click', () => { controller.end('You switched to text guidance. Your progress is kept.'); close({ keepFocus: true }); bridge.showText(); });
   avatarBtn.addEventListener('click', () => { dock.show(); render(controller.getState()); });
   dock.onHidden = () => render(controller.getState());
@@ -424,10 +427,10 @@ export async function initVoice({ bridge }) {
 
   function open() {
     opener = document.activeElement; panel.hidden = false; panel.dataset.collapsed = 'false'; minBtn.setAttribute('aria-expanded', 'true'); minBtn.textContent = 'Minimise';
-    document.documentElement.dataset.voice = 'open'; refresh(); title.focus();
+    document.documentElement.dataset.voice = 'open'; workspace.open(); refresh(); title.focus();
   }
   function close({ keepFocus = false }) {
-    avatarPreviewing = false; panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setApproximate(false); dock.setActive(false);
+    avatarPreviewing = false; panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setApproximate(false); dock.setActive(false); workspace.close();
     if (!keepFocus && opener?.isConnected) opener.focus();
   }
   refresh();

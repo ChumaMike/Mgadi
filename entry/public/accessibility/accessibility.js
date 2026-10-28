@@ -82,8 +82,8 @@ export function installAccessibility(){
   const label=el('label','Language / Ulimi / Ulwimi / Taal',{for:'language'});
   const select=el('select','',{id:'language'});
   for(const [id,name] of Object.entries(languages))select.append(el('option',name,{value:id}));
-  select.addEventListener('change',()=>{locale=select.value;updateLanguage();selected.textContent=locale==='en'?'English':`${languages[locale]} · draft`;selected.lang='en';});
-  const notice=el('p','Draft isiZulu, isiXhosa and Afrikaans translations need speaker review. Missing translations remain in English. Signing is SASL, a separate language.',{class:'notice',lang:'en'});
+  select.addEventListener('change',()=>{locale=select.value;updateLanguage();selected.textContent=locale==='en'?'English':`${languages[locale]} · ${['zu','xh','af'].includes(locale)?'partial draft':'not translated'}`;selected.lang='en';});
+  const notice=el('p','All 12 official South African languages are listed, including SASL. Only English is complete; isiZulu, isiXhosa and Afrikaans have partial drafts. Other languages display English until professionally translated. SASL needs reviewed signing content; selecting it does not enable automatic sign translation.',{class:'notice',lang:'en'});
   const size=el('select','',{id:'text-size'});for(const [v,t]of [['normal','100%'],['large','125%'],['larger','150%'],['largest','200%']])size.append(el('option',t,{value:v}));size.addEventListener('change',()=>document.documentElement.dataset.textSize=size.value);
   const toggle=(id,text,fn)=>{const l=el('label','',{class:'toggle',for:id});const n=el('input','',{type:'checkbox',id});l.append(n,document.createTextNode(text));n.addEventListener('change',()=>fn(n.checked));return l;};
   voiceStatus=el('p','',{role:'status',tabindex:'-1',lang:'en',class:'audio-status'});

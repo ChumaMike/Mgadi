@@ -1,4 +1,4 @@
-export const languages = {"en": "English", "zu": "isiZulu", "xh": "isiXhosa", "af": "Afrikaans"};
+export const languages = {"en":"English","af":"Afrikaans","nr":"isiNdebele","xh":"isiXhosa","zu":"isiZulu","nso":"Sepedi","st":"Sesotho","ss":"siSwati","tn":"Setswana","ts":"itsonga","ve":"Tshivenda","sasl":"South African Sign Language"};
 export const catalog = {
   "en": {
     "What happened?": "What happened?",
