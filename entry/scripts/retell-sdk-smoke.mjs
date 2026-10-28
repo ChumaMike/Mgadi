@@ -80,12 +80,12 @@ await page.routeWebSocket('wss://api.retellai.com/v2/monitor-call/call_fake', (w
 
 try {
   await page.goto(`${base}/`); await page.waitForSelector('h1');
-  await page.locator('.incident-choices button:has-text("Money or a payment problem")').click(); await page.locator('.incident-choices button:has-text("I paid after")').click(); await page.waitForSelector('text=Step 1 of');
+  await page.locator('.incident-choices button:has-text("Money or a payment problem")').click(); await page.click('.landing-text-button'); await page.locator('.incident-choices button:has-text("I paid after")').click(); await page.waitForSelector('text=Step 1 of');
   await page.click('.voice-launch'); await page.waitForSelector('.voice-panel:not([hidden])');
   check('live mode: no SIMULATED badge', await page.locator('.vp-sim').isHidden());
   // English is configured but NOT publicly verified here, so only the operator path can start a call.
   check('public view: a configured but unverified language cannot be started', (await page.locator('.vp-start').isDisabled()) && (await page.locator('.vp-avail').innerText()).includes('not yet verified'), await page.locator('.vp-avail').innerText());
-  await page.click('.vp-operator summary'); await page.fill('#voice-operator-token', 'wrong-token-wrong-token-wrong');
+  await page.click('.vp-more-button'); await page.click('.vp-operator summary'); await page.fill('#voice-operator-token', 'wrong-token-wrong-token-wrong');
   await page.click('button:has-text("Check test access")');
   await page.waitForSelector('.vp-operator .vp-note:has-text("not accepted")');
   check('a wrong operator token is refused and still looks like the public view', await page.locator('.vp-start').isDisabled());
@@ -93,6 +93,7 @@ try {
   await page.waitForSelector('.vp-optest:not([hidden])');
   check('the operator token unlocks a capped TEST (3 minutes), shown with a clear label', (await page.locator('.vp-operator .vp-note').last().innerText()).includes('3 minutes'));
   check('the token field is emptied and the token is not stored or in the URL', (await page.inputValue('#voice-operator-token')) === '' && (await page.evaluate((t) => JSON.stringify([localStorage, sessionStorage, location.href, document.cookie]).includes(t), OPERATOR)) === false);
+  await page.click('.vp-close-tools');
   check('live mode: voice can be started in English once the person agrees', await page.locator('.vp-start').isDisabled() && (await page.check('#voice-consent-check'), !(await page.locator('.vp-start').isDisabled())));
   await page.click('.vp-start');
   await page.waitForSelector('.vp-status:has-text("Connected")', { timeout: 15_000 });
@@ -151,8 +152,8 @@ try {
   await insecure.addInitScript(() => Object.defineProperty(window, 'isSecureContext', { value: false }));
   const tokenHeaders = []; insecure.on('request', async (r) => { const h = await r.allHeaders().catch(() => ({})); if (h['x-mgadi-operator-token']) tokenHeaders.push(r.url()); });
   await insecure.goto(`${base}/`); await insecure.waitForSelector('h1');
-  await insecure.locator('.incident-choices button:has-text("Money or a payment problem")').click(); await insecure.locator('.incident-choices button:has-text("I paid after")').click(); await insecure.waitForSelector('text=Step 1 of');
-  await insecure.click('.voice-launch'); await insecure.waitForSelector('.voice-panel:not([hidden])'); await insecure.click('.vp-operator summary');
+  await insecure.locator('.incident-choices button:has-text("Money or a payment problem")').click(); await insecure.click('.landing-text-button'); await insecure.locator('.incident-choices button:has-text("I paid after")').click(); await insecure.waitForSelector('text=Step 1 of');
+  await insecure.click('.voice-launch'); await insecure.waitForSelector('.voice-panel:not([hidden])'); await insecure.click('.vp-more-button'); await insecure.click('.vp-operator summary');
   check('on a page that is not secure the operator token field is switched off and says why', (await insecure.locator('#voice-operator-token').isDisabled()) && (await insecure.locator('button:has-text("Check test access")').isDisabled()) && /needs a secure connection/.test(await insecure.locator('.vp-operator .vp-note[role=status]').innerText()));
   check('and no token is ever sent from it', tokenHeaders.length === 0, JSON.stringify(tokenHeaders));
   check('no page errors', seen.errors.length === 0, JSON.stringify(seen.errors));

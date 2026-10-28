@@ -7,7 +7,7 @@ import { triageWithFallback } from './shared/triage-client.js';
 import { initVoice } from './voice/panel.js';
 import { initOffline } from './offline/register.js';
 import { initTools } from './tools/tools.js';
-import { buildPackData, defaultPackOptions, previewItems, summarySections, formatTime, sanitizeHandoff, AFFECTED } from './shared/summary.js';
+import { buildPackData, defaultPackOptions, previewItems, summarySections, formatTime, formatBytes, sanitizeHandoff, AFFECTED } from './shared/summary.js';
 
 const app = document.querySelector('#app');
 const emergencyButton = document.querySelector('#emergency-button');
@@ -31,7 +31,7 @@ function button(text, onClick, className = 'button') { const node = element('but
 // Focus moves to the new screen's heading so a screen reader says where you are, but NOT on the very first screen: stealing focus
 // on load would leave the header (the bank button) behind a keyboard user.
 let hasRendered = false;
-function clear() { stopSpeech(); app.replaceChildren(); const moveFocus = hasRendered; hasRendered = true; if (moveFocus) requestAnimationFrame(() => { const heading = app.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus(); } }); }
+function clear() { stopSpeech(); app.replaceChildren(); const moveFocus = hasRendered; hasRendered = true; if (moveFocus) requestAnimationFrame(() => { const heading = app.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); window.scrollTo({ top: 0, behavior: 'instant' }); } }); }
 function log(text) { incident.timeline.push({ at: new Date().toISOString(), text }); }
 
 // While the owner has the bank numbers open, a late triage result must not replace that screen.
@@ -57,7 +57,7 @@ function resourceLinks(route, stepId = null) {
   });
   if (!items.length) return null;
   const box = element('details', '', { className: 'resources' });
-  box.append(element('summary', 'Sources for this step (open outside Mgadi)'), element('p', resources.note, { className: 'notice' }), plain('p', `Links last checked on ${resources.checkedOn}. They need an internet connection.`, 'privacy'));
+  box.append(element('summary', 'Official sources (open outside Mgadi)'), element('p', resources.note, { className: 'notice' }), plain('p', `Links last checked on ${resources.checkedOn}. They need an internet connection.`, 'privacy'));
   const list = element('ul');
   for (const item of items) {
     const li = document.createElement('li');
@@ -96,8 +96,9 @@ function showBankLines() {
   }
   inBank = true;
   emergencyButton.setAttribute('aria-expanded', 'true');
-  bankDialog.show();
-  bankDialog.querySelector('.bank-popover-content h2')?.focus();
+  bankDialog.showModal();
+  const heading = bankDialog.querySelector('.bank-popover-content h2');
+  if (heading) { heading.tabIndex = -1; heading.focus(); }
 }
 
 let preferredMode = 'text';
@@ -109,20 +110,10 @@ function showHome() {
   const hero = element('section', '', { className: 'landing-hero', 'aria-label': 'Welcome to Mgadi' });
   const intro = element('div', '', { className: 'landing-hero-copy' });
   intro.append(
-    element('p', 'MGADI  /  FIRST-HOUR CYBER HELP', { className: 'landing-eyebrow' }),
+    element('p', 'HERE FOR YOUR NEXT SAFE STEP', { className: 'landing-eyebrow' }),
     element('h1', 'Something feels wrong?'),
     element('p', 'Tell us what happened. We’ll help you take the next safe step.', { className: 'landing-intro' })
   );
-  const heroMark = element('div', '', { className: 'landing-hero-emblem', 'aria-hidden': 'true' });
-  const emblem = element('div', '', { className: 'landing-emblem-image' });
-  const heroLogo = document.createElement('img');
-  heroLogo.src = '/brand/mgadi-logo.png';
-  heroLogo.alt = '';
-  heroLogo.width = 1254;
-  heroLogo.height = 1254;
-  heroLogo.decoding = 'async';
-  emblem.append(heroLogo);
-  heroMark.append(emblem);
   const ready = element('div', '', { className: 'landing-readiness', role: 'status', 'aria-live': 'polite' });
   const dot = element('span', '', { className: 'landing-ready-dot', 'aria-hidden': 'true' });
   const readyCopy = element('div', '', { className: 'landing-ready-copy' });
@@ -138,20 +129,22 @@ function showHome() {
       : isOnline ? 'Connected · Not a device security scan' : 'Guide may be unavailable offline';
     readyCopy.replaceChildren(element('strong', headline), element('small', detail));
   };
-  window.addEventListener('online', showReadiness, { once: true });
-  window.addEventListener('offline', showReadiness, { once: true });
-  hero.append(intro, heroMark, ready);
+  const readinessEvents = new AbortController();
+  window.addEventListener('online', showReadiness, { signal: readinessEvents.signal });
+  window.addEventListener('offline', showReadiness, { signal: readinessEvents.signal });
+  new MutationObserver((_, observer) => { if (!page.isConnected) { readinessEvents.abort(); observer.disconnect(); } }).observe(app, { childList: true });
+  hero.append(intro, ready);
   page.append(hero);
 
   const issue = element('section', '', { className: 'landing-issues', 'aria-labelledby': 'landing-issues-title' });
   const issueHead = element('div', '', { className: 'landing-issues-heading' });
   issueHead.append(
     element('div', '', { className: 'landing-section-intro' }),
-    element('span', '01 / CHOOSE YOUR SITUATION', { className: 'landing-section-id' })
+    element('span', 'FIRST-HOUR HELP', { className: 'landing-section-id' })
   );
   issueHead.firstChild.append(
     element('h2', 'What happened?', { id: 'landing-issues-title' }),
-    element('p', 'Choose the closest match.', { className: 'landing-section-hint' })
+    element('p', 'Choose a situation, or tell us in your own words.', { className: 'landing-section-hint' })
   );
   issue.append(issueHead);
 
@@ -189,13 +182,13 @@ function showHome() {
     'aria-label': 'Choose text or voice guidance'
   });
   const modeHeading = element('div', '', { className: 'landing-mode-heading' });
-  modeHeading.append(element('span', '02 / CHOOSE HOW TO CONTINUE', { className: 'landing-selected-eyebrow' }),
-    element('h3', 'How would you like to tell Mgadi?'));
-  const modeSummary = element('p', 'You can start without choosing an incident above.', { className: 'landing-mode-summary', role: 'status' });
+  modeHeading.append(element('h3', 'Start here'));
+  const modeSummary = element('p', 'Describe it, or select a situation below.', { className: 'landing-mode-summary', role: 'status' });
   const modeButtons = element('div', '', { className: 'landing-mode-buttons' });
   let selected = null;
   const beginText = () => {
     preferredMode = 'text';
+    if (selected) { chooseEntry(selected); return; }
     describe.open = true;
     description.focus();
     describe.scrollIntoView({ block: 'nearest', behavior: 'auto' });
@@ -217,11 +210,11 @@ function showHome() {
       beginText();
     }
   };
-  const voiceChoice = button('Call Mgadi', beginCall, 'button landing-voice-button');
+  const voiceChoice = button('Call Mgadi', beginCall, 'button landing-voice-button voice-launch');
   const textChoice = button('Tell Mgadi by text', beginText, 'button secondary landing-text-button');
   modeButtons.append(textChoice, voiceChoice);
   const modeNote = element('p',
-    'Calling opens the 3D companion and captions. Reviewed SASL video guidance is not yet available.',
+    'One step at a time. You stay in control.',
     { className: 'landing-mode-note' });
   modeBox.append(modeHeading, modeSummary, modeButtons, modeNote);
 
@@ -232,7 +225,8 @@ function showHome() {
         item.setAttribute('aria-pressed', String(item === choice)));
       modeSummary.textContent = 'Selected: ' + option.text;
       straightToGuide.hidden = false;
-      voiceChoice.focus({ preventScroll: true });
+      modeSummary.textContent += ' · Choose text or call to continue.';
+      textChoice.focus({ preventScroll: true });
     }, 'landing-choice');
     choice.setAttribute('aria-pressed', 'false');
     const iconBox = element('span', '', { className: 'landing-choice-icon' });
@@ -244,7 +238,7 @@ function showHome() {
     );
     choices.append(choice);
   }
-  issue.append(choices, modeBox);
+  issue.append(modeBox, choices);
 
   const describe = element('details', '', { className: 'landing-describe describe-incident' });
   describe.append(element('summary', 'Not sure what to choose? Describe it instead'));
@@ -309,6 +303,11 @@ function showHome() {
   document.dispatchEvent(new Event('mgadi:idle'));
 }
 
+function startNewIncident() {
+  journey = null; incident = { timeline: [], evidence: [], outcomes: {} }; emitJourney();
+  showHome();
+}
+
 function startRecord() {
   incident = { title: 'Incident record', source: 'manual-record', description: '', timeline: [], evidence: [], outcomes: {} };
   journey = null; emitJourney(); log('Owner started an incident record without selecting a situation');
@@ -341,15 +340,15 @@ function chooseEntry(option) {
   if (option.route) {
     startFromChoice(option.route); showIncident(option.route);
     if (preferredMode === 'voice') voice.open?.();
-  } else if (option.next === 'payment') showPaymentChoice();
+  } else if (option.next === 'payment') { startFromChoice('clarify'); showPaymentChoice(); }
   else {
     startFromChoice('clarify'); showClarify();
   }
 }
 function showPaymentChoice() {
   const flow = playbook.entry.payment;
-  clear(); const card = element('section', '', { className: 'card' });
-  card.append(element('h1', flow.title), element('p', 'Your bank fraud line stays at the top of every screen.', { className: 'notice' }));
+  clear(); const card = element('section', '', { className: 'card clarification-screen' });
+  card.append(element('p', 'ONE QUICK QUESTION', { className: 'screen-eyebrow' }), element('h1', flow.title));
   const choices = element('div', '', { className: 'incident-choices' });
   for (const option of flow.options) choices.append(button(option.text, () => chooseEntry(option), 'button secondary'));
   card.append(choices, button('Back', showHome, 'button secondary'));
@@ -360,9 +359,9 @@ function showPaymentChoice() {
 // No label is invented here, and nothing waits on this screen: the bank button stays in the header.
 function showClarify() {
   const flow = playbook.clarify;
-  clear(); const card = element('section', '', { className: 'card' });
-  const intro = element('p', flow.intro); const question = element('h2', flow.question);
-  card.append(element('h1', flow.title), reviewBadge(), intro, question);
+  clear(); const card = element('section', '', { className: 'card clarification-screen' });
+  const question = element('h1', flow.question);
+  card.append(element('p', 'One quick question', { className: 'screen-eyebrow' }), question);
   const choices = element('div', '', { className: 'incident-choices' });
   for (const option of flow.options) {
     choices.append(button(option.text, () => {
@@ -371,7 +370,7 @@ function showClarify() {
       if (preferredMode === 'voice') voice.open?.();
     }, 'button secondary'));
   }
-  card.append(choices, guidanceControls([intro, question], 'clarify'), voice.launchButton(), button('Start again', showHome, 'button secondary'));
+  card.append(choices, guidanceControls([question], 'clarify'), button('Back', showHome, 'button secondary'));
   app.append(card);
 }
 
@@ -419,6 +418,7 @@ function reportOther(state) {
 async function recordSelectedEvidence(selectedFiles, feedback, onAdded = () => {}) {
   const currentIncident = incident;
   let recorded = 0;
+  let failed = 0;
   for (const file of Array.from(selectedFiles ?? [])) {
     if (incident !== currentIncident) break;
     try {
@@ -434,18 +434,21 @@ async function recordSelectedEvidence(selectedFiles, feedback, onAdded = () => {
       onAdded(item);
       recorded++;
     } catch (error) {
-      feedback.textContent = error?.message || 'This file could not be recorded. Try selecting it again.';
+      failed++; // Do not let a later successful file hide a failure.
     }
   }
-  if (recorded && incident === currentIncident)
-    feedback.textContent = recorded + ' file' + (recorded === 1 ? '' : 's') + ' recorded in your incident pack. The original files stay on your device.';
+  if (incident === currentIncident) feedback.textContent = [
+    recorded ? recorded + ' file' + (recorded === 1 ? '' : 's') + ' recorded. Original files stay on your device.' : !failed ? 'No new files recorded. These files are already in your pack.' : '',
+    failed ? failed + ' file(s) could not be read. Please choose them again.' : ''
+  ].filter(Boolean).join(' ');
 }
 
 function attachEvidencePicker(input, feedback, onAdded) {
   input.addEventListener('change', async () => {
-    feedback.textContent = '';
-    await recordSelectedEvidence(input.files, feedback, onAdded);
-    input.value = '';
+    if (!input.files?.length) return;
+    feedback.textContent = 'Recording selected files on this device…'; input.disabled = true;
+    try { await recordSelectedEvidence(input.files, feedback, onAdded); }
+    finally { input.value = ''; input.disabled = false; }
   });
 }
 
@@ -458,14 +461,16 @@ function makeEvidencePermissionPrompt(picker) {
   prompt.setAttribute('aria-modal', 'false');
   prompt.setAttribute('aria-labelledby', 'evidence-permission-title');
   const content = element('div', '', { className: 'evidence-permission-content' });
-  const close = button('×', () => prompt.remove(), 'evidence-permission-close');
+  const close = button('×', () => {}, 'evidence-permission-close');
   close.setAttribute('aria-label', 'Dismiss evidence prompt');
   content.append(close, element('p', 'OPTIONAL · EVIDENCE', { className: 'evidence-permission-eyebrow' }),
-    element('h2', "Let's collect evidence", { id: 'evidence-permission-title' }),
-    element('p', 'You can give Mgadi access to the files you choose, so it can record their fingerprints for your incident pack. Nothing is accessed automatically.'));
+    element('h2', "Let's collect evidence.", { id: 'evidence-permission-title' }),
+    element('p', 'You can choose files for Mgadi to record in your incident pack.'));
+  const dismiss = () => { prompt.remove(); picker.closest('section')?.querySelector('.choose-evidence')?.focus(); };
+  close.addEventListener('click', dismiss);
   const actions = element('div', '', { className: 'evidence-permission-actions' });
   actions.append(
-    button('Deny', () => prompt.remove(), 'button secondary'),
+    button('Deny', dismiss, 'button secondary'),
     button('Accept & choose files', () => {
       prompt.remove();
       picker.click(); // User gesture: opens the native file picker; no broad device permission.
@@ -492,6 +497,7 @@ function renderStep() {
     const row = element('li', '', { className: index === position ? 'current' : status ? 'reported' : '' });
     if (index === position) row.setAttribute('aria-current', 'step');
     const revisit = button('', () => { journey.position = index; journey.finished = false; emitJourney(); renderStep(); }, 'step-link');
+    revisit.setAttribute('aria-label', `Step ${index + 1}: ${item.title}. ${status === 'confirmed' ? 'Done' : status === 'needs_help' ? 'Need help' : status === 'not_applicable' ? 'Not applicable' : index === position ? 'Current' : 'Not yet'}`);
     const words = element('span', '', { className: 'step-words' });
     words.append(element('span', item.title), element('small', status === 'confirmed' ? 'Done' : status === 'needs_help' ? 'Need help' : status === 'not_applicable' ? 'Not applicable' : 'Not yet', { className: 'step-state' }));
     // The state is a symbol as well as words, so it never depends on colour: tick = done, ! = need help, dash = not applicable.
@@ -499,55 +505,97 @@ function renderStep() {
     revisit.append(element('span', mark, { className: 'step-number', 'aria-hidden': 'true' }), words);
     row.append(revisit); progress.append(row);
   });
-  card.append(progress, element('p', `${flow.title} · Step ${position + 1} of ${flow.steps.length}`, { className: 'step-count' }), element('h1', step.title));
+  card.append(element('p', flow.title, { className: 'screen-eyebrow' }), progress, element('p', `Step ${position + 1} of ${flow.steps.length}`, { className: 'step-count' }), element('h1', step.title));
   if (flow.orgNote) card.append(element('p', flow.orgNote, { className: 'notice org-note' }));
   const list = element('ol', '', { className: 'action-list' });
   step.do.forEach((item) => list.append(element('li', item))); card.append(list);
   if (step.id === 'bank') card.append(button('Choose a bank fraud line', showBankLines, 'button danger primary-action'));
   const why = element('details', '', { className: 'step-context' });
-  why.append(element('summary', 'Why this matters'), element('p', step.why), element('p', flow.summary));
+  why.append(element('summary', 'Why this matters / Sources'), element('p', step.why), element('p', flow.summary));
 
-  card.append(why);
+  const links = resourceLinks(label, step.id); if (links) why.append(links);
+  why.append(reviewBadge(flow));
   const formats = element('div', '', { className: 'step-formats' });
   formats.append(guidanceControls([card.querySelector('h1'), ...list.children, ...why.querySelectorAll('p')], `${label}.${step.id}`), voice.launchButton());
-  card.append(formats);
   const outcomes = element('div', '', { className: 'step-outcomes', role: 'group', 'aria-label': 'Report this step' });
   const done = button('', confirmCurrentStep);
   const detail = element('span', '', { className: 'sr-only' }); detail.append(document.createTextNode(' — '), element('span', step.done));
   done.append(element('span', 'Done'), detail); done.dataset.report = step.done;
   outcomes.append(done, button('Need help', () => reportOther('needs_help'), 'button secondary'), button('Not applicable', () => reportOther('not_applicable'), 'button secondary'));
   card.append(element('h2', 'How did this step go?'), outcomes, element('p', 'Your choice is saved in your incident pack. You can revisit any step above.', { className: 'privacy' }), element('p', 'Need help only marks this step in your pack. Mgadi does not contact anyone for you.', { className: 'privacy need-help-note' }));
-  const links = resourceLinks(label, step.id); if (links) card.append(links);
+  card.append(formats, why);
   if (step.id === 'evidence') {
     const input = element('input', '', { type: 'file', id: 'step-evidence-picker', multiple: 'multiple', accept: 'image/*,.pdf,.eml,.msg,.txt', className: 'evidence-step-picker' });
     const feedback = element('p', '', { className: 'evidence-feedback', role: 'status' });
     const recordedList = element('ul', '', { className: 'evidence-step-recorded' });
     incident.evidence.forEach((item) => recordedList.append(plain('li', item.name + ' · fingerprint recorded')));
     attachEvidencePicker(input, feedback, (item) => recordedList.append(plain('li', item.name + ' · fingerprint recorded')));
-    const selectAgain = button('Choose evidence files', () => input.click(), 'button secondary');
-    card.append(input, feedback, recordedList, selectAgain);
+    const selectAgain = button('Choose evidence files', () => input.click(), 'button secondary choose-evidence');
+    const evidenceStep = element('section', '', { className: 'evidence-choose' });
     const suggestion = makeEvidencePermissionPrompt(input);
-    if (suggestion) card.append(suggestion);
+    if (suggestion) evidenceStep.append(suggestion);
+    evidenceStep.append(input, selectAgain, feedback, recordedList);
+    card.insertBefore(evidenceStep, outcomes.previousElementSibling);
   }
-  card.append(reviewBadge(flow), button('Start again', showHome, 'button secondary')); app.append(card);
+  const navigation = element('nav', '', { className: 'page-actions journey-navigation', 'aria-label': 'Step navigation' });
+  if (position > 0) navigation.append(button('← Previous step', () => { journey.position -= 1; journey.finished = false; emitJourney(); renderStep(); }, 'button secondary'));
+  navigation.append(button('Start a new incident', startNewIncident, 'button tertiary'));
+  card.append(navigation); app.append(card);
+}
+
+function evidenceRows(list, { removable = false } = {}) {
+  list.replaceChildren();
+  if (!incident.evidence.length) {
+    list.append(element('li', 'No files selected. You can continue without evidence.', { className: 'evidence-empty' }));
+    return;
+  }
+  for (const item of incident.evidence) {
+    const row = element('li', '', { className: 'evidence-file' });
+    const copy = element('div');
+    copy.append(plain('strong', item.name), plain('small', `${formatBytes(item.size)} · ${item.type} · Fingerprint recorded`));
+    const fingerprint = element('details');
+    fingerprint.append(element('summary', 'View fingerprint'), plain('p', item.sha256, 'hash'));
+    copy.append(fingerprint); row.append(copy);
+    if (removable) {
+      const remove = button('Remove', () => {
+        incident.evidence = incident.evidence.filter(file => file !== item);
+        log('Removed evidence metadata: ' + item.name);
+        evidenceRows(list, { removable });
+        document.querySelector('.choose-evidence')?.focus();
+      }, 'button tertiary');
+      remove.setAttribute('aria-label', 'Remove ' + item.name); row.append(remove);
+    }
+    list.append(row);
+  }
 }
 
 function showEvidencePack(flow) {
-  clear(); const card = element('section', '', { className: 'card' });
-  const files = element('input', '', { id: 'evidence-files', type: 'file', multiple: 'multiple', accept: 'image/*,.pdf,.eml,.msg,.txt' });
-  const list = element('ul');
-  const addRow = (item) => list.append(plain('li', `${item.name} — SHA-256 ${item.sha256}`));
-  incident.evidence.forEach(addRow);
-  const feedback = element('p', '', { className: 'privacy', role: 'status' });
-  attachEvidencePicker(files, feedback, addRow);
-  const business = element('input', '', { id:'business-name', placeholder: 'Business name (optional)' });
-  const amount = element('input', '', { id:'amount-paid', placeholder: 'Amount paid, e.g. R 70 000,00 (optional)' });
+  clear(); const card = element('section', '', { className: 'card evidence-screen' });
+  const files = element('input', '', { id: 'evidence-files', type: 'file', multiple: 'multiple', accept: 'image/*,.pdf,.eml,.msg,.txt', className: 'sr-only', tabindex: '-1', 'aria-label': 'Choose evidence files' });
+  const list = element('ul', '', { className: 'evidence-file-list' });
+  const feedback = element('p', '', { className: 'evidence-feedback', role: 'status' });
+  evidenceRows(list, { removable: true });
+  attachEvidencePicker(files, feedback, () => evidenceRows(list, { removable: true }));
+  const business = element('input', '', { id: 'business-name', maxlength: '120', autocomplete: 'organization', placeholder: 'Business name (optional)' });
+  const amount = element('input', '', { id: 'amount-paid', maxlength: '40', inputmode: 'decimal', placeholder: 'For example, R 70 000,00' });
   business.value = incident.business ?? ''; amount.value = incident.amount ?? '';
   business.addEventListener('input', () => { incident.business = business.value; });
   amount.addEventListener('input', () => { incident.amount = amount.value; });
-  card.append(element('h1', 'Keep evidence and make your incident pack'), element('p', 'Choose screenshots, emails or proof of payment. Files stay on this device; only their fingerprints go into the pack.'), element('label', 'Evidence files', {for:'evidence-files'}), files, feedback, list, element('label', 'Business', {for:'business-name'}), business, element('label', 'Amount paid', {for:'amount-paid'}), amount, handoffForm(), button('Review what goes in the pack', () => showPackReview(flow)), button('Start a new incident', showHome, 'button secondary'));
+  card.append(element('p', 'YOUR INCIDENT · EVIDENCE', { className: 'screen-eyebrow' }),
+    element('h1', 'Keep the evidence'),
+    element('p', 'Record screenshots, emails or proof of payment. Your original files stay on your device.', { className: 'screen-intro' }));
   const suggestion = makeEvidencePermissionPrompt(files);
   if (suggestion) card.append(suggestion);
+  const upload = element('section', '', { className: 'evidence-choose', 'aria-label': 'Selected evidence' });
+  upload.append(files, button('Choose evidence files', () => files.click(), 'button secondary choose-evidence'),
+    element('p', 'Optional · Only files you select are read. File contents are not uploaded or included in the pack.', { className: 'privacy' }), feedback, list);
+  const optional = element('details', '', { className: 'optional-details' });
+  optional.append(element('summary', 'Business and payment details (optional)'),
+    element('label', 'Business name', { for: 'business-name' }), business,
+    element('label', 'Amount paid', { for: 'amount-paid' }), amount);
+  const actions = element('div', '', { className: 'page-actions' });
+  actions.append(button('Review what goes in the pack', () => showPackReview(flow)), button('Start a new incident', startNewIncident, 'button tertiary'));
+  card.append(upload, optional, handoffForm(), actions);
   app.append(card);
 }
 
@@ -598,32 +646,63 @@ function packState() { return { ...incident, steps: journeySteps(), guideReviewe
 
 // Privacy-first preview: the owner sees exactly what will be in the pack before it is made.
 function showPackReview(flow) {
-  clear(); const card = element('section', '', { className: 'card' });
+  clear(); const card = element('section', '', { className: 'card pack-review-screen' });
   const state = packState();
   const options = incident.packOptions ?? defaultPackOptions(state);
   const preview = element('div', '', { className: 'preview-box', 'aria-live': 'polite' });
   const render = () => {
     incident.packOptions = options; preview.replaceChildren();
+    const additional = element('details', '', { className: 'review-additional' });
+    additional.append(element('summary', 'Additional report information'));
     for (const item of previewItems(packState(), options)) {
-      const block = element('div'); block.append(element('strong', item.label)); block.append(plain('blockquote', item.value)); preview.append(block);
+      if (item.id === 'evidence') continue; // The exact selected metadata is shown below.
+      const block = element('div', '', { className: 'review-item' });
+      block.append(element('h3', item.label), plain('p', item.value));
+      if (['handoff', 'timeline'].includes(item.id) || item.value === 'Not included') additional.append(block);
+      else preview.append(block);
     }
+    preview.append(additional);
   };
+  const preferences = element('details', '', { className: 'pack-preferences' });
+  preferences.append(element('summary', 'Choose additional information to include'));
   const check = (id, text, key, available) => {
     if (!available) return;
-    const label = element('label', '', { className: 'check', for: id }); const input = element('input', '', { id, type: 'checkbox' });
-    input.checked = options[key]; input.addEventListener('change', () => { options[key] = input.checked; render(); });
-    label.append(input, element('span', text)); card.append(label);
+    const label = element('label', '', { className: 'check', for: id });
+    const input = element('input', '', { id, type: 'checkbox' });
+    input.checked = options[key];
+    input.addEventListener('change', () => { options[key] = input.checked; render(); });
+    label.append(input, element('span', text)); preferences.append(label);
   };
-  card.append(element('h1', 'Check what goes in your pack'), element('p', 'The pack may be shared with your bank, SAPS or insurer. By default it holds a version of your description with personal details hidden. Choose anything extra yourself.'));
-  check('include-original', 'Also include my own words exactly as I typed them. They may contain names or numbers.', 'includeOriginal', Boolean(String(state.description ?? '').trim()));
+  card.append(element('p', 'YOUR INCIDENT · REVIEW', { className: 'screen-eyebrow' }),
+    element('h1', 'Review your incident pack'),
+    element('p', 'Nothing has been sent. Check your information before creating a report.', { className: 'screen-intro' }));
+  const steps = element('section', '', { className: 'review-steps' });
+  steps.append(element('h2', 'Your response steps'));
+  const outcomes = element('ul', '', { className: 'review-outcomes' });
+  const statusWords = { confirmed: 'Done · reported by you', needs_help: 'Need help', not_applicable: 'Not applicable', skipped: 'Skipped', pending: 'Not yet reported' };
+  const statusMarks = { confirmed: '✓', needs_help: '!', not_applicable: '–' };
+  for (const [index, step] of journeySteps().entries()) {
+    const row = element('li', '', { 'data-state': step.state });
+    const copy = element('div'); copy.append(element('strong', step.title), element('small', statusWords[step.state]));
+    row.append(element('span', statusMarks[step.state] || String(index + 1), { className: 'outcome-mark', 'aria-hidden': 'true' }), copy);
+    const revisit = button('Review', () => { journey.position = index; journey.finished = false; emitJourney(); renderStep(); }, 'button tertiary');
+    revisit.setAttribute('aria-label', 'Review step: ' + step.title); row.append(revisit); outcomes.append(row);
+  }
+  if (outcomes.childElementCount) steps.append(outcomes, element('p', 'These are your reports. Mgadi cannot confirm that an action succeeded.', { className: 'privacy' }));
+  else steps.append(element('p', 'No response steps recorded.', { className: 'privacy' }));
+  check('include-original', 'Include my original words. They may contain names or numbers.', 'includeOriginal', Boolean(String(state.description ?? '').trim()));
   check('include-business', 'Include the business name', 'includeBusiness', Boolean(String(state.business ?? '').trim()));
   check('include-amount', 'Include the amount paid', 'includeAmount', Boolean(String(state.amount ?? '').trim()));
-  check('include-handoff', 'Include handoff details: the steps you reported, what is still open and anything you typed for a bank or specialist', 'includeHandoff', true);
-  card.append(element('h2', 'What will be in the pack'), preview, element('p', 'Hiding is pattern based: names are only hidden if you listed them, so read the text above before sharing.', { className: 'privacy' }));
+  check('include-handoff', 'Include my step outcomes and optional details for a bank or specialist', 'includeHandoff', true);
+  const evidence = element('ul', '', { className: 'evidence-file-list' }); evidenceRows(evidence);
+  card.append(preferences, element('h2', 'Information in your report'), preview, steps,
+    element('h2', 'Selected evidence'), evidence,
+    element('p', 'Read carefully before sharing. Personal details are hidden by patterns; names are only hidden if you listed them.', { className: 'privacy' }));
   render();
-  const feedback = element('p', '', { role: 'alert', className: 'pack-feedback' });
+  const feedback = element('p', '', { role: 'status', className: 'pack-feedback' });
   const makeButton = button('Make incident pack', async () => {
-    makeButton.disabled = true; feedback.textContent = '';
+    makeButton.disabled = true; makeButton.textContent = 'Preparing your pack…'; card.setAttribute('aria-busy', 'true');
+    feedback.textContent = 'Creating your incident pack on this device…';
     try {
       const event = { at: new Date().toISOString(), text: 'Generated incident pack' };
       const state = packState(); state.timeline = [...state.timeline, event];
@@ -631,34 +710,64 @@ function showPackReview(flow) {
       incident.timeline.push(event); showPack(pack);
     } catch (error) {
       feedback.textContent = error.message || 'The pack could not be created. Your entries are still here. Please try again.';
-    } finally { makeButton.disabled = false; }
+    } finally { makeButton.disabled = false; makeButton.textContent = 'Make incident pack'; card.removeAttribute('aria-busy'); }
   });
-  card.append(feedback, makeButton, button('Back', () => showEvidencePack(flow), 'button secondary'));
-  app.append(card);
+  const actions = element('div', '', { className: 'page-actions' });
+  actions.append(makeButton, button('Back to evidence', () => showEvidencePack(flow), 'button secondary'));
+  card.append(feedback, actions); app.append(card);
 }
 
 function showPack(pack) {
-  clear(); const card = element('section', '', { className: 'card' });
+  clear(); const card = element('section', '', { className: 'card pack-result-screen' });
+  card.append(element('span', '✓', { className: 'completion-mark', 'aria-hidden': 'true' }),
+    element('p', 'YOUR INCIDENT · REPORT READY', { className: 'screen-eyebrow' }),
+    element('h1', 'Your incident pack is ready'),
+    element('p', 'Created on this device. Nothing has been sent to anyone.', { className: 'screen-intro' }));
+  const brief = element('section', '', { className: 'result-brief' });
+  brief.append(element('h2', 'Incident summary'), plain('p', pack.incident?.title || 'Incident record'),
+    plain('p', pack.story?.text || 'You selected a situation without typing a description.'),
+    plain('small', `${pack.evidence?.length || 0} evidence file(s) recorded · Prepared ${formatTime(pack.generatedAt)}`));
   const summary = element('section', '', { className: 'pack-summary' });
-  summary.append(element('h1', 'Incident summary'), plain('p', `Prepared ${formatTime(pack.generatedAt)}`, 'privacy'), reviewBadge());
+  const reportDetails = element('details', '', { className: 'pack-full-details' });
+  reportDetails.append(element('summary', 'Read the full report'));
   for (const section of summarySections(pack)) {
     summary.append(element('h2', section.heading));
-    if (section.heading === 'Timeline' || section.heading === 'Evidence fingerprints') { const ul = document.createElement('ul'); section.lines.forEach((line) => ul.append(plain('li', line))); summary.append(ul); }
-    else section.lines.forEach((line) => summary.append(plain('p', line)));
+    if (section.heading === 'Timeline' || section.heading === 'Evidence fingerprints') {
+      const ul = element('ul'); section.lines.forEach(line => ul.append(plain('li', line))); summary.append(ul);
+    } else section.lines.forEach(line => summary.append(plain('p', line)));
   }
-  summary.append(element('h2', 'Pack fingerprint'), plain('p', pack.fingerprint, 'hash'));
-  const details = element('pre', JSON.stringify(pack, null, 2));
-  details.className = 'pack-json';
-  const download = button('Download incident pack (.json)', () => { const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' }); const link = element('a', '', { href: URL.createObjectURL(blob), download: 'mgadi-incident-pack.json' }); document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); });
-  const checkFile = element('input', '', { type: 'file', accept: '.json,application/json', 'aria-label':'Incident pack to verify' }); const result = element('p', '', { role: 'status' });
-  checkFile.addEventListener('change', async () => { try { const candidate = JSON.parse(await checkFile.files[0].text()); const ok = await verifyPack(candidate); result.textContent = ok ? 'Pack unchanged: its fingerprint matches.' : 'Pack has been changed: use the original file.'; result.className = ok ? 'notice good' : 'notice bad'; } catch { result.textContent = 'That is not a valid Mgadi incident pack.'; result.className = 'notice bad'; } });
+  reportDetails.append(summary);
+  const details = element('pre', JSON.stringify(pack, null, 2), { className: 'pack-json' });
+  const download = button('Download report (.json)', () => {
+    const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = element('a', '', { href: url, download: 'mgadi-incident-pack.json' });
+    document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  const checkFile = element('input', '', { id: 'verify-pack', type: 'file', accept: '.json,application/json', 'aria-label': 'Incident pack to verify' });
+  const result = element('p', '', { role: 'status' });
+  checkFile.addEventListener('change', async () => {
+    if (!checkFile.files?.length) return;
+    try {
+      const candidate = JSON.parse(await checkFile.files[0].text()); const ok = await verifyPack(candidate);
+      result.textContent = ok ? 'Pack unchanged: its fingerprint matches.' : 'Pack has been changed: use the original file.';
+      result.className = ok ? 'notice good' : 'notice bad';
+    } catch { result.textContent = 'That is not a valid Mgadi incident pack.'; result.className = 'notice bad'; }
+  });
   const technical = element('details', '', { className: 'pack-technical' });
-  technical.append(element('summary', 'Technical data and tamper check'), element('h2', 'Verify a downloaded pack'), element('p', 'Load a pack after changing a value to see the tamper check.'), checkFile, result, details);
-  const actions = element('div', '', { className: 'pack-actions' });
-  actions.append(download, button('Print or save as PDF', () => window.print(), 'button secondary'), tools.packButtons(pack, () => showPack(pack)), button('Start a new incident', showHome, 'button secondary'));
-  card.append(summary, actions, technical);
-  app.append(card);
+  technical.append(element('summary', 'Technical data and tamper check'),
+    element('h2', 'Report fingerprint'), plain('p', pack.fingerprint, 'hash'),
+    element('label', 'Verify a downloaded pack', { for: 'verify-pack' }), checkFile, result, details);
+  const actions = element('div', '', { className: 'page-actions pack-actions' });
+  actions.append(download, button('Review again', () => showPackReview(journey?.flow || playbook.incidents.unsure), 'button secondary'),
+    button('Start a new incident', startNewIncident, 'button tertiary'));
+  const extras = element('details', '', { className: 'pack-more-actions' });
+  extras.append(element('summary', 'More report options'), button('Print or save as PDF', () => window.print(), 'button secondary'), tools.packButtons(pack, () => showPack(pack)));
+  card.append(brief, actions, reportDetails, technical, extras, reviewBadge()); app.append(card);
 }
+
+window.addEventListener('beforeprint', () => { const details = app.querySelector('.pack-full-details'); if (details) { details.dataset.wasOpen = String(details.open); details.open = true; } });
+window.addEventListener('afterprint', () => { const details = app.querySelector('.pack-full-details'); if (details) details.open = details.dataset.wasOpen === 'true'; });
 
 installAccessibility();
 // What the person is reading right now: a draft translation, part draft and part English, or English only. It is worked out from the
@@ -717,5 +826,5 @@ const voiceBridge = {
 };
 const voiceReady = initVoice({ bridge: voiceBridge }).catch(() => ({ launchButton: () => document.createDocumentFragment() }));
 Promise.all([fetch('/data/playbook.json').then((response) => response.json()), fetch('/data/fraud-lines.json').then((response) => response.json()), fetch('/data/resources.json').then((response) => response.json()).catch(() => null)])
-  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; if (!tools.openFromHash()) showHome(); })
+  .then(async ([loadedPlaybook, loadedLines, loadedResources]) => { playbook = loadedPlaybook; fraudLines = loadedLines; resources = loadedResources; voice = await voiceReady; if (!tools.openFromHash()) showHome(); if (new URLSearchParams(location.search).get('talk') === '1') voice.open?.(); })
   .catch(() => { clear(); app.append(element('p', 'Mgadi could not load its local safety guide. Please call the fraud number on the back of your bank card.')); });

@@ -10,3 +10,7 @@ h2{font-size:1.18rem;margin:1.7rem 0 .5rem}
 p,li{font-size:1rem}ul{padding-left:1.3rem}
 .note{border-left:4px solid #bd9851;padding:.4rem 1rem;background:#fffdf7;margin-top:1.5rem}
 a{color:#155b42}a:focus-visible{outline:3px solid #b08339;outline-offset:3px}
+.access-brand{display:flex;align-items:center;justify-content:space-between;gap:1rem;font-size:.85rem}
+.access-brand>span:first-child{position:relative;display:block;width:108px;height:64px;overflow:hidden;flex-shrink:0}
+.access-brand img{position:absolute;width:108px;height:108px;left:50%;top:50%;transform:translate(-50%,-50%);object-fit:contain}
+header{padding-block:.2rem}p,li{overflow-wrap:break-word}a{min-height:44px;display:inline-flex;align-items:center}
