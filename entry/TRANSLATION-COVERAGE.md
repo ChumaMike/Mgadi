@@ -13,7 +13,7 @@ marked `lang="en"` so screen readers pronounce it correctly. Nothing here is a c
 | Suspicious-message guide | 7 | 0 | 3 (43%) | 3 (43%) | 3 (43%) |
 | Not-a-cyber-incident and unsure guides | 21 | 0 | 1 (5%) | 1 (5%) | 1 (5%) |
 | Ransomware guide (steps, organisation note, trusted resources) | 66 | 2 | 0 (0%) | 0 (0%) | 0 (0%) |
-| Bank directory and step screens | 14 | 3 | 10 (59%) | 10 (59%) | 10 (59%) |
+| Bank directory and step screens | 15 | 3 | 10 (56%) | 10 (56%) | 10 (56%) |
 | Voice panel: controls, consent and conversation states | 29 | 0 | 11 (38%) | 11 (38%) | 11 (38%) |
 | Errors and connectivity notices | 13 | 7 | 0 (0%) | 0 (0%) | 0 (0%) |
 | Evidence and incident packs | 30 | 2 | 1 (3%) | 1 (3%) | 1 (3%) |

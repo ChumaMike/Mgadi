@@ -1,7 +1,10 @@
 // Floating avatar for the voice conversation. It reuses the existing original 3D mannequin (accessibility/avatar.js).
 // It is a visual companion for the conversation, NOT a sign language translator, and the interface says so.
 // Layout is driven by [data-avatar] on <html> so CSS can keep it clear of the bank button and the call controls.
-const MOODS = { idle: 'resting', listening: 'listening', speaking: 'speaking' };
+// Each state the person can be in has its own name, so a screen reader hears the truth (for example "muted, so Mgadi cannot hear you"
+// rather than "resting"). The drawn pose has three looks only: resting, listening (leans in) and speaking (the mouth moves).
+const MOODS = { idle: 'resting', connecting: 'connecting', listening: 'listening', speaking: 'speaking', muted: 'muted, so Mgadi cannot hear you' };
+const POSE = { idle: 'idle', connecting: 'idle', muted: 'idle', listening: 'listening', speaking: 'speaking' };
 
 export function createAvatarDock({ createAvatar, doc = document, win = window }) {
   const root = doc.createElement('div'); root.className = 'avatar-dock'; root.hidden = true;
@@ -27,7 +30,7 @@ export function createAvatarDock({ createAvatar, doc = document, win = window })
     doc.documentElement.dataset.avatar = visible ? size : 'off';
     if (visible && !avatar) { avatar = createAvatar(canvas); }
     if (!avatar) return;
-    avatar.setMood(mood);
+    avatar.setMood(POSE[mood]);
     // With reduced motion the avatar changes pose when the state changes but never animates.
     if (visible && !reducedMotion()) avatar.play(); else avatar.pause();
   }
