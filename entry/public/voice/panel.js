@@ -528,6 +528,8 @@ export async function initVoice({ bridge }) {
     if (!keepFocus && opener?.isConnected) opener.focus();
   }
   refresh();
+  // The homepage call shortcut opens this same consent-gated Retell workspace, not the older TalkBack demo.
+  if (params.get('talk') === '1') queueMicrotask(open);
   return {
     open,
     launchButton() { const b = tr('button', 'button secondary voice-launch', 'Talk to Mgadi'); b.type = 'button'; b.addEventListener('click', open); return b; },
