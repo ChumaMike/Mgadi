@@ -42,7 +42,7 @@ test('default choices retain evidence fingerprints and timeline for a real revie
   assert.equal(Object.hasOwn(pack, 'omittedByOwner'), false);
 });
 
-test('bank feedback is optional, redacted, and included only after the owner's choice', () => {
+test("bank feedback is optional, redacted, and included only after the owner's choice", () => {
   const state = sample({ bankFeedback: 'Bank called me at 082 123 4567 and gave a reference.' });
   const options = defaultPackOptions(state);
   assert.equal(options.includeHandoff, true);
