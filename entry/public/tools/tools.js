@@ -16,6 +16,7 @@ import { BASELINE_SOURCE, normalizeBankDetails, hasAny, compareDetails, comparis
 import { normalizeFullPayload } from '../shared/check-record.js';
 import { createEvidencePanel } from './evidence-ui.js';
 import { formatTime } from '../shared/summary.js';
+import { icon } from '../shared/icons.js';
 
 const WHY = {
   offline: 'This needs an internet connection. Nothing was sent.',
@@ -128,20 +129,52 @@ export function initTools({ ui, bridge }) {
   }
 
   // ------------------------------------------------------------------ 2. Supplier payment-change check
+  // The check is three short steps: describe the request, review the warnings, record your own call. This shows where you are.
+  const tracker = (current) => {
+    const list = element('ol', '', { className: 'ds-steps', 'aria-label': 'The three steps of the check' });
+    ['Describe', 'Review', 'Record'].forEach((label, index) => {
+      const number = index + 1; const done = number < current;
+      const item = element('li', '', { className: done ? 'is-done' : '' });
+      if (number === current) item.setAttribute('aria-current', 'step');
+      const mark = element('span', '', { className: 'ds-step-mark', 'aria-hidden': 'true' });
+      if (done) mark.append(icon('tick')); else mark.append(document.createTextNode(String(number)));
+      item.append(mark, element('span', label));
+      if (done) item.append(element('span', '(done)', { className: 'sr-only' }));
+      list.append(item);
+    });
+    return list;
+  };
+  const optional = (title, open = false) => { const box = element('details', '', { className: 'ds-optional' }); box.open = open; box.append(element('summary', title)); return box; };
+
+  // "Already paid" is reachable from every step, because people often find out half-way through. It always goes to the bank first.
+  const alreadyPaidBanner = (heading = 'Already paid?') => {
+    const box = element('div', '', { className: 'ds-status ds-status--danger' }); const body = element('div');
+    body.append(element('strong', heading), element('p', 'If money has already left your account, do not use this check. Your bank comes first.'),
+      button('I have already paid: take me to the bank first', () => bridge.alreadyPaid(), 'button danger'));
+    box.append(icon('alert'), body); return box;
+  };
+
   function showCheckStart() {
     const card = screen("Check a supplier's change before you pay");
+    card.append(tracker(1));
     card.append(element('p', NOT_A_BLOCK, { className: 'notice' }));
-    card.append(button('I have already paid: take me to the bank first', () => bridge.alreadyPaid(), 'button danger'));
-    card.append(element('p', 'If money has already left your account, do not use this check. Your bank comes first.', { className: 'privacy' }));
+    card.append(alreadyPaidBanner());
     const demo = element('div'); card.append(demo);
+    card.append(element('h2', 'Step 1 of 3: describe the request'));
     const supplier = field(card, 'Supplier', text(80), 'chk-supplier');
     const changed = field(card, 'What changed?', choose(CHANGED, 'Choose one'), 'chk-changed');
     const arrived = field(card, 'How did the request arrive?', choose(ARRIVED, 'Choose one'), 'chk-arrived');
     const amount = field(card, 'Amount to be paid (optional)', text(30), 'chk-amount');
-    const note = field(card, 'Anything else that looked odd (optional)', text(200), 'chk-note');
+
+    const odd = optional('What looked odd? (optional)');
+    odd.append(element('p', 'Tick anything that applies. Each one is a known warning sign, and Mgadi lists them back to you on the next screen.', { className: 'ds-help' }));
     const fieldset = element('fieldset', '', { className: 'tool-set' }); fieldset.append(element('legend', 'Did any of these apply?'));
     const boxes = Object.entries(QUESTIONS).map(([id, label]) => { const c = checkbox(label, `chk-q-${id}`); fieldset.append(c.l); return [id, c.input]; });
-    card.append(fieldset);
+    odd.append(fieldset);
+    const note = field(odd, 'Anything else that looked odd (optional)', text(200), 'chk-note');
+
+    const compare = optional('Compare the old and new bank details (recommended)');
+    compare.append(element('p', 'Why this helps: criminals copy a real supplier and send new details. Putting the details you already trusted next to the new ones shows exactly what changed. Mgadi cannot check that an account really belongs to anyone.', { className: 'ds-help' }));
     const bankSet = (legend, help, prefix) => {
       const set = element('fieldset', '', { className: 'tool-set' }); set.append(element('legend', legend)); if (help) set.append(element('p', help, { className: 'privacy' }));
       const inputs = { holder: field(set, 'Account holder', text(60), `${prefix}-holder`), bank: field(set, 'Bank', text(40), `${prefix}-bank`), account: field(set, 'Account number', text(30), `${prefix}-account`), branch: field(set, 'Branch code', text(15), `${prefix}-branch`) };
@@ -150,61 +183,96 @@ export function initTools({ ui, bridge }) {
     const trusted = bankSet('Trusted banking details you already held (optional)', 'Enter them from something you had BEFORE this request: a contract, an earlier invoice or your saved supplier record. Full account numbers stay on this device; only the last four digits are ever shared or saved.', 'tb');
     const tbSource = field(trusted.set, 'Where did the trusted details come from?', choose(BASELINE_SOURCE, 'Choose one'), 'tb-source');
     const proposed = bankSet('Banking details in the request (optional)', 'Copy them as the request gives them, so Mgadi can show what differs.', 'pb');
-    card.append(trusted.set, proposed.set);
+    compare.append(trusted.set, proposed.set);
+    card.append(odd, compare);
+
     demo.append(button('Fill in a synthetic example (for a demonstration)', () => {
       const ex = SYNTHETIC_EXAMPLE; supplier.value = ex.supplier; changed.value = 'bank_account'; arrived.value = 'email'; amount.value = 'R 70 000,00'; note.value = ex.note;
       for (const [id, n] of boxes) n.checked = id === 'dont_call' || id === 'urgent';
       for (const k of Object.keys(trusted.inputs)) { trusted.inputs[k].value = ex.baseline[k]; proposed.inputs[k].value = ex.proposed[k]; }
-      tbSource.value = 'contract';
+      tbSource.value = 'contract'; odd.open = true; compare.open = true;
     }, 'button secondary'), element('p', 'Fictional details only. Nothing is sent anywhere.', { className: 'privacy' }));
     const problem = alertBox(); card.append(problem);
-    card.append(button('Check for red flags', () => {
+    const actions = element('div', '', { className: 'ds-actions' });
+    actions.append(button('Check for red flags', () => {
       const { value, errors } = normalizeRequest({ supplier: supplier.value, changed: changed.value, arrived: arrived.value, amount: amount.value, note: note.value, flags: boxes.filter(([, n]) => n.checked).map(([id]) => id) });
       if (errors.length) { say(problem, `Please fill in: ${errors.map((e) => ({ supplier: 'the supplier', changed: 'what changed', arrived: 'how it arrived' }[e])).join(', ')}.`); return; }
       const values = (group) => Object.fromEntries(Object.entries(group).map(([k, n]) => [k, n.value]));
       const b = normalizeBankDetails(values(trusted.inputs)); const q = normalizeBankDetails(values(proposed.inputs));
       const wrong = [...b.errors.map((e) => `the trusted ${e === 'account' ? 'account number' : 'branch code'}`), ...q.errors.map((e) => `the ${e === 'account' ? 'account number' : 'branch code'} in the request`)];
-      if (wrong.length) { say(problem, `Please check ${wrong.join(' and ')}: digits only.`); return; }
+      if (wrong.length) { compare.open = true; say(problem, `Please check ${wrong.join(' and ')}: digits only.`); return; }
       const extra = hasAny(b.value) || hasAny(q.value) ? { baseline: b.value, proposed: q.value, comparison: compareDetails(b.value, q.value, tbSource.value) } : {};
       showCheckResult(value, extra);
     }), button('Back', () => bridge.showHome(), 'button secondary'));
+    card.append(actions);
     mount(card);
   }
 
+  // Confirmed, unverified and rejected are shown with a symbol and a word as well as colour, and each says what it does NOT mean.
+  const VERDICT_LOOK = {
+    verified_independent: { tone: 'ok', symbol: 'tick', label: 'Confirmed by your call', also: 'This is your own report. Mgadi cannot check it, and it does not prove the bank account is genuine.' },
+    denied: { tone: 'danger', symbol: 'cross', label: 'Rejected: the supplier denied the change', also: 'Do not pay to the new details.' },
+    not_independent: { tone: 'warn', symbol: 'alert', label: 'Unverified: that call does not count', also: 'Nothing is confirmed yet.' },
+    not_verified: { tone: 'warn', symbol: 'alert', label: 'Unverified: not confirmed yet', also: 'Nothing is confirmed yet.' },
+  };
+
+  // Step 2 of 3: what Mgadi found. Step 3 of 3 (below) is a separate screen, so each screen asks one thing.
   function showCheckResult(request, extra = {}) {
     const { comparison = null, baseline = null, proposed = null } = extra; let evidenceSummary = null;
     const card = screen('Red flags, and what to do before paying');
+    card.append(tracker(2));
     card.append(element('p', 'VERIFY BEFORE PAYING. Do not pay to the new details yet. Phone the supplier yourself, on a number you already had before this request.', { className: 'notice bad' }));
     card.append(element('p', NOT_A_BLOCK, { className: 'notice' }));
-    const indep = element('p', independentStatus(null), { className: 'privacy', role: 'status', id: 'indep-status' }); card.append(indep);
-    const facts = element('ul'); for (const line of [`Supplier: ${request.supplier}`, `Changed: ${CHANGED[request.changed]}`, `Arrived by: ${ARRIVED[request.arrived]}`, ...(request.amount ? [`Amount: ${request.amount}`] : [])]) facts.append(plain('li', line));
-    card.append(element('h2', 'What you told Mgadi'), facts);
+    card.append(alreadyPaidBanner('Have you already paid?'));
+    const reviewIndep = element('p', independentStatus(null), { className: 'privacy', role: 'status', id: 'indep-status' }); card.append(reviewIndep);
+    card.append(element('h2', 'Step 2 of 3: review what Mgadi found'));
+    const facts = element('dl', '', { className: 'ds-kv' });
+    for (const [label, value] of [['Supplier', request.supplier], ['Changed', CHANGED[request.changed]], ['Arrived by', ARRIVED[request.arrived]], ...(request.amount ? [['Amount', request.amount]] : [])]) facts.append(element('dt', label), plain('dd', value));
+    card.append(element('h3', 'What you told Mgadi'), facts);
     showComparison(card, comparison);
-    card.append(element('h2', 'Red flags'));
+    card.append(element('h3', 'Red flags'));
     const flags = allFlags(request, comparison); const list = element('ul', '', { className: 'flags' });
     if (!flags.length) list.append(plain('li', 'No red flags from what you told Mgadi. That does not mean the change is genuine. Verify it anyway.'));
     for (const f of flags) { const li = document.createElement('li'); li.append(plain('strong', `${f.level === 'high' ? 'High' : f.level === 'medium' ? 'Medium' : 'Low'}: `), plain('span', `${f.text} ${f.why}`)); list.append(li); }
     card.append(list);
     card.append(createEvidencePanel({ ui, ctx: { baseline, proposed }, onChange: (summary) => { evidenceSummary = summary; } }));
-
-    card.append(element('h2', 'Record your independent check'));
-    card.append(element('p', 'Phone the supplier on a number you already had: from an old invoice, a contract, an earlier payment or your own saved contacts. Not a number from the request. Mgadi does not keep the number.', { className: 'privacy' }));
-    const who = field(card, 'Who did you speak to (name and role)?', text(80), 'ver-who');
-    const source = field(card, 'Where did the phone number come from?', choose(NUMBER_SOURCE, 'Choose one'), 'ver-source');
-    const result = field(card, 'What was the result?', choose(RESULT, 'Choose one'), 'ver-result');
-    const when = element('input', '', { type: 'datetime-local' }); const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); when.value = now.toISOString().slice(0, 16); field(card, 'When did you call?', when, 'ver-when');
-    const vnote = field(card, 'Short note (optional)', text(140), 'ver-note');
-    const mine = checkbox('I made this call myself', 'ver-mine'); card.append(mine.l);
-    const problem = alertBox(); const outcome = statusBox(); outcome.hidden = true; const approveZone = element('div'); let verification = null;
-    card.append(problem, button('Save my check', () => {
-      const parsed = normalizeVerification({ who: who.value, numberSource: source.value, result: result.value, calledMyself: mine.input.checked, calledAt: when.value ? new Date(when.value).toISOString() : '', note: vnote.value });
-      if (parsed.errors.length) { say(problem, `Please complete: ${parsed.errors.map((e) => ({ who: 'who you spoke to', numberSource: 'where the number came from', result: 'the result', calledMyself: 'tick that you made the call yourself', calledAt: 'when you called' }[e])).join(', ')}.`); return; }
-      say(problem, ''); verification = parsed.value; const v = verdict(verification);
-      outcome.hidden = false; outcome.textContent = v.text; outcome.className = `notice ${v.state === 'verified_independent' ? 'good' : 'bad'} tool-status`;
-      indep.textContent = independentStatus(verification);
-      renderApprove(approveZone, request, verification, v, () => ({ comparison, evidence: evidenceSummary }));
-    }), outcome, approveZone, button('Start again', showCheckStart, 'button secondary'));
+    const actions = element('div', '', { className: 'ds-actions' });
+    actions.append(button('Next: record my call to the supplier', () => showCheckRecord(), 'button'), button('Start again', showCheckStart, 'button secondary'));
+    card.append(actions);
     mount(card);
+
+    // Step 3 of 3: your own independent call, and the decision it supports.
+    function showCheckRecord() {
+      const record = screen('Record your independent check');
+      record.append(tracker(3));
+      const paidBanner = alreadyPaidBanner('Have you already paid?'); record.append(paidBanner);
+      record.append(element('h2', 'Step 3 of 3: your call to the supplier'));
+      record.append(element('p', 'Why a number you already had matters: a criminal puts their own phone number in the fake message, so calling it reaches them. Use a number from an old invoice, a contract, an earlier payment or your own saved contacts. Mgadi does not keep the number.', { className: 'ds-help' }));
+      const indep = element('p', independentStatus(null), { className: 'privacy', role: 'status', id: 'indep-status' }); record.append(indep);
+      const who = field(record, 'Who did you speak to (name and role)?', text(80), 'ver-who');
+      const source = field(record, 'Where did the phone number come from?', choose(NUMBER_SOURCE, 'Choose one'), 'ver-source');
+      const result = field(record, 'What was the result?', choose(RESULT, 'Choose one'), 'ver-result');
+      const when = element('input', '', { type: 'datetime-local' }); const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); when.value = now.toISOString().slice(0, 16); field(record, 'When did you call?', when, 'ver-when');
+      const vnote = field(record, 'Short note (optional)', text(140), 'ver-note');
+      const mine = checkbox('I made this call myself', 'ver-mine'); record.append(mine.l);
+      const problem = alertBox(); const outcome = element('div', '', { role: 'status', className: 'tool-status' }); outcome.hidden = true; const approveZone = element('div'); let verification = null;
+      const save = button('Save my check', () => {
+        const parsed = normalizeVerification({ who: who.value, numberSource: source.value, result: result.value, calledMyself: mine.input.checked, calledAt: when.value ? new Date(when.value).toISOString() : '', note: vnote.value });
+        if (parsed.errors.length) { say(problem, `Please complete: ${parsed.errors.map((e) => ({ who: 'who you spoke to', numberSource: 'where the number came from', result: 'the result', calledMyself: 'tick that you made the call yourself', calledAt: 'when you called' }[e])).join(', ')}.`); return; }
+        say(problem, ''); verification = parsed.value; const v = verdict(verification);
+        // The rejected verdict offers the bank itself, so the generic banner steps aside.
+        if (v.state === 'denied') paidBanner.remove();
+        const look = VERDICT_LOOK[v.state] ?? VERDICT_LOOK.not_verified;
+        const body = element('div'); body.append(element('strong', look.label), element('p', v.text));
+        outcome.hidden = false; outcome.className = `tool-status ds-status ds-status--${look.tone}`; outcome.replaceChildren(icon(look.symbol), body);
+        indep.textContent = independentStatus(verification); reviewIndep.textContent = independentStatus(verification);
+        renderApprove(approveZone, request, verification, v, () => ({ comparison, evidence: evidenceSummary }));
+      });
+      const actions3 = element('div', '', { className: 'ds-actions' });
+      actions3.append(save, button('Back to the review', () => { clear(); mount(card); }, 'button secondary'), button('Start again', showCheckStart, 'button secondary'));
+      record.append(problem, actions3, outcome, approveZone);
+      mount(record);
+    }
   }
 
   function renderApprove(zone, request, verification, v, extras = () => ({})) {
@@ -392,7 +460,7 @@ export function initTools({ ui, bridge }) {
 
   return {
     openFromHash,
-    homeButton: () => button("Check a supplier's changed bank details before paying", showCheckStart, 'button secondary tool-entry'),
+    homeButton: () => button('Start the supplier check', showCheckStart, 'button tool-entry'),
     packButtons: (pack, back) => { const f = document.createDocumentFragment(); f.append(button('Draft a POPIA notification (template)', () => showPopia(pack, back), 'button secondary'), button('Send a summary to a helper', () => showHandoffCompose(pack, back), 'button secondary'), button('Check documents (PDF or message text)', () => showEvidenceScreen(back), 'button secondary')); return f; },
     showCheckStart, showPopia, showHandoffCompose, showEvidenceScreen,
   };
