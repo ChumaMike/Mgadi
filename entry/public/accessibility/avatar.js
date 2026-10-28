@@ -99,7 +99,7 @@ export function createAvatar(canvas) {
     const w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);
     const bg=ctx.createRadialGradient(w*.4,h*.25,5,w*.5,h*.5,w*.8);bg.addColorStop(0,'#f3f3df');bg.addColorStop(1,'#b9ccad');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
     ctx.fillStyle='#ffffff45';ctx.beginPath();ctx.ellipse(w*.5,h*.37,w*.36,h*.32,0,0,Math.PI*2);ctx.fill();
-    const movement=running?Math.sin(phase):0,bob=movement*(mood==='speaking'?.022:.008),lean=mood==='listening'?.035:0;
+    const movement=running?Math.sin(phase):0,bob=movement*(mood==='speaking'?.022:.008),lean=mood==='listening'?.035:mood==='thinking'?-.035:0;
     ellipsoid([0,-.75,0],[.8,.9,.35],shirt);
     ellipsoid([-.6,-.58,.02],[.3,.63,.3],shirt);ellipsoid([.6,-.58,.02],[.3,.63,.3],shirt);
     ellipsoid([0,.18,.02],[.19,.32,.19],skin);
@@ -124,5 +124,5 @@ export function createAvatar(canvas) {
   }
   function animate(now=0){if(!running)return;if(previous && now-previous<32){frame=requestAnimationFrame(animate);return;}const elapsed=previous?Math.min(now-previous,50):16;previous=now;phase+=elapsed*.0017;draw();frame=requestAnimationFrame(animate);}
   draw();
-  return {play(){if(!running){running=true;previous=0;frame=requestAnimationFrame(animate);}},pause(){running=false;cancelAnimationFrame(frame);draw();},rotate(value){angle=Number.isFinite(value)?value:0;draw();},setMood(next){mood=['idle','listening','speaking'].includes(next)?next:'idle';if(!running)draw();},setGesture(next){gesture=['stop','call','save','help','check','protect'].includes(next)?next:'none';gestureAt=phase;if(!running)draw();},getGesture(){return gesture;},destroy(){running=false;cancelAnimationFrame(frame);}};
+  return {play(){if(!running){running=true;previous=0;frame=requestAnimationFrame(animate);}},pause(){running=false;cancelAnimationFrame(frame);draw();},rotate(value){angle=Number.isFinite(value)?value:0;draw();},setMood(next){mood=['idle','listening','thinking','speaking'].includes(next)?next:'idle';if(!running)draw();},setGesture(next){gesture=['stop','call','save','help','check','protect'].includes(next)?next:'none';gestureAt=phase;if(!running)draw();},getGesture(){return gesture;},destroy(){running=false;cancelAnimationFrame(frame);}};
 }
