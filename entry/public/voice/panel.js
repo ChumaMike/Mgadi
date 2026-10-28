@@ -356,7 +356,7 @@ export async function initVoice({ bridge }) {
     opPill.hidden = config.access !== 'operator';
     micPill.hidden = !inCall || config.mode === 'mock'; micPill.textContent = s.muted ? 'Mic muted' : 'Mic on'; micPill.dataset.muted = String(s.muted);
     renderChips(s); renderMessages(s); renderControls(s); if (progress.open) renderProgress();
-    if (inCall && gestureArea.hidden) gestureToggle.click();
+    // Keep optional gesture previews collapsed in the emergency path until the owner opens them.
     if (inCall && gestureAvatar) {
       // Streaming transcripts may repeat or extend; only newly matched words animate.
       const candidates = s.messages.filter(m => m.role !== 'system' && m.callIndex === s.callIndex).slice(-5);
