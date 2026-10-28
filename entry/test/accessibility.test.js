@@ -10,7 +10,8 @@ test('unsupported and missing translations retain the original with English lang
     assert.equal(translate('An untranslated instruction',language),'An untranslated instruction');
     assert.equal(translationLanguage('An untranslated instruction',language),'en');
   }
-  assert.deepEqual(Object.keys(languages),['en','zu','xh','af']);
+  assert.equal(Object.keys(languages).length, 12);
+  for (const code of ['en', 'zu', 'xh', 'af', 'sasl']) assert.ok(languages[code]);
   assert.equal(translationLanguage('What happened?','xh'),'xh');
 });
 

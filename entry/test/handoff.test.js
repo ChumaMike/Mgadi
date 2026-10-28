@@ -22,7 +22,7 @@ test('pack format is /3 and older /2 packs still verify (the checksum is over wh
 });
 
 test('nothing is typed: no handoff is offered by default, and a pack without it has no handoff key at all', () => {
-  const s = base();
+  const s = base({ steps: steps([]) });
   assert.equal(sanitizeHandoff(undefined), null); assert.equal(sanitizeHandoff({}), null); assert.equal(sanitizeHandoff('x'), null);
   assert.equal(sanitizeHandoff({ outcome: 'unknown', affected: '' }), null, 'only defaults entered means nothing entered');
   assert.equal(defaultPackOptions(s).includeHandoff, false);

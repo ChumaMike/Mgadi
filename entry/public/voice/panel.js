@@ -58,14 +58,14 @@ export async function initVoice({ bridge }) {
     adapterFactory: makeAdapter, getContext, config,
     isOnline: () => navigator.onLine,
     onEvent: (event) => {
-      const text = timelineTextFor(event); if (text) bridge.log(text);
+      const text = event.type === 'voice-started' && config.mode === 'mock' ? 'Simulated conversation started (no microphone or provider)' : timelineTextFor(event); if (text) bridge.log(text);
       if (event.type === 'message-final' && live.announce) live.announce.textContent = `${event.message.role === 'user' ? 'You said' : 'Mgadi assistant said'}: ${event.message.text}`;
     },
   });
   const availability = () => config.languages?.[getLocale()] ?? { available: false, label: getLocale(), reason: config.configFailed ? 'Live AI voice could not be reached. It needs an internet connection. The guide on this phone still works.' : 'Voice is not set up on this server.' };
 
   // ---- structure
-  const panel = make('section', 'voice-panel'); panel.hidden = true; panel.setAttribute('aria-label', 'Talk to Mgadi');
+  const panel = make('section', 'voice-panel'); panel.hidden = true; panel.setAttribute('aria-label', 'Talk to Mgadi'); panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true');
   const head = make('div', 'vp-head');
   const title = tr('h2', 'vp-title', 'Talk to Mgadi'); title.tabIndex = -1;
   const sim = make('span', 'vp-sim', 'SIMULATED'); sim.hidden = config.mode !== 'mock';
@@ -186,7 +186,8 @@ export async function initVoice({ bridge }) {
   const guideStatus=make('p','vp-note','Browser guided voice: live text and spoken safety replies without Retell. Uses predefined guidance, not an AI model. Your browser may use online speech recognition.');
   const aiTokenInput=make('input');aiTokenInput.type='password';aiTokenInput.autocomplete='off';aiTokenInput.placeholder='AI test access token from Vercel';aiTokenInput.setAttribute('aria-label','Private AI test token');
   const aiButton=make('button','button secondary vp-small','Use Claude AI replies');aiButton.type='button';aiButton.setAttribute('aria-pressed','false');
-  gestureArea.append(localButton,localStatus,guideButton,guideStatus,aiTokenInput,aiButton,guideLog);
+  // Browser speech experiments remain outside the unified provider workspace.
+  // Only the configured provider starts a conversation here.
   let guideMode=false,aiMode=false,aiBusy=false,aiHistory=[],lastProcessed='';
   aiButton.addEventListener('click',()=>{
     aiMode=!aiMode;aiHistory=[];aiButton.setAttribute('aria-pressed',String(aiMode));
@@ -294,7 +295,7 @@ export async function initVoice({ bridge }) {
   const endBtn = tr('button', 'button danger', 'End call'); endBtn.type = 'button';
   const textBtn = tr('button', 'button secondary', 'Use text guidance'); textBtn.type = 'button'; textBtn.dataset.wide = '';
   const avatarBtn = tr('button', 'button secondary', 'Show avatar'); avatarBtn.type = 'button';
-  const clearBtn = tr('button', 'button secondary', 'Clear conversation'); clearBtn.type = 'button';
+  const clearBtn = tr('button', 'button secondary', 'Restart conversation'); clearBtn.type = 'button';
   const sound = tr('button', 'button secondary', 'No sound? Tap to enable'); sound.type = 'button'; sound.hidden = true;
   controls.append(startBtn, muteBtn, endBtn, sound, textBtn, avatarBtn, clearBtn);
   panel.append(head, body, controls);
@@ -372,7 +373,7 @@ export async function initVoice({ bridge }) {
     if (!journey) { now.textContent = 'Now: choose what happened, or tell the assistant.'; action.append(tr('p', null, 'No steps yet. Choose what happened on the main screen, or tell the assistant. Your bank fraud line is always available above.')); return; }
     const step = journey.steps[journey.position];
     const pending = !journey.finished;
-    if (!pending) { now.textContent = 'Now: review your incident pack.'; action.append(tr('p', null, 'You have recorded a response for each step. Review your incident pack on the main screen, including anything you still need help with.')); return; }
+    if (!pending) { now.textContent = 'Now: review your incident pack.'; action.append(tr('p', null, 'Your response steps are recorded, including anything you need help with. Evidence is optional.')); const next = make('button', 'button', 'Continue to evidence and pack'); next.type = 'button'; next.addEventListener('click', () => { controller.end(); close({ keepFocus: true }); bridge.showText(); }); action.append(next); return; }
     const title = make('p', 'vp-step'); bindText(title, step.title);
     now.textContent = ''; now.append(make('strong', null, 'Now: '), (() => { const t = make('span'); bindText(t, step.title); return t; })());
     action.append(make('p', 'vp-count', `${journey.title} · step ${journey.position + 1} of ${journey.steps.length}`), title);
@@ -489,10 +490,10 @@ export async function initVoice({ bridge }) {
     render(controller.getState());
   });
   startBtn.addEventListener('click', () => { if (consentCheck.checked) controller.giveConsent(); controller.start(); });
-  endBtn.addEventListener('click', () => controller.end());
+  endBtn.addEventListener('click', () => { controller.end(); if (returnToTextOnEnd) { returnToTextOnEnd = false; close({ keepFocus: true }); bridge.showText(); } });
   muteBtn.addEventListener('click', () => (controller.getState().muted ? controller.unmute() : controller.mute()));
   sound.addEventListener('click', () => controller.startAudioPlayback());
-  clearBtn.addEventListener('click', () => controller.clearMessages());
+  clearBtn.addEventListener('click', () => { controller.clearMessages(); controller.systemNote('Conversation cleared. Your incident response progress is kept. Start voice conversation to continue.'); });
 
   // The bank contact directory toggles over the full-screen workspace without hiding the call.
   showBank = () => bridge.showBank();
@@ -505,7 +506,12 @@ export async function initVoice({ bridge }) {
   chat.addEventListener('scroll', () => { if (chat.scrollHeight - chat.scrollTop - chat.clientHeight < 48) jump.hidden = true; });
   minBtn.hidden = true;
   closeBtn.addEventListener('click', () => { controller.end('You closed the voice panel.'); close({}); });
-  panel.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !['connecting', 'live', 'reconnecting'].includes(controller.getState().phase)) close({}); });
+  panel.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      const items = [...panel.querySelectorAll('button, input, select, summary, a[href], [tabindex="0"]')].filter(node => !node.disabled && !node.closest('[hidden]') && node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden');
+      if (items.length && ((e.shiftKey && document.activeElement === items[0]) || (!e.shiftKey && document.activeElement === items.at(-1)))) { e.preventDefault(); (e.shiftKey ? items.at(-1) : items[0]).focus(); }
+    }
+    if (e.key === 'Escape' && !e.defaultPrevented) { controller.end('You closed the voice panel.'); close({}); } });
   document.addEventListener('mgadi:language', (e) => { const lang = e.detail.locale; controller.languageChanged(lang, config.languages?.[lang]); refresh(); });
   // A live AI call cannot survive losing the internet. End it cleanly, keep everything shown, and point to the offline guide.
   window.addEventListener('offline', () => controller.networkChanged(false));
@@ -527,8 +533,35 @@ export async function initVoice({ bridge }) {
     stopLocal();globalThis.speechSynthesis?.cancel(); avatarPreviewing = false; panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setApproximate(false); dock.setActive(false); workspace.close();
     if (!keepFocus && opener?.isConnected) opener.focus();
   }
+  let invitation = null;
+  let returnToTextOnEnd = false;
+  function offerCall() {
+    invitation?.remove();
+    const host = document.querySelector('#app');
+    if (!host) return;
+    invitation = make('section', 'call-invitation');
+    invitation.setAttribute('aria-label', 'Mgadi call invitation');
+    invitation.setAttribute('role', 'region');
+    const simulated = config.mode === 'mock';
+    invitation.append(make('p', 'call-invitation-label', simulated ? 'SIMULATED IN-APP CALL · NO MICROPHONE' : 'IN-APP VOICE INVITATION'),
+      make('h2', null, simulated ? 'Mgadi is calling — simulation' : 'Mgadi is ready to talk'),
+      make('p', null, simulated ? 'Answer to see the companion and scripted captions. No real telephone call, microphone or AI audio is used.' : 'Answer to open voice setup. Your microphone is used only after you agree. You can keep using text.'));
+    const answer = make('button', 'button', 'Answer Mgadi'); answer.type = 'button';
+    answer.addEventListener('click', () => {
+      invitation?.remove(); invitation = null; returnToTextOnEnd = true; open();
+      if (simulated) { consentCheck.checked = true; controller.giveConsent(); controller.start(); }
+    });
+    const decline = make('button', 'button secondary', 'Keep using text'); decline.type = 'button';
+    decline.addEventListener('click', () => { invitation?.remove(); invitation = null; bridge.showText(); });
+    invitation.append(answer, decline); host.prepend(invitation);
+    invitation.scrollIntoView({ block: 'start', behavior: 'auto' }); answer.focus();
+  }
   refresh();
+  // The homepage call shortcut opens this same consent-gated Retell workspace, not the older TalkBack demo.
+  // Call deep links are handled after the incident guide is ready in app.js.
   return {
+    offerCall,
+    reset() { returnToTextOnEnd = false; invitation?.remove(); invitation = null; controller.end(); controller.clearMessages(); close({ keepFocus: true }); },
     open,
     launchButton() { const b = tr('button', 'button secondary voice-launch', 'Talk to Mgadi'); b.type = 'button'; b.addEventListener('click', open); return b; },
     controller, dock, config,

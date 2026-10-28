@@ -1,3 +1,4 @@
+import { chooseSituation } from './browser-journey.mjs';
 // Browser checks for the POPIA draft, the supplier payment-change check and the responder handoff.
 //   MGADI_PLAYWRIGHT=/path/to/playwright/index.mjs node scripts/tools-smoke.mjs
 // Two SEPARATE browser contexts play the owner and the second person / contact, so everything must travel in the link and the server.
@@ -25,7 +26,7 @@ const api = (page, body) => page.evaluate(async (b) => { const r = await fetch('
 const SENT = 'SENTINEL-OWNER-ACME';
 const XSS = `<img src=x onerror=window.__x=1>${SENT}`;
 
-async function startCheck(page) { await page.click('.tool-entry'); await page.waitForSelector('#chk-supplier'); }
+async function startCheck(page) { await page.locator('.landing-extra > summary').click(); await page.click('.tool-entry'); await page.waitForSelector('#chk-supplier'); }
 async function fillRequest(page, extra = {}) {
   await page.fill('#chk-supplier', extra.supplier ?? XSS); await page.selectOption('#chk-changed', 'bank_account'); await page.selectOption('#chk-arrived', 'email');
   await page.fill('#chk-amount', 'R 70 000,00'); await page.fill('#chk-note', extra.note ?? 'Please pay urgently, do not call us'); await page.check('#chk-q-dont_call');
@@ -38,7 +39,7 @@ async function saveVerification(page, { source = 'old_invoice', result = 'confir
 const ownerLinkOf = (page) => page.locator('input[aria-label="Your link to see the answer"]').inputValue();
 const contactLinkOf = (page) => page.locator('input[aria-label="Link for the second person"]').inputValue();
 async function makePack(page) {
-  await tile(page, 'A suspicious message or link').click(); await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await page.waitForSelector('#evidence-files');
+  await chooseSituation(page, 'A suspicious message or link'); await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await page.waitForSelector('#evidence-files');
   await page.fill('#business-name', 'SENTINEL-BUSINESS-PACK'); await page.fill('#amount-paid', 'SENTINEL-AMOUNT-PACK');
   await page.click('summary:has-text("Add details for your bank")'); await page.fill('#handoff-discovered', 'Monday 08:00'); await page.fill('#handoff-reference', 'CAS 123/10/2026');
   await page.click('text=Review what goes in the pack'); await page.click('text=Make incident pack'); await page.waitForSelector('.pack-summary');

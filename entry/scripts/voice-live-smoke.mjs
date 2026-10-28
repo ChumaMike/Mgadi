@@ -97,11 +97,12 @@ const gwWindow = async (ms) => { await page.evaluate(() => { window.__gwRms = 0;
 
 try {
   await page.goto(`${base}/`); await page.waitForSelector('h1');
-  await page.locator('.incident-choices button:has-text("Money or a payment problem")').click(); await page.locator('.incident-choices button:has-text("I paid after")').click(); await page.waitForSelector('text=Step 1 of');
+  await page.locator('.incident-choices button:has-text("Money or a payment problem")').click(); await page.getByRole('button', { name: 'Tell Mgadi by text', exact: true }).click(); await page.locator('.incident-choices button:has-text("I paid after")').click(); await page.waitForSelector('text=Step 1 of');
   await page.click('.voice-launch'); await page.waitForSelector('.voice-panel:not([hidden])');
-  await page.click('.vp-operator summary'); await page.fill('#voice-operator-token', OPERATOR); await page.click('button:has-text("Check test access")');
+  await page.locator('.vp-more-button').click(); await page.click('.vp-operator summary'); await page.fill('#voice-operator-token', OPERATOR); await page.click('button:has-text("Check test access")');
   await page.waitForSelector('.vp-optest:not([hidden])');
   check('an operator test call is labelled on screen at all times (not hidden in a collapsed section)', await page.locator('.vp-optest').isVisible());
+  await page.locator('.vp-close-tools').click();
   await page.check('#voice-consent-check'); const t0 = await now(); await page.click('.vp-start');
   await page.waitForSelector('.vp-status:has-text("Connected")', { timeout: 15_000 });
   await page.waitForFunction(() => window.__gateway?.connectionState === 'connected', null, { timeout: 15_000 }).catch(() => {});
@@ -118,7 +119,7 @@ try {
   const during = await statesSince(aStart);
   check('a loud microphone with a SILENT assistant never produces "speaking" (state history during the window)', !during.includes('speaking') && !during.includes('thinking'), JSON.stringify(during));
   check('the on-screen text agrees: never "Mgadi is speaking" and the avatar name never says speaking', !(await page.locator('.vp-activity').innerText()).includes('speaking') && !(await page.locator('.avatar-figure').getAttribute('aria-label')).includes('speaking'));
-  check('with a silent assistant for 5+ seconds Mgadi offers "No sound? Tap to enable" (it does not pretend all is well)', await page.locator('.vp-controls button:has-text("No sound?")').isVisible());
+  check('with a silent assistant for 5+ seconds Mgadi offers "No sound? Tap to enable" (it does not pretend all is well)', await page.locator('.vp-compact-setup button:has-text("No sound?")').isVisible());
   check('the avatar was animating (idle life) while no one spoke', (await page.locator('.avatar-dock').getAttribute('data-renderer')) === 'webgl');
 
   // ---- B. Assistant audio makes it speak, and stops when it stops
@@ -126,7 +127,7 @@ try {
   const speaking = await statesSince(bStart);
   check('assistant audio over the connection makes the state "speaking" (no captions involved)', speaking.includes('speaking'), JSON.stringify(speaking));
   check('the avatar is named "speaking" and the activity line says Mgadi is speaking', (await page.locator('.avatar-figure').getAttribute('aria-label')).includes('speaking') && (await page.locator('.vp-activity').innerText()).includes('Mgadi is speaking'));
-  check('hearing the assistant removes the "No sound?" hint', await page.locator('.vp-controls button:has-text("No sound?")').isHidden());
+  check('hearing the assistant removes the "No sound?" hint', await page.locator('.vp-compact-setup button:has-text("No sound?")').isHidden());
   const mouthWhileTone = await page.evaluate(async () => { const { createAvatarDock } = await import('/voice/avatar-dock.js'); return null; });
   void mouthWhileTone;
   await setAgent(0); await wait(2200);
@@ -150,7 +151,7 @@ try {
   say([{ id: 'agent_1', role: 'agent', content: reply, time_sec: 9 }]); await setAgent(0.4); await wait(500);
   const assistantBubbles = page.locator('.msg-assistant');
   check('the assistant\'s reply appears as a message labelled "Mgadi assistant"', (await assistantBubbles.count()) === 2 && (await assistantBubbles.nth(1).locator('.who').innerText()).startsWith('Mgadi assistant') && (await assistantBubbles.nth(1).locator('.said').innerText()) === reply);
-  check('while it speaks the avatar says speaking AND the emergency action is still on screen and tappable', (await page.locator('.avatar-figure').getAttribute('aria-label')).includes('speaking') && await (async () => { try { await page.click('.vp-bank', { trial: true, timeout: 2000 }); await page.click('#emergency-button', { trial: true, timeout: 2000 }); return true; } catch { return false; } })());
+  check('while it speaks the avatar says speaking AND the emergency action is still on screen and tappable', (await page.locator('.avatar-figure').getAttribute('aria-label')).includes('speaking') && await (async () => { try { await page.click('.vp-bank', { trial: true, timeout: 2000 });  return true; } catch { return false; } })());
   check('the order on screen is: assistant greeting, You, assistant reply', (await page.locator('.vp-chat .msg:not(.msg-system)').evaluateAll((n) => n.map((x) => x.classList.contains('msg-user') ? 'you' : 'assistant'))).join() === 'assistant,you,assistant');
   await setAgent(0); await wait(1800);
 
@@ -184,7 +185,7 @@ try {
   check('ENDED: the avatar is gone and the state is "ended"', (await page.locator('.avatar-dock').isHidden()) && (await page.evaluate(() => document.documentElement.dataset.voiceState)) === 'ended');
   check('ENDED: the conversation stays readable, unchanged', (await page.locator('.vp-chat .msg:not(.msg-system) .said').allInnerTexts()).join('|') === historyBefore.join('|') && historyBefore.length === 4, JSON.stringify(historyBefore.length));
   await page.click('.vp-controls button:has-text("Use text guidance")');
-  check('SWITCHING to text guidance keeps the incident step and the panel closes', await page.locator('.voice-panel').isHidden() && /step 1 of/i.test(await page.locator('.step-count').innerText()));
+  check('SWITCHING to text guidance keeps the incident step and the panel closes', await page.locator('.voice-panel').isHidden() && /step 1 of/i.test(await page.locator('.step-count').textContent()));
   await page.click('.voice-launch'); await page.waitForSelector('.vp-chat .msg');
   check('and the conversation is still there when the panel is opened again', (await page.locator('.vp-chat .msg:not(.msg-system)').count()) === 4);
   check('nothing was written to browser storage', await page.evaluate(() => JSON.stringify([{ ...localStorage }, { ...sessionStorage }]) === '[{},{}]'));

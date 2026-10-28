@@ -1,3 +1,4 @@
+import { chooseSituation } from './browser-journey.mjs';
 // Real-browser checks of the offline copy: install, offline reopening with the SERVER SHUT DOWN, a full guidance journey and
 // incident pack offline, no private data in any cache, interrupted and corrupted installs, eviction repair, update and rollback.
 //   MGADI_PLAYWRIGHT=/path/to/playwright/index.mjs node scripts/pwa-smoke.mjs
@@ -71,7 +72,7 @@ try {
   const intercepted = []; page.on('response', (r) => { if (r.url().includes('/api/') && r.fromServiceWorker()) intercepted.push(r.url()); });
   await page.reload(); await page.waitForSelector('h1');
   const before = await page.evaluate(async () => (await (await caches.open((await caches.keys()).find((k) => k.startsWith('mgadi-shell-')))).keys()).length);
-  await page.locator('.describe-incident > summary').click(); await page.fill('#incident-description', `${SENTINEL} Our files are encrypted and there is a ransom note.`); await page.click('text=Get safe next step'); await page.waitForSelector('text=Step 1 of');
+  await page.locator('.describe-incident > summary').click(); await page.fill('#incident-description', `${SENTINEL} Our files are encrypted and there is a ransom note.`); await page.click('text=Find my next safe step'); await page.waitForSelector('text=Step 1 of');
   await page.evaluate(() => fetch('/api/voice/config').then((r) => r.json())); await page.evaluate(() => fetch('/api/health').then((r) => r.json()));
   const after = await page.evaluate(async () => (await (await caches.open((await caches.keys()).find((k) => k.startsWith('mgadi-shell-')))).keys()).length);
   check('triage, voice config and health requests are not intercepted by the worker', intercepted.length === 0, JSON.stringify(intercepted));
@@ -89,12 +90,12 @@ try {
   check('the status line says it is offline, what still works, and what does not', /You are offline/.test(offlineText) && /guide, bank numbers and incident pack still work/.test(offlineText) && /Live AI voice and outside links need internet/.test(offlineText), offlineText);
   check('offline: five plain-language choices are shown', (await page.locator('.incident-choices button').count()) === 5);
   await page.click('#emergency-button'); await page.waitForSelector('text=Call your bank now');
-  check('offline: the bank directory opens with its checked date', (await page.locator('p.privacy').first().innerText()).includes('last checked') && (await page.locator('a[href^="tel:"]').count()) >= 4);
-  await page.click('button:has-text("Back")');
+  check('offline: the bank directory opens with its checked date', (await page.locator('.bank-popover').innerText()).includes('last checked') && (await page.locator('a[href^="tel:"]').count()) >= 4);
+  await page.click('button:has-text("Close bank numbers")');
 
   // typed words, classified by the local rules (the server is gone)
   const started = Date.now();
-  await page.locator('.describe-incident > summary').click(); await page.fill('#incident-description', `${SENTINEL} Every file on the server is encrypted and a ransom note demands bitcoin.`); await page.click('text=Get safe next step'); await page.waitForSelector('text=Step 1 of', { timeout: 12_000 });
+  await page.locator('.describe-incident > summary').click(); await page.fill('#incident-description', `${SENTINEL} Every file on the server is encrypted and a ransom note demands bitcoin.`); await page.click('text=Find my next safe step'); await page.waitForSelector('text=Step 1 of', { timeout: 12_000 });
   check('offline: typed words fall back to the local rules, quickly, and reach the ransomware guide', (await page.locator('.step-count').textContent()).includes('Possible ransomware') && Date.now() - started < 9000, `${Date.now() - started} ms`);
 
   // the whole guided journey, evidence fingerprint, pack and verification, offline
@@ -118,11 +119,12 @@ try {
 
   // voice, offline
   await page.click('text=Start a new incident'); await page.waitForSelector('.incident-choices');
+  await chooseSituation(page, 'A suspicious message or link');
   await page.click('.voice-launch'); await page.waitForSelector('.voice-panel:not([hidden])');
   const notice = await page.locator('.vp-avail').innerText();
   check('offline: voice says it needs the internet and does not pretend to run', /internet connection/i.test(notice) && (await page.locator('.vp-start').isDisabled()), notice);
   check('offline: the bank button in the voice panel works', await page.locator('.vp-bank').isVisible());
-  await page.click('.vp-bank'); await page.waitForSelector('text=Call your bank now'); await page.click('button:has-text("Back")');
+  await page.click('.vp-bank'); await page.waitForSelector('text=Call your bank now'); await page.click('button:has-text("Close bank numbers")');
 
   // nothing private anywhere in browser storage
   const audit = await page.evaluate(async ([a, b]) => {
@@ -167,7 +169,7 @@ try {
   await page.goto(`${base}/`); await waitState(page, 'ready');
   const v1 = (await (await page.request.get(`${base}/precache-manifest.json`)).json()).version;
   // The person has typed something, so the page must not be replaced under them (an untouched page switches by itself: see update-smoke).
-  await page.click('summary:has-text("Prefer to describe it in your own words?")'); await page.fill('#incident-description', 'keep this text');
+  await page.click('.describe-incident > summary'); await page.fill('#incident-description', 'keep this text');
   handler = createHandler({ publicDir: V2 });
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   const sawUpdate = await reached(page, 'update');

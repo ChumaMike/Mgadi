@@ -53,7 +53,9 @@
         "purpose": "Contact the bank to report suspected fraud. Confirm the bank-specific instructions.",
         "steps": [
           "bank"
-        ]
+        ],
+        "id": "payment_diversion-1",
+        "audience": "Business owner or trusted IT specialist"
       },
       {
         "title": "Business Email Compromise guidance",
@@ -62,7 +64,9 @@
         "purpose": "Independently verify changed supplier details.",
         "steps": [
           "supplier"
-        ]
+        ],
+        "id": "payment_diversion-2",
+        "audience": "Business owner or trusted IT specialist"
       },
       {
         "title": "Responding to compromised accounts",
@@ -71,7 +75,9 @@
         "purpose": "Account security, unknown forwarding and sign-ins; some actions require IT.",
         "steps": [
           "mailbox"
-        ]
+        ],
+        "id": "payment_diversion-3",
+        "audience": "Business owner or trusted IT specialist"
       }
     ],
     "mailbox_compromise": [
@@ -82,7 +88,9 @@
         "purpose": "Account security, unknown forwarding and sign-ins; some actions require IT.",
         "steps": [
           "mailbox"
-        ]
+        ],
+        "id": "mailbox_compromise-1",
+        "audience": "Business owner or trusted IT specialist"
       }
     ]
   }
