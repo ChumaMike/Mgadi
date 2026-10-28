@@ -18,7 +18,7 @@ marked `lang="en"` so screen readers pronounce it correctly. Nothing here is a c
 | Errors and connectivity notices | 13 | 7 | 0 (0%) | 0 (0%) | 0 (0%) |
 | Evidence and incident packs | 30 | 2 | 1 (3%) | 1 (3%) | 1 (3%) |
 | Accessibility settings and signing dialog | 22 | 0 | 3 (14%) | 3 (14%) | 3 (14%) |
-| Supplier check, responder handoff and POPIA draft (screens and the texts they build) | 153 | 47 | 3 (2%) | 3 (2%) | 3 (2%) |
+| Supplier check, responder handoff and POPIA draft (screens and the texts they build) | 164 | 53 | 3 (1%) | 3 (1%) | 3 (1%) |
 
 Catalog size: 41 entries per language (English, isiZulu, isiXhosa, Afrikaans).
 Percentages are translated strings divided by strings plus dynamic strings. Dynamic strings count as untranslated.

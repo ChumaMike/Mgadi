@@ -5,7 +5,7 @@
   "description": "Mgadi HackSecure 2026 entry",
   "type": "module",
   "engines": {
-    "node": ">=20.12"
+    "node": "22.x"
   },
   "scripts": {
     "start": "node server.js",
