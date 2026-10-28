@@ -8,6 +8,7 @@ import { redactIncident } from '../public/shared/redact.js';
 import { classifyRules } from '../public/shared/rules.js';
 import { validateTriage } from '../public/shared/labels.js';
 import { createVoiceService } from './voice.js';
+import { chatWithAnthropic, chatConfig } from './ai-chat.js';
 import { buildPrecacheManifest } from './precache.js';
 import { createLinkService, createLinkStoreFromEnv } from './links.js';
 
@@ -130,6 +131,8 @@ export function createHandler({ classifyWithAI = null, voice, links, env = proce
     return manifestMemo.value;
   }
   const allow = createRateLimiter();
+  // Per-instance protection is defense-in-depth; the API additionally requires a private operator credential.
+  const allowPaidChat = createRateLimiter(6, 60_000);
   const cache = new Map();
   // Sealed links (supplier check, responder handoff). See server/links.js for exactly what is stored. The limits are per instance.
   const linkService = links ?? (() => { const { store, sharedRequired } = createLinkStoreFromEnv(env, { fetchImpl }); return createLinkService({ store, sharedRequired, ttlHours: Number(env.MGADI_LINK_TTL_HOURS) || undefined }); })();
@@ -180,6 +183,24 @@ export function createHandler({ classifyWithAI = null, voice, links, env = proce
     if (cache.size >= 500) cache.clear();
     cache.set(cacheKey, result);
     return reply(response, 200, result);
+  }
+
+  async function aiChatRoute(request,response) {
+    if(request.method !== 'POST') return reply(response,405,{error:'POST only'},undefined,{Allow:'POST'});
+    if(foreignOrigin(request)) return reply(response,403,{error:'forbidden'});
+    if(!String(request.headers['content-type']||'').startsWith('application/json')) return reply(response,415,{error:'JSON only'});
+    if(!chatConfig(env).available) return reply(response,503,{error:'ai_not_configured'});
+    const configuredToken=String(env.MGADI_AI_TEST_TOKEN||'');
+    // Paid calls require a separate long, server-side token; never put it into HTML or query strings.
+    if(configuredToken.length<24 || !secureTransport(request)) return reply(response,403,{error:'operator_required'});
+    const sent=String(request.headers['x-mgadi-ai-test-token']||'');
+    const h=(v)=>createHash('sha256').update(v).digest('hex');
+    if(sent.length!==configuredToken.length || h(sent)!==h(configuredToken)) return reply(response,403,{error:'operator_required'});
+    if(!allowPaidChat(clientKey(request,env))) return reply(response,429,{error:'rate_limited'});
+    let payload;
+    try{payload=await readJson(request);}catch(e){return reply(response,e.status||400,{error:'invalid_message'});}
+    const out=await chatWithAnthropic(payload,{env,fetchImpl});
+    return reply(response,out.status,out.body);
   }
 
   // Browsers attach Sec-Fetch-Site and Origin to cross-site requests; scripts can leave them out, so these checks stop
@@ -246,6 +267,7 @@ export function createHandler({ classifyWithAI = null, voice, links, env = proce
       // Match on the path only, so a query string (cache-busting, tracking) never turns an API route into a static lookup.
       let pathname = '';
       try { pathname = new URL(request.url, 'http://mgadi.local').pathname; } catch { /* handled by the static route */ }
+      if (pathname === '/api/ai-chat') return await aiChatRoute(request,response);
       if (pathname === '/api/health') return reply(response, 200, { ok: true, ai: Boolean(classifyWithAI) });
       if (pathname === '/api/voice/config' || pathname === '/api/voice/session') return await voiceRoute(request, response, pathname);
       if (pathname === '/api/links') return await linksRoute(request, response);
