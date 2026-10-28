@@ -201,6 +201,20 @@ export function createHandler({ classifyWithAI = null, voice, links, env = proce
       const auth = await voiceService.authenticate(token, clientId);
       // A wrong token is answered exactly like no token (public view), so it reveals nothing; only a lockout is visible.
       if (auth.limited) return reply(response, 429, { error: 'rate_limited' });
+      // Operator-only, read-only provider check. Never returns keys or call credentials.
+      const diagnosticsRequested = new URL(request.url, 'http://mgadi.local').searchParams.get('diagnose') === '1';
+      if (diagnosticsRequested) {
+        if (auth.access !== 'operator' || auth.rejected) return reply(response, 403, { error: 'operator_required' });
+        const report = await voiceService.diagnose();
+        return reply(response, 200, {
+          ok: report.some((language) => language.code === 'en' && language.ok),
+          captionsConfigured: voiceService.cfg.hasPublicKey && voiceService.cfg.transcripts !== 'off',
+          agentVersionPinned: voiceService.cfg.agentVersion !== null,
+          operatorCallMinutes: voiceService.cfg.operatorMaxMs / 60_000,
+          languages: report,
+          note: 'Read-only checks only. This cannot test the Retell public key domain allowlist, microphone, live audio or captions.',
+        });
+      }
       const result = await voiceService.config(auth.rejected ? { access: 'public' } : auth);
       return reply(response, result.status, result.body);
     }
