@@ -1,58 +1,57 @@
-// Procedural 3D mannequin: articulated XYZ joints, perspective projection and depth sorting.
-// This is original model geometry, NOT a SASL animation library or translator.
+// Original 3D mesh companion: ellipsoids, perspective, depth sorting and lighting.
+// Provider speaking/listening activity drives motion; this is not lip-sync or SASL.
 export function createAvatar(canvas) {
   const ctx = canvas.getContext('2d');
-  let running = false, frame = 0, phase = 0, angle = -.12, mood = 'idle';
-  const limbs = [];
-  const joint = (x,y,z) => [x,y,z];
-  const add = (a,b,width,color='#bd8769') => limbs.push({a,b,width,color});
-  function draw() {
-    if (!ctx) return;
-    limbs.length = 0;
-    // Mood only changes how the original mannequin is posed and moves. It is a visual companion, not signing.
-    const amp = mood === 'speaking' ? .05 : mood === 'listening' ? .015 : .008;
-    const sway = running ? Math.sin(phase)*amp : 0;
-    const bob = running ? Math.sin(phase*.7)*(mood === 'idle' ? .012 : .02) : 0;
-    const lean = mood === 'listening' ? .05 : 0;
-    const shoulderL=joint(-.52,.65,0), shoulderR=joint(.52,.65,0);
-    const elbowL=joint(-.7,-.05,.08), elbowR=joint(.7,-.05,.08);
-    const wristL=joint(-.45,-.65,.35+sway), wristR=joint(.45,-.65,.35-sway);
-    add(joint(0,-.85,0),joint(0,.55,0),.95,'#24594e');
-    add(shoulderL,shoulderR,.36,'#24594e');
-    add(joint(0,.6,0),joint(0,1.02,0),.24);
-    add(shoulderL,elbowL,.22,'#24594e'); add(shoulderR,elbowR,.22,'#24594e');
-    add(elbowL,wristL,.17); add(elbowR,wristR,.17);
-    for (const [w,side] of [[wristL,-1],[wristR,1]]) {
-      const palm=joint(w[0],w[1]-.19,w[2]); add(w,palm,.18);
-      // Five separate fingers, each with three bones; neutral pose only.
-      for(let finger=0;finger<5;finger++) {
-        let p=joint(palm[0]+(finger-2)*.045,palm[1],palm[2]);
-        const length=finger===0?.13:.23-Math.abs(finger-2)*.025;
-        for(let k=0;k<3;k++) {
-          const n=joint(p[0]+(finger===0?side*.035:0),p[1]-length/3,p[2]+.015*k);
-          add(p,n,.033); p=n;
-        }
-      }
+  let running=false,frame=0,phase=0,angle=-.1,mood='idle',previous=0;
+  const skin=[155,98,65],shirt=[45,94,78],hair=[39,35,31],surfaces=[];
+  const rotate=([x,y,z])=>[x*Math.cos(angle)+z*Math.sin(angle),y,-x*Math.sin(angle)+z*Math.cos(angle)];
+  const project=([x,y,z])=>{const scale=canvas.width*.38*5/(5-z);return [canvas.width*.5+x*scale,canvas.height*.51-y*scale];};
+  function ellipsoid(center,radius,color,segments=20,rings=12){
+    const point=(i,j)=>{const t=Math.PI*i/rings,p=2*Math.PI*j/segments;return [center[0]+radius[0]*Math.sin(t)*Math.cos(p),center[1]+radius[1]*Math.cos(t),center[2]+radius[2]*Math.sin(t)*Math.sin(p)];};
+    for(let i=0;i<rings;i++)for(let j=0;j<segments;j++){
+      const points=[point(i,j),point(i+1,j),point(i+1,j+1),point(i,j+1)];
+      const mid=points.reduce((a,p)=>a.map((v,k)=>v+p[k]/4),[0,0,0]);
+      const normal=rotate(mid.map((v,k)=>(v-center[k])/(radius[k]*radius[k]))),length=Math.hypot(...normal)||1;
+      if(normal[2]/length<-.12)continue;
+      const light=.65+.35*Math.max(0,(-.45*normal[0]+.65*normal[1]+.7*normal[2])/length),rotated=points.map(rotate);
+      surfaces.push({points:rotated.map(project),z:rotated.reduce((n,p)=>n+p[2]/4,0),color:`rgb(${color.map(v=>Math.round(v*light)).join(',')})`});
     }
-    add(joint(-.26,-.8,0),joint(-.3,-1.9,.03),.4,'#243b43');
-    add(joint(.26,-.8,0),joint(.3,-1.9,.03),.4,'#243b43');
-    const rotated = p => [p[0]*Math.cos(angle)+p[2]*Math.sin(angle),p[1],-p[0]*Math.sin(angle)+p[2]*Math.cos(angle)];
-    const project = p => { const [x,y,z]=rotated(p); const scale=122*4/(4-z); return [canvas.width/2+x*scale,canvas.height*.44-y*scale,scale]; };
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    const gradient=ctx.createRadialGradient(200,150,0,200,200,300); gradient.addColorStop(0,'#eef6ec');gradient.addColorStop(1,'#c3d5cc');ctx.fillStyle=gradient;ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle='#123c3520';ctx.beginPath();ctx.ellipse(200,438,100,15,0,0,Math.PI*2);ctx.fill();
-    limbs.sort((a,b)=>(rotated(a.a)[2]+rotated(a.b)[2])-(rotated(b.a)[2]+rotated(b.b)[2]));
-    for(const limb of limbs) { const a=project(limb.a),b=project(limb.b);ctx.lineCap='round';ctx.lineWidth=limb.width*(a[2]+b[2])/2; const shade=ctx.createLinearGradient(a[0]-ctx.lineWidth/2,a[1],a[0]+ctx.lineWidth/2,a[1]); shade.addColorStop(0,'#253d3b');shade.addColorStop(.35,limb.color);shade.addColorStop(.7,limb.color);shade.addColorStop(1,'#31443e');ctx.strokeStyle=shade;ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke(); }
-    const h=project(joint(lean,1.22+bob,.02));
-    const skin=ctx.createRadialGradient(h[0]-12,h[1]-10,3,h[0],h[1],50);skin.addColorStop(0,'#dba383');skin.addColorStop(1,'#93664f');ctx.fillStyle=skin;ctx.beginPath();ctx.ellipse(h[0],h[1],.3*h[2],.38*h[2],0,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#26352f';ctx.beginPath();ctx.ellipse(h[0],h[1]-.25*h[2],.29*h[2],.15*h[2],0,Math.PI,Math.PI*2);ctx.fill();
-    for(const dx of [-.1,.1]){const eye=project(joint(dx+lean,1.26+bob,.32));ctx.beginPath();ctx.arc(eye[0],eye[1],3,0,Math.PI*2);ctx.fill();}
-    const mouth=project(joint(lean,1.08+bob,.3));ctx.strokeStyle='#714637';ctx.fillStyle='#4b2a22';ctx.lineWidth=2;ctx.beginPath();
-    if(mood==='speaking'){const open=running?(Math.sin(phase*6)+1)/2:.6;ctx.ellipse(mouth[0],mouth[1],9,3+open*8,0,0,Math.PI*2);ctx.fill();}
-    else if(mood==='listening'){ctx.arc(mouth[0],mouth[1]-5,10,.15*Math.PI,.85*Math.PI);ctx.stroke();}
-    else{ctx.moveTo(mouth[0]-8,mouth[1]);ctx.lineTo(mouth[0]+8,mouth[1]);ctx.stroke();}
   }
-  function animate(){phase+=.025;draw();if(running)frame=requestAnimationFrame(animate);}
+  function draw(){
+    if(!ctx)return;surfaces.length=0;
+    const w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);
+    const bg=ctx.createRadialGradient(w*.4,h*.25,5,w*.5,h*.5,w*.8);bg.addColorStop(0,'#f3f3df');bg.addColorStop(1,'#b9ccad');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#ffffff45';ctx.beginPath();ctx.ellipse(w*.5,h*.37,w*.36,h*.32,0,0,Math.PI*2);ctx.fill();
+    const movement=running?Math.sin(phase):0,bob=movement*(mood==='speaking'?.022:.008),lean=mood==='listening'?.035:0;
+    ellipsoid([0,-.75,0],[.8,.9,.35],shirt);
+    ellipsoid([-.6,-.58,.02],[.3,.63,.3],shirt);ellipsoid([.6,-.58,.02],[.3,.63,.3],shirt);
+    ellipsoid([0,.18,.02],[.19,.32,.19],skin);
+    for(const side of [-1,1])ellipsoid([side*.19,.02,.29],[.21,.075,.055],[26,65,53],16,8);
+    const head=[lean,.69+bob,.04];
+    for(const side of [-1,1])ellipsoid([head[0]+side*.34,head[1]-.03,.04],[.075,.13,.075],skin,12,8);
+    ellipsoid(head,[.35,.46,.3],skin,28,18);ellipsoid([head[0],head[1]+.29,-.03],[.36,.2,.31],hair,24,12);
+    for(const side of [-1,1]){
+      const x=head[0]+side*.135,y=head[1]+.05,blink=running&&Math.sin(phase*.43)>.996;
+      ellipsoid([x,y+.065,.305],[.09,.022,.018],hair,12,6);
+      ellipsoid([x,y,.31],[.064,blink?.007:.03,.018],[240,233,213],12,8);
+      if(!blink){ellipsoid([x+.008,y,.327],[.023,.026,.012],[39,34,29],12,8);ellipsoid([x+.003,y+.008,.337],[.007,.008,.005],[255,250,226],8,6);}
+    }
+    ellipsoid([head[0],head[1]-.035,.32],[.058,.10,.062],[165,106,72],14,10);
+    const open=mood==='speaking'?(running?(Math.sin(phase*9)+1)*.018+.012:.03):.009;
+    ellipsoid([head[0],head[1]-.18,.29],[.09,open,.025],[73,41,33],16,8);
+    ellipsoid([head[0],head[1]-.207-open*.3,.283],[.075,.015,.024],[183,114,84],16,6);
+    // Relaxed arms and separate fingers; breathing only, never presented as a sign.
+    for(const side of [-1,1]){
+      const lift=mood==='speaking'?movement*.025:0;
+      ellipsoid([side*.56,-1.05+lift,.25],[.17,.34,.17],skin,16,10);
+      ellipsoid([side*.39,-1.2+lift,.39],[.19,.13,.09],skin,16,10);
+      for(let finger=0;finger<4;finger++)ellipsoid([side*(.29+finger*.055),-1.31+lift,.4],[.024,.115-finger*.012,.027],skin,10,6);
+      ellipsoid([side*.25,-1.17+lift,.44],[.08,.035,.035],skin,12,6);
+    }
+    surfaces.sort((a,b)=>a.z-b.z);
+    for(const face of surfaces){ctx.fillStyle=face.color;ctx.beginPath();face.points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();ctx.fill();ctx.strokeStyle=face.color;ctx.lineWidth=.55;ctx.stroke();}
+  }
+  function animate(now=0){if(!running)return;if(previous && now-previous<32){frame=requestAnimationFrame(animate);return;}const elapsed=previous?Math.min(now-previous,50):16;previous=now;phase+=elapsed*.0017;draw();frame=requestAnimationFrame(animate);}
   draw();
-  return { play(){if(!running){running=true;animate();}},pause(){running=false;cancelAnimationFrame(frame);draw();},rotate(value){angle=value;draw();},setMood(next){mood=['idle','listening','speaking'].includes(next)?next:'idle';if(!running)draw();},destroy(){running=false;cancelAnimationFrame(frame);} };
+  return {play(){if(!running){running=true;previous=0;frame=requestAnimationFrame(animate);}},pause(){running=false;cancelAnimationFrame(frame);draw();},rotate(value){angle=Number.isFinite(value)?value:0;draw();},setMood(next){mood=['idle','listening','speaking'].includes(next)?next:'idle';if(!running)draw();},destroy(){running=false;cancelAnimationFrame(frame);}};
 }

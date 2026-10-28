@@ -119,7 +119,7 @@ const NEGATED = /\b(cannot|can't|can not|does not|doesn't|do not|don't|not|never
 export const wordingOffenders = (strings) => strings.flatMap(([where, text]) => text.split(/(?<=[.!?])\s+/).filter((sentence) => RISKY_CLAIMS.some((re) => re.test(sentence)) && !NEGATED.test(sentence)).map((sentence) => [where, sentence]));
 
 test('wording guard: nothing says or implies that Mgadi blocks, holds, protects or verifies a payment or a supplier', () => {
-  const files = ['public/tools/tools.js', 'public/shared/supplier-check.js', 'public/shared/responder.js', 'public/shared/popia.js'].map((f) => [f, fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')]);
+  const files = ['public/tools/tools.js', 'public/tools/evidence-ui.js', 'public/shared/supplier-check.js', 'public/shared/baseline.js', 'public/shared/evidence.js', 'public/shared/pdf-text.js', 'public/shared/responder.js', 'public/shared/popia.js'].map((f) => [f, fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')]);
   const sentences = [];
   for (const [file, source] of files) for (const m of source.matchAll(/(['"`])((?:(?!\1)[^\\\n]|\\.){12,})\1/g)) sentences.push([file, m[2]]);
   assert.ok(sentences.length > 100, 'the guard really is reading the screens');

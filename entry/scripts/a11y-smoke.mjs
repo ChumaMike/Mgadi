@@ -39,13 +39,13 @@ const open = async (base, { width = 390, height = 844, reducedMotion = 'no-prefe
 const tile = (page, text) => page.locator(`.incident-choices button:has-text("${text}")`);
 
 // The ransomware guide to its evidence screen: seven taps, the way a person would.
-const toEvidence = async (p) => { await tile(p, 'My device or files are locked').click(); for (let i = 0; i < 7; i += 1) { await p.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await p.waitForTimeout(50); } await p.waitForSelector('#evidence-files'); };
+const toEvidence = async (p) => { await tile(p, 'My device or files are locked').click(); for (let i = 0; i < 7; i += 1) { await p.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await p.waitForTimeout(50); } await p.waitForSelector('#evidence-files'); };
 // The supplier check, POPIA draft and helper handoff are reached the way a person would reach them.
 const startCheck = async (p) => { await p.click('.tool-entry'); await p.waitForSelector('#chk-supplier'); };
 const fillCheck = async (p) => { await startCheck(p); await p.fill('#chk-supplier', 'Test Supplier'); await p.selectOption('#chk-changed', 'bank_account'); await p.selectOption('#chk-arrived', 'email'); await p.fill('#chk-amount', 'R 70 000,00'); await p.check('#chk-q-dont_call'); await p.click('button:has-text("Check for red flags")'); await p.waitForSelector('#ver-who'); };
 const recordCheck = async (p) => { await fillCheck(p); await p.fill('#ver-who', 'Thandi'); await p.selectOption('#ver-source', 'old_invoice'); await p.selectOption('#ver-result', 'confirmed'); await p.check('#ver-mine'); await p.click('button:has-text("Save my check")'); await p.waitForSelector('button:has-text("Create a link for the second person")'); };
 const makeCheckLink = async (p) => { await recordCheck(p); await p.click('button:has-text("Create a link for the second person")'); await p.waitForSelector('input[aria-label="Link for the second person"]'); return p.locator('input[aria-label="Link for the second person"]').inputValue(); };
-const toPack = async (p) => { await tile(p, 'A suspicious message or link').click(); await p.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await p.waitForSelector('#evidence-files'); await p.click('text=Review what goes in the pack'); await p.click('text=Make incident pack'); await p.waitForSelector('.pack-summary'); };
+const toPack = async (p) => { await tile(p, 'A suspicious message or link').click(); await p.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await p.waitForSelector('#evidence-files'); await p.click('text=Review what goes in the pack'); await p.click('text=Make incident pack'); await p.waitForSelector('.pack-summary'); };
 const makeHandoffLink = async (p) => { await toPack(p); await p.click('button:has-text("Send a summary to a helper")'); await p.waitForSelector('#ho-approve'); await p.check('#ho-approve'); await p.click('button:has-text("Create the link")'); await p.waitForSelector('input[aria-label="Link for the contact"]'); return p.locator('input[aria-label="Link for the contact"]').inputValue(); };
 // Each screen is reached the way a person would, then audited.
 const screens = {
@@ -53,13 +53,13 @@ const screens = {
   'money question': async (p) => { await tile(p, 'Money or a payment problem').click(); await p.waitForSelector('text=What happened with the money?'); },
   'one quick question': async (p) => { await tile(p, "know what happened").click(); await p.waitForSelector('text=One quick question'); },
   'ransomware step 1': async (p) => { await tile(p, 'My device or files are locked').click(); await p.waitForSelector('text=Step 1 of'); },
-  'ransomware step 4 (help)': async (p) => { await tile(p, 'My device or files are locked').click(); for (let i = 0; i < 3; i += 1) await p.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await p.waitForSelector('text=Step 4 of'); },
+  'ransomware step 4 (help)': async (p) => { await tile(p, 'My device or files are locked').click(); for (let i = 0; i < 3; i += 1) await p.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await p.waitForSelector('text=Step 4 of'); },
   'payment guide step 1': async (p) => { await tile(p, 'Money or a payment problem').click(); await tile(p, 'I paid after').click(); await p.waitForSelector('text=Step 1 of'); },
   'mailbox guide': async (p) => { await tile(p, 'Someone accessed my email').click(); await p.waitForSelector('text=Step 1 of'); },
   'bank directory': async (p) => { await p.click('#emergency-button'); await p.waitForSelector('text=Call your bank now'); },
-  'evidence screen': async (p) => { await tile(p, 'A suspicious message or link').click(); await p.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await p.waitForSelector('#evidence-files'); },
-  'pack review': async (p) => { await tile(p, 'A suspicious message or link').click(); await p.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await p.waitForSelector('#evidence-files'); await p.click('text=Review what goes in the pack'); await p.waitForSelector('text=Check what goes in your pack'); },
-  'incident summary': async (p) => { await tile(p, 'A suspicious message or link').click(); await p.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await p.waitForSelector('#evidence-files'); await p.click('text=Review what goes in the pack'); await p.click('text=Make incident pack'); await p.waitForSelector('text=Incident summary'); },
+  'evidence screen': async (p) => { await tile(p, 'A suspicious message or link').click(); await p.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await p.waitForSelector('#evidence-files'); },
+  'pack review': async (p) => { await tile(p, 'A suspicious message or link').click(); await p.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await p.waitForSelector('#evidence-files'); await p.click('text=Review what goes in the pack'); await p.waitForSelector('text=Check what goes in your pack'); },
+  'incident summary': async (p) => { await tile(p, 'A suspicious message or link').click(); await p.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await p.waitForSelector('#evidence-files'); await p.click('text=Review what goes in the pack'); await p.click('text=Make incident pack'); await p.waitForSelector('text=Incident summary'); },
   'handoff form open': async (p) => { await toEvidence(p); await p.click('details.handoff-form summary'); await p.fill('#handoff-discovered', 'Monday about 08:00'); await p.selectOption('#handoff-affected', 'server'); await p.fill('#handoff-reference', 'CAS 123/10/2026'); },
   'pack review with handoff': async (p) => { await toEvidence(p); await p.click('details.handoff-form summary'); await p.fill('#handoff-followup', 'Call back Thursday'); await p.click('text=Review what goes in the pack'); await p.waitForSelector('#include-handoff'); },
   'specialist summary (ransomware)': async (p) => { await toEvidence(p); await p.click('details.handoff-form summary'); await p.fill('#handoff-followup', 'Call back Thursday'); await p.click('text=Review what goes in the pack'); await p.click('text=Make incident pack'); await p.waitForSelector('text=Handoff for an IT or security specialist'); },
@@ -95,7 +95,7 @@ try {
   check('keyboard: skip link, then the home link, then the bank button are the first stops', order[0] === 'skip-link' && order.some((o) => o === 'emergency-button') && order.indexOf('emergency-button') <= 2, JSON.stringify(order));
   await tile(page, 'My device or files are locked').click(); await page.waitForSelector('text=Step 1 of'); await page.waitForTimeout(150);
   check('focus moves to the new screen\'s heading, so a screen reader announces where you are', await page.evaluate(() => document.activeElement.tagName === 'H1'));
-  await page.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await page.waitForTimeout(150);
+  await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await page.waitForTimeout(150);
   check('and again after moving to the next step', await page.evaluate(() => document.activeElement.tagName === 'H1' && /Disconnect/.test(document.activeElement.textContent)));
   await page.goto(`${real.base}/`); await page.waitForSelector('h1'); for (let i = 0; i < 4 && !(await page.evaluate(() => document.activeElement.id === 'emergency-button')); i += 1) await page.keyboard.press('Tab');
   check('the focused bank button has a visible focus indicator (reached with the keyboard)', await page.evaluate(() => { const s = getComputedStyle(document.activeElement); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2; }));
@@ -121,7 +121,7 @@ try {
   check('helper summary: every control meets its minimum size, and the disabled "Create the link" button is explained by the tick box next to it', packSmall.length === 0 && (await pack.locator('button:has-text("Create the link")').isDisabled()) && (await pack.locator('label[for="ho-approve"]').count()) === 1, JSON.stringify(packSmall));
 
   // ---- 4. Language: switching keeps the incident, and untranslated text is marked as English, never passed off as translated.
-  await page.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await page.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click();
+  await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click();
   await page.waitForSelector('text=Step 3 of'); await page.click('summary:has-text("Language")'); await page.selectOption('#language', 'zu'); await page.waitForTimeout(200);
   check('switching to isiZulu keeps the incident and the step (step 3 of the ransomware guide)', (await page.locator('.step-count').innerText()).includes('Step 3 of 7'));
   const langs = await page.evaluate(() => ({ h1: document.querySelector('h1').lang, htmlLang: document.documentElement.lang, why: [...document.querySelectorAll('h2')].map((h) => [h.textContent, h.lang]) }));
@@ -142,7 +142,7 @@ try {
   check('a VALIDATED clip (synthetic fixture) is shown with who reviewed it and when', /Reviewed SASL clip, reviewed by TEST FIXTURE/.test(fxStatus) && /2026-10-27/.test(fxStatus), fxStatus);
   check('and it is shown WITH a captions track', (await fx.locator('dialog video:not([hidden]) track[kind="captions"]').count()) === 1 && (await fx.locator('dialog video').getAttribute('src')) === '/accessibility/media/fixture.webm');
   await fx.keyboard.press('Escape');
-  const fx2 = await open(fixture.base); await tile(fx2, 'My device or files are locked').click(); await fx2.waitForSelector('text=Step 1 of'); await fx2.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await fx2.waitForSelector('text=Step 2 of'); await fx2.click('button:has-text("Sign this")'); await fx2.waitForSelector('dialog[open]');
+  const fx2 = await open(fixture.base); await tile(fx2, 'My device or files are locked').click(); await fx2.waitForSelector('text=Step 1 of'); await fx2.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await fx2.waitForSelector('text=Step 2 of'); await fx2.click('button:has-text("Sign this")'); await fx2.waitForSelector('dialog[open]');
   check('a step with no clip stays unavailable even when another step has one (clips are keyed to the exact step)', /SASL translation unavailable/.test(await fx2.locator('dialog .notice').first().innerText()));
 
   // ---- 6. Reduced motion and low data.

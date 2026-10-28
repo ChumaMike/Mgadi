@@ -83,7 +83,7 @@ try {
 
   // 4. Mute, end, history, privacy.
   await page.click('.vp-controls button:has-text("Mute")');
-  check('muting shows muted status and chip', (await page.locator('.vp-status').innerText()).includes('Muted') && (await page.locator('.vp-chips').innerText()).includes('Microphone muted'));
+  check('muting shows muted status and chip', (await page.locator('.vp-status').innerText()).includes('Muted') && (await page.locator('.vp-chips').innerText()).includes('No microphone · simulation'));
   await page.click('.vp-controls button:has-text("Unmute")');
   const chatBefore = await page.locator('.msg-assistant .said').allInnerTexts();
   await page.click('.vp-controls button:has-text("End call")'); await page.waitForSelector('.vp-status:has-text("ended")');
@@ -103,7 +103,7 @@ try {
   check('the scripted assistant confirmed nothing by itself', (await page.locator('.vp-task.confirmed').count()) === 0);
   await page.click('.vp-controls button:has-text("Use text guidance")').catch(() => {});
   page = await open(); await begin(page); await launch(page);
-  await page.click('.vp-action button:has-text("I\'ve called the bank")');
+  await page.locator('.vp-action > summary').click(); await page.click('.vp-action button:has-text("I\'ve called the bank")');
   check('confirming in the panel advances the main journey', (await page.locator('.step-count').innerText()).includes('Step 2 of'));
   check('the panel shows the new current action', (await page.locator('.vp-now').innerText()).includes('Confirm with your supplier'));
   await page.evaluate(() => { document.querySelector('.vp-progress').open = true; });
@@ -178,7 +178,7 @@ try {
     let ok = true; try { await page.click('#emergency-button', { timeout: 3000 }); await page.waitForSelector('h1:has-text("Call your bank now")'); } catch { ok = false; }
     check(`${w}x${h}: the site bank button works during the call`, ok);
   }
-  page = await open({ width: 320, height: 640 }); await page.click('summary'); await page.selectOption('#text-size', 'largest'); await page.click('summary'); await begin(page); await launch(page); await talk(page);
+  page = await open({ width: 320, height: 640 }); await page.click('#accessibility > details > summary'); await page.selectOption('#text-size', 'largest'); await page.click('#accessibility > details > summary'); await begin(page); await launch(page); await talk(page);
   check('320px at 200% text: no sideways scroll with the panel open', !(await overflowX(page)));
   const big = await dockButtons(page); const bigAvatar = await rect(page, '.avatar-dock');
   check('320px at 200% text: the avatar steps aside rather than cover anything', await page.locator('.avatar-dock').isHidden() && big.every((b) => !hit(bigAvatar, b)), JSON.stringify({ bigAvatar, big }));

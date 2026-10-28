@@ -75,7 +75,10 @@ test('sw.js source: files are saved only at install, there is no runtime caching
   assert.match(sw, /url\.pathname === MANIFEST_URL \|\| BYPASS\.some/);
   assert.match(sw, /integrity mismatch/); assert.match(sw, /await caches\.delete\(CACHE\); throw error;/, 'a failed install deletes the half-built cache');
   assert.match(sw, /fetched\.type !== 'basic' \|\| fetched\.redirected/, 'no redirects or cross-origin bodies are saved');
-  assert.match(sw, /self\.registration\.active \? undefined : self\.skipWaiting\(\)/, 'an update waits; only the first install takes over');
+  // Who may take over at once: the first install, and an update replacing a worker whose page cannot manage updates (no p=2).
+  // An update replacing a page that CAN (p=2) waits, and that page applies it when it is safe.
+  assert.match(sw, /if \(!previous \|\| protocolOf\(previous\.scriptURL\) !== PROTOCOL\) return self\.skipWaiting\(\);/, 'only the first install and a legacy page take over at once');
+  assert.match(sw, /const PROTOCOL = '2'/); assert.doesNotMatch(sw, /clients\.(navigate|matchAll)|\.navigate\(/, 'the worker never reloads or navigates an open page');
   assert.match(sw, /manifest\.version !== VERSION/);
   assert.doesNotMatch(sw, /innerHTML|eval\(|importScripts|new Function/);
   assert.doesNotMatch(sw, /localStorage|indexedDB|sessionStorage/);
@@ -92,7 +95,7 @@ test('the status text is honest in every state, and says when a saved copy may b
   const old = describe({ state: 'ready', copy, online: true, now: now + STALE_AFTER_DAYS * 86_400_000 });
   assert.match(old, /days old/); assert.match(old, /may be out of date/);
   assert.match(describe({ state: 'ready', copy, online: true, persisted: false, now }), /can still clear this copy/);
-  assert.match(describe({ state: 'update', copy, online: true, now }), /newer version is ready and will be used the next time/);
+  assert.match(describe({ state: 'update', copy, online: true, now }), /^.*A newer version is ready\.$/);
   for (const state of ['saving', 'failed', 'incomplete', 'unsupported', 'insecure', 'none']) {
     const text = describe({ state, copy: null, online: false, now });
     assert.match(text, /^You are offline\./, state); assert.doesNotMatch(text, /Ready offline\.|still work from the saved copy/, `${state} must never claim to be ready`);

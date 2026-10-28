@@ -38,7 +38,7 @@ async function saveVerification(page, { source = 'old_invoice', result = 'confir
 const ownerLinkOf = (page) => page.locator('input[aria-label="Your link to see the answer"]').inputValue();
 const contactLinkOf = (page) => page.locator('input[aria-label="Link for the second person"]').inputValue();
 async function makePack(page) {
-  await tile(page, 'A suspicious message or link').click(); await page.locator('#app .card > button.button:not(.secondary):not(.danger)').first().click(); await page.waitForSelector('#evidence-files');
+  await tile(page, 'A suspicious message or link').click(); await page.locator('#app .step-outcomes > button.button:not(.secondary)').first().click(); await page.waitForSelector('#evidence-files');
   await page.fill('#business-name', 'SENTINEL-BUSINESS-PACK'); await page.fill('#amount-paid', 'SENTINEL-AMOUNT-PACK');
   await page.click('summary:has-text("Add details for your bank")'); await page.fill('#handoff-discovered', 'Monday 08:00'); await page.fill('#handoff-reference', 'CAS 123/10/2026');
   await page.click('text=Review what goes in the pack'); await page.click('text=Make incident pack'); await page.waitForSelector('.pack-summary');

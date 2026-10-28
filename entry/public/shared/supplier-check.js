@@ -105,6 +105,8 @@ export function buildCheckAudit({ payload, decision, checkId, createdAt }) {
     request,
     redFlags: flags.map((f) => ({ id: f.id, level: f.level, text: f.text })),
     verification,
+    ...(payload.comparison ? { comparison: payload.comparison } : {}),
+    ...(payload.evidence ? { evidence: payload.evidence } : {}),
     verdict: verdict(verification),
     secondPerson: decision
       ? { status: decision.status, decidedAt: decision.at, by: decision.by ?? '', note: decision.note ?? '', recordedBy: "Mgadi's server clock; the person is identified only by what they typed" }

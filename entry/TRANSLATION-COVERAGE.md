@@ -7,20 +7,20 @@ marked `lang="en"` so screen readers pronounce it correctly. Nothing here is a c
 
 | Part of Mgadi | Strings | Dynamic (built at run time) | isiZulu | isiXhosa | Afrikaans |
 |---|---:|---:|---:|---:|---:|
-| Emergency entry screens (choices, money question, one quick question) | 29 | 0 | 8 (28%) | 8 (28%) | 8 (28%) |
+| Emergency entry screens (choices, money question, one quick question) | 41 | 0 | 29 (71%) | 29 (71%) | 29 (71%) |
 | Payment-diversion guide | 26 | 0 | 24 (92%) | 24 (92%) | 24 (92%) |
-| Hacked-mailbox guide | 13 | 0 | 0 (0%) | 0 (0%) | 0 (0%) |
-| Suspicious-message guide | 7 | 0 | 0 (0%) | 0 (0%) | 0 (0%) |
+| Hacked-mailbox guide | 13 | 0 | 6 (46%) | 6 (46%) | 6 (46%) |
+| Suspicious-message guide | 7 | 0 | 3 (43%) | 3 (43%) | 3 (43%) |
 | Not-a-cyber-incident and unsure guides | 21 | 0 | 1 (5%) | 1 (5%) | 1 (5%) |
 | Ransomware guide (steps, organisation note, trusted resources) | 66 | 2 | 0 (0%) | 0 (0%) | 0 (0%) |
-| Bank directory and step screens | 11 | 3 | 6 (43%) | 6 (43%) | 6 (43%) |
-| Voice panel: controls, consent and conversation states | 28 | 0 | 2 (7%) | 2 (7%) | 2 (7%) |
+| Bank directory and step screens | 15 | 3 | 10 (56%) | 10 (56%) | 10 (56%) |
+| Voice panel: controls, consent and conversation states | 29 | 0 | 11 (38%) | 11 (38%) | 11 (38%) |
 | Errors and connectivity notices | 13 | 7 | 0 (0%) | 0 (0%) | 0 (0%) |
 | Evidence and incident packs | 30 | 2 | 1 (3%) | 1 (3%) | 1 (3%) |
-| Accessibility settings and signing dialog | 22 | 0 | 3 (14%) | 3 (14%) | 3 (14%) |
-| Supplier check, responder handoff and POPIA draft (screens and the texts they build) | 153 | 47 | 3 (2%) | 3 (2%) | 3 (2%) |
+| Accessibility settings and signing dialog | 22 | 0 | 5 (23%) | 5 (23%) | 5 (23%) |
+| Supplier check, responder handoff and POPIA draft (screens and the texts they build) | 164 | 53 | 3 (1%) | 3 (1%) | 3 (1%) |
 
-Catalog size: 41 entries per language (English, isiZulu, isiXhosa, Afrikaans).
+Catalog size: 89 entries per language (English, isiZulu, isiXhosa, Afrikaans).
 Percentages are translated strings divided by strings plus dynamic strings. Dynamic strings count as untranslated.
 
 ## What this means for people

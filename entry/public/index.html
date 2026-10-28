@@ -9,15 +9,17 @@
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/experience.css">
   </head>
   <body>
     <a class="skip-link" lang="en" href="#app">Skip to main content</a>
     <header class="site-header">
-      <a class="brand" lang="en" href="/">Mgadi <span>First-hour scam response</span></a>
+      <a class="brand" lang="en" href="/" aria-label="Mgadi home"><span class="brand-logo"><img src="/brand/mgadi-logo.png" alt="Mgadi" width="1254" height="1254"></span><span class="brand-tagline">First-hour scam response</span></a>
       <button id="emergency-button" class="button danger" type="button">Bank fraud line</button>
     </header>
     <p id="offline-status" class="offline-status" role="status" aria-live="polite" lang="en" data-state="saving"></p>
     <aside id="accessibility" aria-label="Language and accessibility settings"></aside>
+    <p id="translation-note" class="translation-note" role="status" lang="en" hidden></p>
     <main id="app" tabindex="-1"></main>
     <footer lang="en"><strong>Prototype · Draft guidance; practitioner review pending.</strong><br>Mgadi never asks for passwords, OTPs, PINs, card numbers, remote access or an app install.</footer>
     <script type="module" src="/app.js"></script>

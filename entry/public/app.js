@@ -1,4 +1,4 @@
-import { bindText, installAccessibility, guidanceControls, callWalkthrough, stopSpeech } from './accessibility/accessibility.js';
+import { bindText, installAccessibility, guidanceControls, stopSpeech } from './accessibility/accessibility.js';
 import { redactIncident } from './shared/redact.js';
 import { routeTriage } from './shared/labels.js';
 import { sha256Hex } from './shared/sha256.js';
@@ -44,7 +44,9 @@ function reviewBadge(flow) {
   const text = flow?.reviewed === false && flow.title.toLowerCase().includes('ransomware')
     ? `${base} This ransomware guide was written from public CISA and No More Ransom guidance and has not been checked by a practitioner.`
     : base;
-  return element('p', text, { className: 'notice review-status print-keep' });
+  const details = element('details', '', { className: 'review-status print-keep' });
+  details.append(element('summary', playbook.reviewed ? 'About this guidance' : 'Draft guidance · review pending'), element('p', text));
+  return details;
 }
 function plain(tag, text, className) { const node = document.createElement(tag); node.textContent = text; if (className) node.className = className; return node; }
 
@@ -84,26 +86,66 @@ function showBankLines() {
 }
 
 function showHome() {
-  clear(); const card = element('section', '', { className: 'card' });
-  card.append(element('h1', 'What happened?'), element('p', 'Describe the incident in your own words. Mgadi will guide you to one safe next step.'));
-  const choices=element('div', '', {className:'incident-choices'});
-  choices.append(element('p', playbook.entry.intro));
-  for (const option of playbook.entry.options) choices.append(button(option.text, () => chooseEntry(option), 'button secondary'));
-  card.append(choices, tools.homeButton());
+  clear();
+  const card = element('section', '', { className: 'card welcome-card' });
+  const hero = element('div', '', { className: 'welcome-hero' });
+  const copy = element('div', '', { className: 'welcome-copy' });
+  const intro = element('p', 'Let’s take the next step, together.', { className: 'hero-intro' });
+  copy.append(element('p', 'YOUR FIRST HOUR, MADE SIMPLER', { className: 'eyebrow' }), element('h1', 'Something feels wrong?'), intro);
+  const companion = element('div', '', { className: 'welcome-companion' });
+  const logo = element('span', '', { className: 'companion-symbol', 'aria-hidden': 'true' });
+  logo.append(element('img', '', { src: '/brand/mgadi-logo.png', alt: '', width: '1254', height: '1254' }));
+  companion.append(logo, element('strong', 'You don’t have to figure it out alone.'), voice.launchButton(), button('Use text guidance', () => card.querySelector('.situation-card')?.focus(), 'button secondary text-entry'), element('p', 'Voice, captions and a 3D companion, when connected.', { className: 'privacy' }));
+  hero.append(copy, companion); card.append(hero);
+  const choices = element('div', '', { className: 'incident-choices welcome-choices' });
+  card.append(element('h2', 'What happened?'), element('p', 'Choose the closest option. We’ll guide you one step at a time.', { className: 'section-intro' }));
+  const symbols = ['↗', '▣', '@', '↗', '?'];
+  playbook.entry.options.forEach((option, index) => {
+    const choice = button('', () => chooseEntry(option), 'button secondary situation-card');
+    choice.append(element('span', symbols[index] || '→', { className: 'choice-icon', 'aria-hidden': 'true' }), element('span', option.text), element('span', '→', { className: 'choice-arrow', 'aria-hidden': 'true' }));
+    choices.append(choice);
+  });
+  card.append(choices);
+  const writing = element('details', '', { className: 'describe-incident' });
+  writing.append(element('summary', 'Prefer to describe it in your own words?'));
   const description = element('textarea', '', { id: 'incident-description', placeholder: 'Example: We paid a supplier after an email said their banking details changed. They say they never got the money.' });
+  description.lang = 'en';
   const names = element('input', '', { id: 'names-to-hide', placeholder: 'Optional: names to hide, separated by commas' });
-  description.lang='en';
-  card.append(element('p', 'Free-text classification is not verified for isiZulu, isiXhosa or Afrikaans. Use the choices above for these languages, or type in English.', {className:'notice'}));
-  card.append(element('label', 'What happened?', { for: 'incident-description' }), description, element('label', 'Names to hide', { for: 'names-to-hide' }), names, element('p', 'Before anything leaves this phone, Mgadi hides names, emails, phone numbers, bank-like numbers, amounts and links.', { className: 'privacy' }));
-  card.append(button('Get safe next step', async () => {
+  writing.append(element('p', 'Please type in English. For other languages, use the choices above.', { className: 'privacy' }), element('label', 'What happened?', { for: 'incident-description' }), description, element('label', 'Names to hide', { for: 'names-to-hide' }), names, element('p', 'Before anything leaves this phone, Mgadi hides names, emails, phone numbers, bank-like numbers, amounts and links.', { className: 'privacy' }));
+  const submit = button('Get safe next step', async () => {
+    if (!description.value.trim()) { description.setCustomValidity('Describe what happened, or choose a situation above.'); description.reportValidity(); return; }
     const hiddenNames = names.value.split(',').map((item) => item.trim()).filter(Boolean);
     const redacted = redactIncident(description.value, hiddenNames);
     incident = { description: description.value, redacted, timeline: [{ at: new Date().toISOString(), text: 'Incident started' }], evidence: [], outcomes: {} };
     await triage(redacted.text);
-  }));
-  const intro=card.querySelector('p');
-  card.append(guidanceControls([intro], 'welcome'), button('Call experience — prototype',()=>callWalkthrough([intro]),'button secondary'), voice.launchButton());
+  });
+  description.addEventListener('input', () => description.setCustomValidity(''));
+  writing.append(submit); card.append(writing);
+  const more = element('div', '', { className: 'welcome-bottom' });
+  more.append(guidanceControls([intro], 'welcome')); card.append(more);
+  const practical = element('section', '', { className: 'practical-tools', 'aria-label': 'Practical tools' });
+  practical.append(element('h2', 'More than advice'), element('p', 'Prepare a record. Check the details. You stay in control.', { className: 'section-intro' }));
+  const grid = element('div', '', { className: 'tool-grid' });
+  for (const [action, description] of [
+    [tools.homeButton(), 'Compare the old and new payment details.'],
+    [button('Check a PDF or message', () => tools.showEvidenceScreen(showHome), 'button secondary'), 'Read and compare documents on this device.'],
+    [button('Build an incident pack', startRecord, 'button secondary'), 'Keep evidence fingerprints and prepare a handoff.'],
+  ]) {
+    const item = element('div', '', { className: 'practical-tool' });
+    item.append(action, element('p', description, { className: 'privacy' })); grid.append(item);
+  }
+  practical.append(grid);
+  const limits = element('details', '', { className: 'capability-limits' });
+  limits.append(element('summary', 'What still needs a person?'), element('p', 'You make bank calls, confirm supplier details and approve sharing. Mgadi does not freeze money or change accounts. Live voice needs a connection; SASL translation is not available yet.'));
+  practical.append(limits); card.append(practical);
   app.append(card);
+  document.dispatchEvent(new Event('mgadi:idle')); // lets a waiting update apply now that nothing is in progress
+}
+
+function startRecord() {
+  incident = { title: 'Incident record', source: 'manual-record', description: '', timeline: [], evidence: [], outcomes: {} };
+  journey = null; emitJourney(); log('Owner started an incident record without selecting a situation');
+  showEvidencePack(playbook.incidents.unsure);
 }
 
 async function triage(redactedText) {
@@ -176,7 +218,7 @@ function showIncident(label) {
 
 function advance() {
   if (journey.position < journey.flow.steps.length - 1) { journey.position += 1; emitJourney(); renderStep(); }
-  else { emitJourney(); showEvidencePack(journey.flow); }
+  else { journey.finished = true; emitJourney(); showEvidencePack(journey.flow); }
 }
 function confirmCurrentStep() {
   const step = journey?.flow.steps[journey.position]; if (!step) return;
@@ -192,19 +234,51 @@ function skipCurrentStep() {
   advance();
 }
 
+function reportOther(state) {
+  const step = journey?.flow.steps[journey.position]; if (!step) return;
+  if (step.id === 'bank') delete incident.bankReportedAt;
+  journey.status[step.id] = { state, at: new Date().toISOString() };
+  log(`Owner marked ${state === 'needs_help' ? 'Need help' : 'Not applicable'}: ${step.title}`);
+  advance();
+}
+
 function renderStep() {
   const { label, flow, position } = journey;
-  clear(); const step = flow.steps[position]; const card = element('section', '', { className: 'card' });
-  card.append(element('p', `${flow.title} · Step ${position + 1} of ${flow.steps.length}`, { className: 'step-count' }), reviewBadge(flow), element('h1', step.title), element('p', flow.summary), ...(flow.orgNote ? [element('p', flow.orgNote, { className: 'notice org-note' })] : []), element('h2', 'Why this matters'), element('p', step.why), element('h2', 'Do this now'));
-  const list = element('ul'); step.do.forEach((item) => list.append(element('li', item))); card.append(list);
-  const guidance=[...card.querySelectorAll('h1, p:not(.step-count):not(.review-status), li')];
+  clear(); const step = flow.steps[position];
+  const card = element('section', '', { className: 'card journey-card' });
+  const progress = element('ol', '', { className: 'journey-progress', 'aria-label': 'Your steps' });
+  flow.steps.forEach((item, index) => {
+    const status = journey.status[item.id]?.state;
+    const row = element('li', '', { className: index === position ? 'current' : status ? 'reported' : '' });
+    if (index === position) row.setAttribute('aria-current', 'step');
+    const revisit = button('', () => { journey.position = index; journey.finished = false; emitJourney(); renderStep(); }, 'step-link');
+    const words = element('span', '', { className: 'step-words' });
+    words.append(element('span', item.title), element('small', status === 'confirmed' ? 'Done' : status === 'needs_help' ? 'Need help' : status === 'not_applicable' ? 'Not applicable' : 'Not yet', { className: 'step-state' }));
+    // The state is a symbol as well as words, so it never depends on colour: tick = done, ! = need help, dash = not applicable.
+    const mark = status === 'confirmed' ? '✓' : status === 'needs_help' ? '!' : status === 'not_applicable' ? '–' : String(index + 1);
+    revisit.append(element('span', mark, { className: 'step-number', 'aria-hidden': 'true' }), words);
+    row.append(revisit); progress.append(row);
+  });
+  card.append(progress, element('p', `${flow.title} · Step ${position + 1} of ${flow.steps.length}`, { className: 'step-count' }), element('h1', step.title));
+  if (flow.orgNote) card.append(element('p', flow.orgNote, { className: 'notice org-note' }));
+  const list = element('ol', '', { className: 'action-list' });
+  step.do.forEach((item) => list.append(element('li', item))); card.append(list);
+  if (step.id === 'bank') card.append(button('Choose a bank fraud line', showBankLines, 'button danger primary-action'));
+  const why = element('details', '', { className: 'step-context' });
+  why.append(element('summary', 'Why this matters'), element('p', step.why), element('p', flow.summary));
+
+  card.append(why);
+  const formats = element('div', '', { className: 'step-formats' });
+  formats.append(guidanceControls([card.querySelector('h1'), ...list.children, ...why.querySelectorAll('p')], `${label}.${step.id}`), voice.launchButton());
+  card.append(formats);
+  const outcomes = element('div', '', { className: 'step-outcomes', role: 'group', 'aria-label': 'Report this step' });
+  const done = button('', confirmCurrentStep);
+  const detail = element('span', '', { className: 'sr-only' }); detail.append(document.createTextNode(' — '), element('span', step.done));
+  done.append(element('span', 'Done'), detail); done.dataset.report = step.done;
+  outcomes.append(done, button('Need help', () => reportOther('needs_help'), 'button secondary'), button('Not applicable', () => reportOther('not_applicable'), 'button secondary'));
+  card.append(element('h2', 'How did this step go?'), outcomes, element('p', 'Your choice is saved in your incident pack. You can revisit any step above.', { className: 'privacy' }), element('p', 'Need help only marks this step in your pack. Mgadi does not contact anyone for you.', { className: 'privacy need-help-note' }));
   const links = resourceLinks(label); if (links) card.append(links);
-  card.append(guidanceControls(guidance, `${label}.${step.id}`), button('Call experience — prototype',()=>callWalkthrough(guidance),'button secondary'), voice.launchButton());
-  if (step.id === 'bank') card.append(button('Choose a bank fraud line', showBankLines, 'button danger'));
-  // A button press is the owner's own report. It is never proof that the bank answered or acted.
-  card.append(button(step.done, confirmCurrentStep));
-  if (step.skip) card.append(button(step.skip, skipCurrentStep, 'button secondary'));
-  card.append(button('Start again', showHome, 'button secondary')); app.append(card);
+  card.append(reviewBadge(flow), button('Start again', showHome, 'button secondary')); app.append(card);
 }
 
 function showEvidencePack(flow) {
@@ -305,11 +379,19 @@ function showPackReview(flow) {
   check('include-handoff', 'Include handoff details: the steps you reported, what is still open and anything you typed for a bank or specialist', 'includeHandoff', true);
   card.append(element('h2', 'What will be in the pack'), preview, element('p', 'Hiding is pattern based: names are only hidden if you listed them, so read the text above before sharing.', { className: 'privacy' }));
   render();
-  card.append(button('Make incident pack', async () => {
-    log('Generated incident pack');
-    const pack = await makePack(buildPackData(packState(), options));
-    showPack(pack);
-  }), button('Back', () => showEvidencePack(flow), 'button secondary'));
+  const feedback = element('p', '', { role: 'alert', className: 'pack-feedback' });
+  const makeButton = button('Make incident pack', async () => {
+    makeButton.disabled = true; feedback.textContent = '';
+    try {
+      const event = { at: new Date().toISOString(), text: 'Generated incident pack' };
+      const state = packState(); state.timeline = [...state.timeline, event];
+      const pack = await makePack(buildPackData(state, options));
+      incident.timeline.push(event); showPack(pack);
+    } catch (error) {
+      feedback.textContent = error.message || 'The pack could not be created. Your entries are still here. Please try again.';
+    } finally { makeButton.disabled = false; }
+  });
+  card.append(feedback, makeButton, button('Back', () => showEvidencePack(flow), 'button secondary'));
   app.append(card);
 }
 
@@ -337,6 +419,28 @@ function showPack(pack) {
 }
 
 installAccessibility();
+// What the person is reading right now: a draft translation, part draft and part English, or English only. It is worked out from the
+// screen itself (text that fell back to English is tagged lang="en"), so it cannot claim more than is true. There is deliberately no
+// "reviewed" state: no language has had a native speaker's review. When one has, add that state here together with the recorded review
+// (and change test/translation-coverage.test.js on purpose), never before.
+const LANGUAGE_NAMES = { zu: 'isiZulu', xh: 'isiXhosa', af: 'Afrikaans' };
+const translationNote = document.querySelector('#translation-note');
+function updateTranslationNote() {
+  const name = LANGUAGE_NAMES[document.documentElement.lang];
+  if (!name) { translationNote.hidden = true; translationNote.textContent = ''; delete translationNote.dataset.state; return; }
+  const shown = [...app.querySelectorAll('[lang]')].filter((node) => !['TEXTAREA', 'INPUT', 'SELECT'].includes(node.tagName) && node.textContent.trim());
+  const english = shown.filter((node) => node.lang === 'en').length;
+  const state = !shown.length || english === 0 ? 'draft' : english === shown.length ? 'english' : 'partial';
+  translationNote.dataset.state = state; translationNote.hidden = false;
+  translationNote.textContent = {
+    draft: `${name}: draft translation, not yet checked by a ${name} speaker.`,
+    partial: `${name}: part of this screen is a draft translation. The rest is still in English.`,
+    english: `This screen is in English: there is no ${name} translation for it yet.`,
+  }[state];
+}
+let noteTimer = 0;
+new MutationObserver(() => { clearTimeout(noteTimer); noteTimer = setTimeout(updateTranslationNote, 60); }).observe(app, { childList: true, subtree: true });
+document.addEventListener('mgadi:language', () => { clearTimeout(noteTimer); noteTimer = setTimeout(updateTranslationNote, 60); });
 // POPIA draft, supplier payment-change check and responder handoff (see public/tools/tools.js). "Already paid" always goes to the bank-first guide.
 const tools = initTools({
   ui: { element, button, plain, clear, mount: (node) => app.append(node) },
@@ -345,16 +449,25 @@ const tools = initTools({
 window.addEventListener('hashchange', () => tools.openFromHash());
 emergencyButton.addEventListener('click', showBankLines);
 // The offline copy is saved in the background. It must never delay or break the emergency screens, so failures are swallowed.
-initOffline({ statusEl: document.querySelector('#offline-status') }).catch(() => {});
+// "Idle" is the only moment a newer version may replace the page by itself: the start screen, nothing typed, no incident or evidence in
+// progress, no voice panel or dialog open. Anything else keeps its screen, and the person chooses when to switch.
+function isIdle() {
+  if (!app.querySelector('.welcome-card')) return false;
+  if ((journey && !journey.finished) || incident.evidence.length || Object.keys(incident.outcomes ?? {}).length) return false;
+  if ([...app.querySelectorAll('input, textarea, select')].some((node) => (node.type === 'checkbox' || node.type === 'radio' ? node.checked : String(node.value ?? '') !== ''))) return false;
+  if (document.documentElement.dataset.voice === 'open' || document.querySelector('dialog[open]')) return false;
+  return true;
+}
+initOffline({ statusEl: document.querySelector('#offline-status'), isIdle }).catch(() => {});
 // What the voice panel may see and do. It can read progress and show the bank list; only the person's own taps confirm steps.
 const voiceBridge = {
   getJourney: () => (journey ? {
-    label: journey.label, title: journey.flow.title, position: journey.position,
+    label: journey.label, title: journey.flow.title, position: journey.position, finished: Boolean(journey.finished),
     steps: journey.flow.steps.map((step) => ({ id: step.id, title: step.title, why: step.why, do: step.do, done: step.done, skip: step.skip, state: journey.status[step.id]?.state ?? 'pending', at: journey.status[step.id]?.at ?? null })),
   } : null),
   getTimeline: () => incident.timeline,
   subscribe: (fn) => { journeyListeners.add(fn); return () => journeyListeners.delete(fn); },
-  confirmCurrent: confirmCurrentStep, skipCurrent: skipCurrentStep,
+  confirmCurrent: confirmCurrentStep, skipCurrent: skipCurrentStep, reportOther,
   showBank: showBankLines, log,
   showText: () => { const heading = app.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus(); } },
 };
