@@ -8,10 +8,13 @@
 //  - Everything shown that came out of a link is untrusted: validated, cleaned and inserted as text only. No number or link
 //    inside it is ever made clickable.
 import { seal, open, randomId, randomToken, newKey, tokenHash, buildLink, parseLink } from '../shared/seal.js';
-import { CHANGED, ARRIVED, QUESTIONS, NUMBER_SOURCE, RESULT, NOT_A_BLOCK, normalizeRequest, redFlags, normalizeVerification, verdict, normalizeCheckPayload, normalizeDecisionNote, buildCheckAudit } from '../shared/supplier-check.js';
+import { CHANGED, ARRIVED, QUESTIONS, NUMBER_SOURCE, RESULT, NOT_A_BLOCK, normalizeRequest, redFlags, normalizeVerification, verdict, normalizeDecisionNote, buildCheckAudit } from '../shared/supplier-check.js';
 import { buildResponderSummary, normalizeHandoffPayload, STATUS_WORDS, ACK_MEANING } from '../shared/responder.js';
 import { buildPopiaDraft, popiaText, DISCLAIMER } from '../shared/popia.js';
 import { verifyPack } from '../shared/pack.js';
+import { BASELINE_SOURCE, normalizeBankDetails, hasAny, compareDetails, comparisonVerdict, allFlags, independentStatus, SYNTHETIC_EXAMPLE, STATUS_WORD } from '../shared/baseline.js';
+import { normalizeFullPayload } from '../shared/check-record.js';
+import { createEvidencePanel } from './evidence-ui.js';
 import { formatTime } from '../shared/summary.js';
 
 const WHY = {
@@ -22,7 +25,7 @@ const WHY = {
   409: 'This has already been answered, and the first answer stands.',
   403: 'This link cannot do that.',
 };
-const whyText = (error) => WHY[error?.code ?? error?.status] ?? 'Something went wrong. Nothing was changed.';
+const whyText = (error) => WHY[error?.code ?? error?.status] ?? (/too long to share/.test(error?.message ?? '') ? error.message : 'Something went wrong. Nothing was changed.');
 const at = (ms) => formatTime(new Date(ms).toISOString());
 
 async function api(body) {
@@ -75,6 +78,29 @@ export function initTools({ ui, bridge }) {
   }
   const readRecord = (link) => api({ op: 'read', id: link.id, token: link.token });
 
+  // Shared by the owner's result screen and the second person's page.
+  const showComparison = (card, comparison) => {
+    if (!comparison) return;
+    card.append(element('h2', 'Compared with the trusted details'));
+    const ul = element('ul', '', { className: 'compare' });
+    for (const row of comparison.rows) ul.append(plain('li', `${row.label}: ${STATUS_WORD[row.status]}. Trusted: ${row.baseline || 'none'}. In the request: ${row.proposed || 'none'}.`));
+    const v = comparisonVerdict(comparison);
+    card.append(ul, element('p', v.text, { className: `notice ${v.state === 'different' ? 'bad' : ''}` }), element('p', `The trusted details came from: ${comparison.baselineSource ? BASELINE_SOURCE[comparison.baselineSource] : 'not stated'}. Mgadi cannot check that they are genuine. Only the last four digits of an account number are shown or kept.`, { className: 'privacy' }));
+  };
+  const showEvidenceFacts = (card, evidence) => {
+    if (!evidence) return;
+    card.append(element('h2', 'Evidence the sender reviewed'));
+    const ul = element('ul'); for (const f of evidence.facts) ul.append(plain('li', `${f.label}: ${f.value} (from ${f.source || 'a source'})`)); card.append(ul);
+    if (evidence.conflicts.length) card.append(element('p', `The sources disagreed about: ${evidence.conflicts.join(', ')}.`, { className: 'notice bad' }));
+    card.append(element('p', evidence.note, { className: 'privacy' }));
+  };
+
+  function showEvidenceScreen(back) {
+    const card = screen('Check your documents');
+    card.append(element('p', 'This reads a PDF or pasted message on this device and compares what the sources say. It does not contact anyone and does not prove anything is genuine.', { className: 'notice' }));
+    const panel = createEvidencePanel({ ui, ctx: {}, onChange: () => {} }); panel.open = true; card.append(panel, button('Back', back, 'button secondary')); mount(card);
+  }
+
   // ------------------------------------------------------------------ 1. POPIA draft
   function showPopia(pack, back) {
     const card = screen('POPIA notification: a draft template');
@@ -107,6 +133,7 @@ export function initTools({ ui, bridge }) {
     card.append(element('p', NOT_A_BLOCK, { className: 'notice' }));
     card.append(button('I have already paid: take me to the bank first', () => bridge.alreadyPaid(), 'button danger'));
     card.append(element('p', 'If money has already left your account, do not use this check. Your bank comes first.', { className: 'privacy' }));
+    const demo = element('div'); card.append(demo);
     const supplier = field(card, 'Supplier', text(80), 'chk-supplier');
     const changed = field(card, 'What changed?', choose(CHANGED, 'Choose one'), 'chk-changed');
     const arrived = field(card, 'How did the request arrive?', choose(ARRIVED, 'Choose one'), 'chk-arrived');
@@ -115,25 +142,50 @@ export function initTools({ ui, bridge }) {
     const fieldset = element('fieldset', '', { className: 'tool-set' }); fieldset.append(element('legend', 'Did any of these apply?'));
     const boxes = Object.entries(QUESTIONS).map(([id, label]) => { const c = checkbox(label, `chk-q-${id}`); fieldset.append(c.l); return [id, c.input]; });
     card.append(fieldset);
+    const bankSet = (legend, help, prefix) => {
+      const set = element('fieldset', '', { className: 'tool-set' }); set.append(element('legend', legend)); if (help) set.append(element('p', help, { className: 'privacy' }));
+      const inputs = { holder: field(set, 'Account holder', text(60), `${prefix}-holder`), bank: field(set, 'Bank', text(40), `${prefix}-bank`), account: field(set, 'Account number', text(30), `${prefix}-account`), branch: field(set, 'Branch code', text(15), `${prefix}-branch`) };
+      inputs.account.setAttribute('inputmode', 'numeric'); inputs.branch.setAttribute('inputmode', 'numeric'); return { set, inputs };
+    };
+    const trusted = bankSet('Trusted banking details you already held (optional)', 'Enter them from something you had BEFORE this request: a contract, an earlier invoice or your saved supplier record. Full account numbers stay on this device; only the last four digits are ever shared or saved.', 'tb');
+    const tbSource = field(trusted.set, 'Where did the trusted details come from?', choose(BASELINE_SOURCE, 'Choose one'), 'tb-source');
+    const proposed = bankSet('Banking details in the request (optional)', 'Copy them as the request gives them, so Mgadi can show what differs.', 'pb');
+    card.append(trusted.set, proposed.set);
+    demo.append(button('Fill in a synthetic example (for a demonstration)', () => {
+      const ex = SYNTHETIC_EXAMPLE; supplier.value = ex.supplier; changed.value = 'bank_account'; arrived.value = 'email'; amount.value = 'R 70 000,00'; note.value = ex.note;
+      for (const [id, n] of boxes) n.checked = id === 'dont_call' || id === 'urgent';
+      for (const k of Object.keys(trusted.inputs)) { trusted.inputs[k].value = ex.baseline[k]; proposed.inputs[k].value = ex.proposed[k]; }
+      tbSource.value = 'contract';
+    }, 'button secondary'), element('p', 'Fictional details only. Nothing is sent anywhere.', { className: 'privacy' }));
     const problem = alertBox(); card.append(problem);
     card.append(button('Check for red flags', () => {
       const { value, errors } = normalizeRequest({ supplier: supplier.value, changed: changed.value, arrived: arrived.value, amount: amount.value, note: note.value, flags: boxes.filter(([, n]) => n.checked).map(([id]) => id) });
       if (errors.length) { say(problem, `Please fill in: ${errors.map((e) => ({ supplier: 'the supplier', changed: 'what changed', arrived: 'how it arrived' }[e])).join(', ')}.`); return; }
-      showCheckResult(value);
+      const values = (group) => Object.fromEntries(Object.entries(group).map(([k, n]) => [k, n.value]));
+      const b = normalizeBankDetails(values(trusted.inputs)); const q = normalizeBankDetails(values(proposed.inputs));
+      const wrong = [...b.errors.map((e) => `the trusted ${e === 'account' ? 'account number' : 'branch code'}`), ...q.errors.map((e) => `the ${e === 'account' ? 'account number' : 'branch code'} in the request`)];
+      if (wrong.length) { say(problem, `Please check ${wrong.join(' and ')}: digits only.`); return; }
+      const extra = hasAny(b.value) || hasAny(q.value) ? { baseline: b.value, proposed: q.value, comparison: compareDetails(b.value, q.value, tbSource.value) } : {};
+      showCheckResult(value, extra);
     }), button('Back', () => bridge.showHome(), 'button secondary'));
     mount(card);
   }
 
-  function showCheckResult(request) {
+  function showCheckResult(request, extra = {}) {
+    const { comparison = null, baseline = null, proposed = null } = extra; let evidenceSummary = null;
     const card = screen('Red flags, and what to do before paying');
     card.append(element('p', 'VERIFY BEFORE PAYING. Do not pay to the new details yet. Phone the supplier yourself, on a number you already had before this request.', { className: 'notice bad' }));
     card.append(element('p', NOT_A_BLOCK, { className: 'notice' }));
+    const indep = element('p', independentStatus(null), { className: 'privacy', role: 'status', id: 'indep-status' }); card.append(indep);
     const facts = element('ul'); for (const line of [`Supplier: ${request.supplier}`, `Changed: ${CHANGED[request.changed]}`, `Arrived by: ${ARRIVED[request.arrived]}`, ...(request.amount ? [`Amount: ${request.amount}`] : [])]) facts.append(plain('li', line));
-    card.append(element('h2', 'What you told Mgadi'), facts, element('h2', 'Red flags'));
-    const flags = redFlags(request); const list = element('ul', '', { className: 'flags' });
+    card.append(element('h2', 'What you told Mgadi'), facts);
+    showComparison(card, comparison);
+    card.append(element('h2', 'Red flags'));
+    const flags = allFlags(request, comparison); const list = element('ul', '', { className: 'flags' });
     if (!flags.length) list.append(plain('li', 'No red flags from what you told Mgadi. That does not mean the change is genuine. Verify it anyway.'));
     for (const f of flags) { const li = document.createElement('li'); li.append(plain('strong', `${f.level === 'high' ? 'High' : f.level === 'medium' ? 'Medium' : 'Low'}: `), plain('span', `${f.text} ${f.why}`)); list.append(li); }
     card.append(list);
+    card.append(createEvidencePanel({ ui, ctx: { baseline, proposed }, onChange: (summary) => { evidenceSummary = summary; } }));
 
     card.append(element('h2', 'Record your independent check'));
     card.append(element('p', 'Phone the supplier on a number you already had: from an old invoice, a contract, an earlier payment or your own saved contacts. Not a number from the request. Mgadi does not keep the number.', { className: 'privacy' }));
@@ -149,12 +201,13 @@ export function initTools({ ui, bridge }) {
       if (parsed.errors.length) { say(problem, `Please complete: ${parsed.errors.map((e) => ({ who: 'who you spoke to', numberSource: 'where the number came from', result: 'the result', calledMyself: 'tick that you made the call yourself', calledAt: 'when you called' }[e])).join(', ')}.`); return; }
       say(problem, ''); verification = parsed.value; const v = verdict(verification);
       outcome.hidden = false; outcome.textContent = v.text; outcome.className = `notice ${v.state === 'verified_independent' ? 'good' : 'bad'} tool-status`;
-      renderApprove(approveZone, request, verification, v);
+      indep.textContent = independentStatus(verification);
+      renderApprove(approveZone, request, verification, v, () => ({ comparison, evidence: evidenceSummary }));
     }), outcome, approveZone, button('Start again', showCheckStart, 'button secondary'));
     mount(card);
   }
 
-  function renderApprove(zone, request, verification, v) {
+  function renderApprove(zone, request, verification, v, extras = () => ({})) {
     zone.replaceChildren(element('h2', 'A second person approves'));
     if (v.state === 'denied') { zone.append(element('p', 'Do not ask for approval. Do not pay.', { className: 'notice bad' }), button('I have already paid: take me to the bank first', () => bridge.alreadyPaid(), 'button danger')); return; }
     if (v.state !== 'verified_independent') { zone.append(element('p', 'A second person can be asked only after an independent check that you report as confirmed. Fix the check above first.', { className: 'notice' })); return; }
@@ -164,7 +217,8 @@ export function initTools({ ui, bridge }) {
     const go = button('Create a link for the second person', async () => {
       if (busy) return; busy = true; go.disabled = true; say(problem, '');
       try {
-        const made = await createRecord('check', { v: 1, type: 'supplier-check', request, verification }, pending);
+        const x = extras();
+        const made = await createRecord('check', { v: 1, type: 'supplier-check', request, verification, ...(x.comparison ? { comparison: x.comparison } : {}), ...(x.evidence ? { evidence: x.evidence } : {}) }, pending);
         showCheckOwner({ ...made, role: 'o', token: made.ownerToken }, { fresh: true });
       } catch (error) { say(problem, whyText(error)); busy = false; go.disabled = false; }
     });
@@ -173,7 +227,7 @@ export function initTools({ ui, bridge }) {
 
   async function showCheckOwner(link, { fresh = false } = {}) {
     let rec; try { rec = await readRecord(link); } catch (error) { return showLinkProblem(whyText(error)); }
-    let payload; try { payload = normalizeCheckPayload(await open(rec, { key: link.key, kind: 'check', id: link.id })); } catch (error) { return showLinkProblem(error.message); }
+    let payload; try { payload = normalizeFullPayload(await open(rec, { key: link.key, kind: 'check', id: link.id })); } catch (error) { return showLinkProblem(error.message); }
     if (!payload) return showLinkProblem('This link is damaged or incomplete. Ask the sender for a new one.');
     const card = screen('Supplier check: waiting for the second person');
     card.append(element('p', NOT_A_BLOCK, { className: 'notice' }));
@@ -217,18 +271,19 @@ export function initTools({ ui, bridge }) {
 
   async function showApprover(link) {
     let rec; try { rec = await readRecord(link); } catch (error) { return showLinkProblem(whyText(error)); }
-    let payload; try { payload = normalizeCheckPayload(await open(rec, { key: link.key, kind: 'check', id: link.id })); } catch (error) { return showLinkProblem(error.message); }
+    let payload; try { payload = normalizeFullPayload(await open(rec, { key: link.key, kind: 'check', id: link.id })); } catch (error) { return showLinkProblem(error.message); }
     if (!payload) return showLinkProblem('This link is damaged or incomplete. Ask the sender for a new one.');
     const { request, verification } = payload; const v = verdict(verification);
     const card = screen('A payment change to approve');
     card.append(element('p', "Someone sent you this link. Mgadi has not checked who. Do not call any phone number or open any link written inside it: use contact details you already had.", { className: 'notice bad' }), element('p', NOT_A_BLOCK, { className: 'notice' }));
     const facts = element('ul'); for (const line of [`Supplier: ${request.supplier}`, `Changed: ${CHANGED[request.changed]}`, `Arrived by: ${ARRIVED[request.arrived]}`, ...(request.amount ? [`Amount: ${request.amount}`] : []), ...(request.note ? [`Their note: ${request.note}`] : [])]) facts.append(plain('li', line));
     card.append(element('h2', 'The request'), facts, element('h2', 'Red flags'));
-    const list = element('ul', '', { className: 'flags' }); for (const f of redFlags(request)) { const li = document.createElement('li'); li.append(plain('strong', `${f.level === 'high' ? 'High' : 'Medium'}: `), plain('span', f.text)); list.append(li); }
+    showComparison(card, payload.comparison); showEvidenceFacts(card, payload.evidence);
+    const list = element('ul', '', { className: 'flags' }); for (const f of allFlags(request, payload.comparison)) { const li = document.createElement('li'); li.append(plain('strong', `${f.level === 'high' ? 'High' : 'Medium'}: `), plain('span', f.text)); list.append(li); }
     if (!list.children.length) list.append(plain('li', 'None reported. That does not mean the change is genuine.'));
     card.append(list, element('h2', 'The check the sender reports'));
     const vlist = element('ul'); for (const line of [`Spoke to: ${verification.who}`, `Number came from: ${NUMBER_SOURCE[verification.numberSource]}`, `Result: ${RESULT[verification.result]}`, `Called at (as reported): ${formatTime(verification.calledAt)}`, ...(verification.note ? [`Note: ${verification.note}`] : [])]) vlist.append(plain('li', line));
-    card.append(vlist, element('p', v.text, { className: `notice ${v.state === 'verified_independent' ? 'good' : 'bad'}` }));
+    card.append(vlist, element('p', independentStatus(verification), { className: 'privacy' }), element('p', v.text, { className: `notice ${v.state === 'verified_independent' ? 'good' : 'bad'}` }));
     const status = statusBox(); const zone = element('div'); card.append(zone, status); mount(card);
     const draw = (data) => {
       zone.replaceChildren();
@@ -338,7 +393,7 @@ export function initTools({ ui, bridge }) {
   return {
     openFromHash,
     homeButton: () => button("Check a supplier's changed bank details before paying", showCheckStart, 'button secondary tool-entry'),
-    packButtons: (pack, back) => { const f = document.createDocumentFragment(); f.append(button('Draft a POPIA notification (template)', () => showPopia(pack, back), 'button secondary'), button('Send a summary to a helper', () => showHandoffCompose(pack, back), 'button secondary')); return f; },
-    showCheckStart, showPopia, showHandoffCompose,
+    packButtons: (pack, back) => { const f = document.createDocumentFragment(); f.append(button('Draft a POPIA notification (template)', () => showPopia(pack, back), 'button secondary'), button('Send a summary to a helper', () => showHandoffCompose(pack, back), 'button secondary'), button('Check documents (PDF or message text)', () => showEvidenceScreen(back), 'button secondary')); return f; },
+    showCheckStart, showPopia, showHandoffCompose, showEvidenceScreen,
   };
 }
