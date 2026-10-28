@@ -524,6 +524,16 @@ function renderStep() {
   const detail = element('span', '', { className: 'sr-only' }); detail.append(document.createTextNode(' — '), element('span', step.done));
   done.append(element('span', 'Done'), detail); done.dataset.report = step.done;
   outcomes.append(done, button('Need help', () => reportOther('needs_help'), 'button secondary'), button('Not applicable', () => reportOther('not_applicable'), 'button secondary'));
+  if (step.id === 'bank') {
+    const note = element('details', '', { className: 'bank-feedback-details' });
+    const input = element('textarea', '', { id: 'bank-feedback', maxlength: '600', placeholder: 'For example: I called the fraud team and they gave me a reference.' });
+    input.value = incident.bankFeedback ?? '';
+    input.addEventListener('input', () => { incident.bankFeedback = input.value; });
+    note.append(element('summary', 'What did the bank tell you? (optional)'),
+      element('p', 'Only write what happened. Mgadi cannot check whether the bank responded. Names and numbers may still need your review.', { className: 'privacy' }),
+      element('label', 'My bank feedback', { for: 'bank-feedback' }), input);
+    card.append(note);
+  }
   card.append(element('h2', 'How did this step go?'), outcomes, element('p', 'Your choice is saved in your incident pack. You can revisit any step above.', { className: 'privacy' }), element('p', 'Need help only marks this step in your pack. Mgadi does not contact anyone for you.', { className: 'privacy need-help-note' }));
   card.append(formats, why);
   if (step.id === 'evidence') {
@@ -541,7 +551,10 @@ function renderStep() {
   }
   const navigation = element('nav', '', { className: 'page-actions journey-navigation', 'aria-label': 'Step navigation' });
   if (position > 0) navigation.append(button('← Previous step', () => { journey.position -= 1; journey.finished = false; emitJourney(); renderStep(); }, 'button secondary'));
-  navigation.append(button('Start a new incident', startNewIncident, 'button tertiary'));
+  const reviewEarly = button('Go to evidence & report', () => showEvidencePack(flow), 'button secondary');
+  reviewEarly.setAttribute('aria-describedby', 'skip-to-evidence-note');
+  navigation.append(reviewEarly, button('Start a new incident', startNewIncident, 'button tertiary'));
+  navigation.append(element('p', 'You can collect evidence now. Unfinished steps will remain marked “Not yet reported”.', { id: 'skip-to-evidence-note', className: 'privacy skip-evidence-note' }));
   card.append(navigation); app.append(card);
 }
 
@@ -596,7 +609,12 @@ function showEvidencePack(flow) {
     element('label', 'Business name', { for: 'business-name' }), business,
     element('label', 'Amount paid', { for: 'amount-paid' }), amount);
   const actions = element('div', '', { className: 'page-actions' });
-  actions.append(button('Review what goes in the pack', () => showPackReview(flow)), button('Start a new incident', startNewIncident, 'button tertiary'));
+  actions.append(button('Review what goes in the pack', () => {
+    if (files.disabled) { feedback.textContent = 'Still recording your selected files. Wait for the confirmation, then review.'; return; }
+    showPackReview(flow);
+  }));
+  if (journey) actions.append(button('Back to response steps', () => { journey.finished = false; emitJourney(); renderStep(); }, 'button secondary'));
+  actions.append(button('Start a new incident', startNewIncident, 'button tertiary'));
   card.append(upload, optional, handoffForm(), actions);
   app.append(card);
 }
@@ -692,13 +710,20 @@ function showPackReview(flow) {
   }
   if (outcomes.childElementCount) steps.append(outcomes, element('p', 'These are your reports. Mgadi cannot confirm that an action succeeded.', { className: 'privacy' }));
   else steps.append(element('p', 'No response steps recorded.', { className: 'privacy' }));
+  check('include-evidence', 'Include filenames, file types and fingerprints for the evidence I selected', 'includeEvidence', true);
+  check('include-timeline', 'Include my incident timeline and timestamps', 'includeTimeline', true);
   check('include-original', 'Include my original words. They may contain names or numbers.', 'includeOriginal', Boolean(String(state.description ?? '').trim()));
   check('include-business', 'Include the business name', 'includeBusiness', Boolean(String(state.business ?? '').trim()));
   check('include-amount', 'Include the amount paid', 'includeAmount', Boolean(String(state.amount ?? '').trim()));
   check('include-handoff', 'Include my step outcomes and optional details for a bank or specialist', 'includeHandoff', true);
   const evidence = element('ul', '', { className: 'evidence-file-list' }); evidenceRows(evidence);
+  const evidenceNotice = element('p', '', { className: 'privacy', role: 'status' });
+  const evidenceSetting = preferences.querySelector('#include-evidence');
+  const showEvidenceSetting = () => { evidenceNotice.textContent = evidenceSetting.checked ? 'Only the filenames, sizes and fingerprints below will be included, never the original files.' : 'Filenames, file types and fingerprints below will NOT be included in your report.'; };
+  evidenceSetting.addEventListener('change', showEvidenceSetting);
+  showEvidenceSetting();
   card.append(preferences, element('h2', 'Information in your report'), preview, steps,
-    element('h2', 'Selected evidence'), evidence,
+    element('h2', 'Selected evidence'), evidenceNotice, evidence,
     element('p', 'Read carefully before sharing. Personal details are hidden by patterns; names are only hidden if you listed them.', { className: 'privacy' }));
   render();
   const feedback = element('p', '', { role: 'status', className: 'pack-feedback' });
@@ -728,7 +753,7 @@ function showPack(pack) {
   const brief = element('section', '', { className: 'result-brief' });
   brief.append(element('h2', 'Incident summary'), plain('p', pack.incident?.title || 'Incident record'),
     plain('p', pack.story?.text || 'You selected a situation without typing a description.'),
-    plain('small', `${pack.evidence?.length || 0} evidence file(s) recorded · Prepared ${formatTime(pack.generatedAt)}`));
+    plain('small', `${pack.omittedByOwner?.evidence ? 'Evidence details excluded by you' : `${pack.evidence?.length || 0} evidence file(s) listed`} · Prepared ${formatTime(pack.generatedAt)}`));
   const summary = element('section', '', { className: 'pack-summary' });
   const reportDetails = element('details', '', { className: 'pack-full-details' });
   reportDetails.append(element('summary', 'Read the full report'));
