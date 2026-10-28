@@ -73,7 +73,11 @@ export async function initOffline({ statusEl, isIdle = () => false, win = global
   const text = doc.createElement('span'); text.className = 'offline-text'; statusEl.replaceChildren(text);
 
   // Sticky under the header so it is seen wherever the person has scrolled to; the header's height is measured, not assumed.
-  const placeBanner = () => { const header = doc.querySelector('.site-header'); banner.style.top = `${header ? Math.ceil(header.getBoundingClientRect().height) : 0}px`; };
+  const placeBanner = () => {
+    const header = doc.querySelector('.site-header'); banner.style.top = `${header ? Math.ceil(header.getBoundingClientRect().height) : 0}px`;
+    // Scrolled-to and focused things must stay clear of the banner as well as the header (WCAG 2.2, 2.4.11).
+    win.requestAnimationFrame(() => doc.documentElement.style.setProperty('--banner-h', banner.dataset.open === 'true' ? `${Math.ceil(banner.getBoundingClientRect().height + 10)}px` : '0px'));
+  };
   const showBanner = (busy) => {
     placeBanner(); banner.dataset.open = 'true'; banner.dataset.busy = String(busy);
     const body = busy ? 'A newer version of Mgadi is ready. Your answers are kept until you switch.' : 'A newer version of Mgadi is ready.';
