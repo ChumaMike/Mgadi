@@ -1,0 +1,126 @@
+/* Voice conversation: panel layout and the floating avatar. Owned by the voice work, loaded AFTER styles.css and experience.css so it
+   takes precedence for .voice-panel, .vp-* and .avatar-* only. Nothing else in the app is styled here.
+   Priorities on a phone: (1) the Bank fraud line button is always visible and full width, (2) the conversation gets most of the room,
+   (3) the avatar floats in the bottom-left corner beside the call controls and never covers them. */
+
+html { --avatar-w: 0px; --avatar-h: 0px; --avatar-gap: 0px; --kb-inset: 0px; --safe-bottom: env(safe-area-inset-bottom, 0px); }
+html[data-avatar='min'] { --avatar-w: 84px; --avatar-h: 99px; --avatar-gap: .65rem; }
+html[data-avatar='max'] { --avatar-w: 156px; --avatar-h: 184px; --avatar-gap: .65rem; }
+html[data-avatar='off'], html[data-keyboard='open'] { --avatar-w: 0px; --avatar-h: 0px; --avatar-gap: 0px; }
+
+/* ---- panel */
+.voice-panel { bottom: var(--kb-inset); padding-bottom: 0; max-height: min(90dvh, calc(100dvh - var(--header-h) - .25rem - var(--kb-inset))); }
+.vp-head { gap: .2rem .4rem; padding: .45rem .8rem .45rem; }
+.vp-title { order: 1; margin: 0 auto 0 0; font-size: 1.08rem; }
+.vp-sim { margin: 0; font-size: .68rem; }
+.vp-btnrow { display: contents; }
+.vp-btnrow .vp-small { order: 3; flex: 0 0 auto; min-width: 44px; min-height: 44px; margin: 0; padding: .35rem .55rem; white-space: nowrap; font-size: .85rem; }
+.vp-statusrow { order: 4; flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; gap: .1rem .6rem; }
+.vp-now { order: 5; font-size: .88rem; padding: .25rem .6rem; }
+.vp-btnrow .vp-bank { order: 6; flex: 1 0 100%; min-height: 48px; margin: .1rem 0 0; white-space: nowrap; font-size: 1.02rem; }
+.vp-status { font-size: .88rem; }
+.vp-activity { font-size: .9rem; font-weight: 650; }
+.vp-activity:empty { display: none; }
+.vp-mic { margin-left: auto; font-size: .76rem; font-weight: 800; padding: .12rem .6rem; border-radius: 99px; background: #e5f2e7; border: 1px solid var(--mg-green); color: #185532; }
+.vp-mic[data-muted='true'] { background: #fff2d3; border-color: #9b690f; color: #5b3c00; }
+.vp-mic[hidden] { display: none; }
+.vp-optest { font-size: .72rem; font-weight: 800; padding: .12rem .55rem; border-radius: 99px; background: #fff2d3; border: 1px solid #9b690f; color: #5b3c00; }
+.vp-optest[hidden] { display: none; }
+
+.vp-body { display: flex; flex-direction: column; padding: .2rem .8rem .5rem; overflow: auto; overscroll-behavior: contain; }
+.vp-body > * { flex: 0 0 auto; }
+.vp-chat { flex: 1 0 10rem; min-height: 10rem; max-height: none; margin: .3rem 0; scroll-behavior: auto; }
+.msg { font-size: 1rem; max-width: 92%; }
+.msg .who { font-size: .76rem; }
+.vp-privacyline { margin: .3rem 0 0; font-size: .8rem; color: var(--mg-muted); }
+.vp-privacyline > summary { min-height: 40px; padding: .5rem .2rem; cursor: pointer; }
+.vp-privacyline .vp-chips { margin: 0 0 .4rem; }
+
+/* While a call exists the panel is a fixed-height sheet, so the conversation can fill whatever the header and controls leave. */
+.voice-panel[data-phase='connecting'], .voice-panel[data-phase='live'], .voice-panel[data-phase='reconnecting'], .voice-panel[data-phase='ended'], .voice-panel[data-phase='failed'] { height: min(82dvh, calc(100dvh - var(--header-h) - .25rem - var(--kb-inset))); }
+.voice-panel[data-collapsed='true'] { height: auto; }
+.vp-body { flex: 1 1 auto; }
+
+/* Collapsible sections inside the panel: one box each, not a box inside a box. */
+.vp-action, .vp-progress { margin: .35rem 0; padding: 0; background: #fffefb; border: 1px solid var(--mg-line); border-radius: 12px; }
+.vp-action > summary, .vp-progress > summary { display: flex; align-items: center; min-height: 44px; padding: .5rem .8rem; border: 0; border-radius: 12px; font-size: .95rem; font-weight: 750; }
+.vp-action > summary::before, .vp-progress > summary::before { content: '\25B8'; display: inline-block; margin-right: .5rem; color: var(--mg-muted); }
+.vp-action[open] > summary::before, .vp-progress[open] > summary::before { content: '\25BE'; }
+.vp-action[open] > :not(summary), .vp-progress[open] > :not(summary) { margin-left: .8rem; margin-right: .8rem; }
+.vp-action[open] { padding-bottom: .8rem; }
+.vp-progress[open] { padding-bottom: .6rem; }
+
+/* ---- call controls: the avatar's gutter is on the left */
+.vp-controls { gap: .4rem; padding: .55rem .8rem calc(.6rem + var(--safe-bottom)) calc(.8rem + var(--avatar-w) + var(--avatar-gap)); min-height: calc(var(--avatar-h) + 1.2rem + var(--safe-bottom)); align-content: flex-end; }
+.vp-controls .button, .vp-controls > .button:not(.vp-start) { flex: 1 1 5.2rem; min-width: 0; min-height: 48px; padding: .55rem .6rem; line-height: 1.2; overflow-wrap: normal; word-break: keep-all; hyphens: none; }
+.vp-controls .vp-start, .vp-controls > .button[data-wide] { flex: 1 1 100%; }
+
+/* ---- floating avatar */
+.avatar-dock { position: fixed; left: .75rem; bottom: calc(.6rem + var(--kb-inset) + var(--safe-bottom)); z-index: 45; width: var(--avatar-w); overflow: visible; border-radius: 16px; background: linear-gradient(160deg, #f3f3df, #b9ccad); box-shadow: 0 6px 18px #123c3555; outline: 3px solid transparent; transition: width .18s ease, outline-color .18s ease; }
+.avatar-dock[hidden], html[data-keyboard='open'] .avatar-dock { display: none; }
+.avatar-figure { line-height: 0; border-radius: inherit; overflow: hidden; }
+.avatar-figure canvas { display: block; width: 100%; height: auto; }
+.avatar-btn { position: absolute; top: -10px; width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 1px solid var(--mg-forest); background: #fffefb; color: var(--mg-forest); font: inherit; font-weight: 800; line-height: 1; cursor: pointer; z-index: 2; }
+.avatar-btn::after { content: ''; position: absolute; inset: -7px; } /* a 44 x 44 px touch target around the 30 px button */
+.avatar-size { left: -10px; }
+.avatar-hide { right: -10px; }
+.avatar-badge { position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%); max-width: 96%; padding: .1rem .5rem; border-radius: 99px; background: #173e35; color: #f7f4ec; font-size: .66rem; font-weight: 800; line-height: 1.3; white-space: nowrap; pointer-events: none; }
+.avatar-badge[data-kind='muted'] { background: #fff2d3; color: #4a3000; border: 1px solid #9b690f; }
+.avatar-badge[hidden] { display: none; }
+.avatar-caption { display: none; position: absolute; top: 12px; left: 14px; right: 14px; padding: .1rem .3rem; border-radius: 8px; background: #ffffffd9; color: #123c35; font-size: .62rem; line-height: 1.25; text-align: center; pointer-events: none; }
+.avatar-dock[data-size='max'] .avatar-caption { display: block; }
+/* State is never shown by colour alone: the badge, the spoken name and the status text say it too. */
+.avatar-dock[data-state='speaking'] { outline-color: var(--mg-green); }
+.avatar-dock[data-state='listening'] { outline-color: var(--mg-forest); }
+.avatar-dock[data-state='thinking'] { outline-color: #9b690f; outline-style: dashed; }
+.avatar-dock[data-state='muted'] { outline-color: #9b690f; }
+.avatar-dock[data-state='failed'], .avatar-dock[data-state='reconnecting'] { outline-color: var(--mg-red); outline-style: dotted; }
+
+/* ---- keep the existing behaviours: very large text on a narrow screen hides the avatar (styles.css), and reduced motion stops transitions */
+html[data-reduced-motion='true'] .avatar-dock { transition: none; }
+@media (prefers-reduced-motion: reduce) { .avatar-dock { transition: none; } }
+
+/* ---- short landscape phones */
+@media (max-height: 640px) { .vp-chat { flex-basis: 6.5rem; min-height: 6.5rem; } }
+@media (max-height: 520px) {
+  html[data-avatar='min'] { --avatar-w: 64px; --avatar-h: 75px; }
+  html[data-avatar='max'] { --avatar-w: 112px; --avatar-h: 132px; }
+  .vp-chat { flex-basis: 5rem; min-height: 5rem; }
+}
+
+/* ---- desktop: the panel sits at the right, the avatar floats beside it so the controls need no gutter */
+@media (min-width: 900px) {
+  .vp-controls { padding-left: .8rem; min-height: 0; }
+  .avatar-dock { left: auto; right: calc(1.2rem + 440px + .9rem); bottom: 1rem; }
+  html[data-avatar='min'] { --avatar-w: 120px; --avatar-h: 141px; }
+  html[data-avatar='max'] { --avatar-w: 210px; --avatar-h: 247px; }
+  .vp-chat { flex-basis: 14rem; }
+}
+@media print { .avatar-dock { display: none !important; } }
+
+/* An explicit no-cost renderer preview when the user has not joined a live call. */
+.vp-preview { margin: .45rem 0; padding: .65rem .75rem; border: 1px solid var(--mg-line); border-radius: 12px; background: #f3f6ef; color: var(--mg-forest); }
+.vp-preview[hidden], .vp-preview-toggle[hidden] { display: none !important; }
+.vp-preview .vp-note { margin: 0 0 .45rem; font-size: .84rem; line-height: 1.45; }
+.vp-preview-modes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .45rem; }
+.vp-preview-modes .button { min-width: 0; min-height: 44px; padding: .5rem .4rem; font-size: .88rem; }
+.vp-preview-modes .button[aria-pressed='true'] { border-color: var(--mg-forest); background: #e0eee4; color: var(--mg-forest); font-weight: 800; }
+
+/* Read-only operator preflight status, never a paid call or a public gate. */
+.vp-diagnostics { margin: .65rem 0; padding: .65rem; border: 1px solid var(--mg-line); border-radius: 12px; background: #f8faf6; font-size: .86rem; line-height: 1.5; overflow-wrap: anywhere; }
+.vp-diagnostics[hidden] { display: none !important; }
+.vp-diagnostics ul { padding-left: 1.1rem; margin: .3rem 0; }
+.vp-diagnostics li { margin: .3rem 0; }
+.vp-diagnostics li[data-result='fail'] { color: #8b2222; font-weight: 700; }
+.vp-diagnostics li[data-result='pass'] { color: #176338; }
+.vp-operator > button { margin: .25rem .2rem .25rem 0; }
+
+.vp-gesture-section { margin:.4rem 0; padding:.55rem; border:1px solid var(--mg-line);border-radius:12px;background:#eef4e9; }
+.vp-gesture-heading { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.vp-gesture-area[hidden] { display:none!important; }
+.vp-gesture-area { display:grid;justify-items:center;gap:.25rem; }
+.vp-gesture-area canvas { width:min(170px,43vw);height:auto;display:block;border-radius:12px; }
+.vp-gesture-word { font-weight:800;text-align:center;margin:.3rem 0;color:var(--mg-forest); }
+.vp-gesture-buttons {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.25rem;width:100%}
+.vp-gesture-buttons button {min-width:0;min-height:40px;font-size:.75rem;padding:.35rem .1rem;}
+.vp-gesture-buttons button[aria-pressed='true'] {background:#1e5545;color:#fff}

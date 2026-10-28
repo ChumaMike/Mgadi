@@ -2,26 +2,38 @@
 // and the call controls. It is one persistent panel outside the screens, so the conversation and the text guidance
 // share a single incident state. All text is inserted as text nodes, never parsed as HTML.
 import { bindText, getLocale } from '../accessibility/accessibility.js';
-import { createAvatar } from '../accessibility/avatar.js';
 import { findReviewedSign } from '../accessibility/signs.js';
 import { createVoiceController, timelineTextFor } from './controller.js';
 import { createRetellAdapter } from './retell-adapter.js';
 import { createMockAdapter } from './mock-adapter.js';
 import { createAvatarDock } from './avatar-dock.js';
+import { createCompanion } from './avatar/index.js';
+import { createAvatar as createGestureAvatar } from '../accessibility/avatar.js';
+import { recognizeGesture, cueSignature } from './gesture-cues.js';
+import { watchKeyboard } from './viewport.js';
 
 const make = (tag, className, text) => { const n = document.createElement(tag); if (className) n.className = className; if (text != null) n.textContent = text; return n; };
 const tr = (tag, className, source) => { const n = make(tag, className); bindText(n, source); return n; };
 const timeOf = (iso) => { try { return new Date(iso).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Johannesburg' }); } catch { return ''; } };
 
+// Connection phase (what the line is doing) and activity (what is happening in the conversation) are shown separately.
+// Together they cover the nine voice states: idle, connecting, listening, thinking, speaking, muted, reconnecting, failed, ended.
 const STATUS = {
   idle: 'Ready', connecting: 'Connecting…', reconnecting: 'Reconnecting…', ended: 'Conversation ended', failed: "Couldn't connect",
 };
-const ACTIVITY = { listening: 'Listening', speaking: 'Mgadi is speaking', 'you-speaking': 'Hearing you' };
+const ACTIVITY = { listening: 'Listening', speaking: 'Mgadi is speaking', thinking: 'Mgadi is thinking…', 'you-speaking': 'Hearing you' };
 
 export async function initVoice({ bridge }) {
   let config;
-  try { const response = await fetch('/api/voice/config', { cache: 'no-store' }); config = await response.json(); }
-  catch { config = { mode: 'off', configFailed: true, languages: {}, captions: false, maxCallMs: 600000, consentVersion: '' }; }
+  try {
+    const response = await fetch('/api/voice/config', { cache: 'no-store', redirect: 'follow' });
+    if (!response.ok || !(response.headers.get('content-type') || '').includes('application/json')) throw new Error('not_json');
+    const next = await response.json();
+    if (!next || typeof next.mode !== 'string') throw new Error('invalid_config');
+    config = next;
+  } catch {
+    config = { mode: 'off', configFailed: true, languages: {}, captions: false, maxCallMs: 600000, consentVersion: '' };
+  }
   const params = new URLSearchParams(location.search);
   // Operator test token: typed by the person testing, kept in memory only (never stored, never in the URL), and sent only as a header.
   let operatorToken = '';
@@ -61,12 +73,16 @@ export async function initVoice({ bridge }) {
   const bankBtn = tr('button', 'button danger vp-bank', 'Bank fraud line'); bankBtn.type = 'button';
   const minBtn = tr('button', 'button secondary vp-small', 'Minimise'); minBtn.type = 'button'; minBtn.setAttribute('aria-expanded', 'true');
   const closeBtn = tr('button', 'button secondary vp-small', 'Close'); closeBtn.type = 'button';
-  const statusRow = make('div', 'vp-statusrow'); statusRow.append(status, activity);
+  const micPill = make('span', 'vp-mic'); micPill.hidden = true;
+  // A test call that can cost money must always be labelled on screen, never hidden inside a collapsed section.
+  const opPill = make('span', 'vp-optest', 'Operator test call'); opPill.hidden = true;
+  const statusRow = make('div', 'vp-statusrow'); statusRow.append(status, activity, sim, opPill, micPill);
   const btnRow = make('div', 'vp-btnrow'); btnRow.append(bankBtn, minBtn, closeBtn);
   const now = make('p', 'vp-now'); now.setAttribute('aria-label', 'Current action');
-  head.append(title, sim, statusRow, now, btnRow);
+  head.append(title, statusRow, now, btnRow);
   const body = make('div', 'vp-body');
   const chips = make('ul', 'vp-chips'); chips.setAttribute('aria-label', 'Privacy and connection');
+  const privacyLine = make('details', 'vp-privacyline'); const privacySummary = make('summary', null, ''); privacyLine.append(privacySummary, chips);
   const notice = make('p', 'notice vp-avail');
   const consentBox = make('div', 'vp-consent');
   const consentCheck = make('input'); consentCheck.type = 'checkbox'; consentCheck.id = 'voice-consent-check';
@@ -83,8 +99,10 @@ export async function initVoice({ bridge }) {
   const opInput = make('input'); opInput.type = 'password'; opInput.id = 'voice-operator-token'; opInput.autocomplete = 'off'; opInput.spellcheck = false; opInput.setAttribute('autocapitalize', 'off');
   const opCheck = make('button', 'button secondary vp-small', 'Check test access'); opCheck.type = 'button';
   const opForget = make('button', 'button secondary vp-small', 'Forget token'); opForget.type = 'button'; opForget.hidden = true;
+  const opDiagnose = make('button', 'button secondary vp-small', 'Check Retell setup'); opDiagnose.type = 'button'; opDiagnose.hidden = true;
   const opStatus = make('p', 'vp-note'); opStatus.setAttribute('role', 'status');
-  operatorBox.append(make('summary', null, 'Operator test access'), make('p', 'vp-note', 'For the person testing this deployment only. It needs the operator token from the server settings. Test calls are short and limited, and they do not make a language available to the public.'), opLabel, opInput, opCheck, opForget, opStatus);
+  const opDiagnostics = make('div', 'vp-diagnostics'); opDiagnostics.hidden = true; opDiagnostics.setAttribute('role', 'status'); opDiagnostics.setAttribute('aria-live', 'polite');
+  operatorBox.append(make('summary', null, 'Operator test access'), make('p', 'vp-note', 'For the person testing this deployment only. Find MGADI_OPERATOR_TOKEN under Vercel project Settings → Environment Variables (Preview branch). Calls are short and limited, not public.'), opLabel, opInput, opCheck, opDiagnose, opForget, opStatus, opDiagnostics);
   // A token typed on a page that is not a secure context (plain http on a network address) could be read on the way, and the server
   // ignores it there anyway. So the field is switched off and the token is never sent.
   if (config.operatorAvailable && globalThis.isSecureContext === false) {
@@ -100,31 +118,91 @@ export async function initVoice({ bridge }) {
     try {
       const { response, next } = await reloadConfig({ 'x-mgadi-operator-token': value });
       if (response.status === 429) opStatus.textContent = 'Too many attempts. Wait a few minutes and try again.';
-      else if (next?.access === 'operator') { operatorToken = value; applyConfig(next); opForget.hidden = false; opStatus.textContent = `Test access is on. Calls are limited to ${Math.round(next.maxCallMs / 60000)} minutes and are not public.`; }
+      else if (next?.access === 'operator') { operatorToken = value; applyConfig(next); opForget.hidden = false; opDiagnose.hidden = false; opStatus.textContent = `Test access is on. Calls are limited to ${Math.round(next.maxCallMs / 60000)} minutes and are not public. Check Retell setup before starting.`; }
       else opStatus.textContent = 'That token was not accepted.';
     } catch { opStatus.textContent = 'Could not check the token. Is the connection working?'; }
     render(controller.getState());
   });
+  opDiagnose.addEventListener('click', async () => {
+    if (!operatorToken) return;
+    opDiagnose.disabled = true; opDiagnostics.hidden = false; opDiagnostics.replaceChildren(make('p', null, 'Checking Retell agent (read-only, no call charge)…'));
+    try {
+      const response = await fetch('/api/voice/config?diagnose=1', { cache: 'no-store', headers: { 'x-mgadi-operator-token': operatorToken } });
+      if (!response.ok || !(response.headers.get('content-type') || '').includes('application/json')) throw new Error('unavailable');
+      const report = await response.json();
+      const heading = make('p', null, report.ok ? 'English agent: eligible for an operator test.' : 'English agent: not ready for a test. Correct the failed checks.');
+      opDiagnostics.replaceChildren(heading);
+      opDiagnostics.append(make('p', null, report.captionsConfigured ? 'Captions key is configured; browser WebSocket still untested.' : 'Live-caption key is missing or turned off.'));
+      if (!report.agentVersionPinned) opDiagnostics.append(make('p', null, 'Agent version is not pinned; set RETELL_AGENT_VERSION after publishing.'));
+      for (const lang of report.languages || []) {
+        if (lang.code !== 'en') continue;
+        const list = make('ul');
+        for (const item of lang.checks || []) {
+          const li = make('li');
+          li.textContent = `${item.status.toUpperCase()}: ${item.name} — ${item.detail}`;
+          li.dataset.result = item.status;
+          list.append(li);
+        }
+        if (!lang.configured) opDiagnostics.append(make('p', null, lang.note || 'Agent not configured.'));
+        opDiagnostics.append(list);
+      }
+      opDiagnostics.append(make('p', null, 'This check cannot test microphone permission, Retell balance, the public-key domain allowlist or live captions.'));
+    } catch {
+      opDiagnostics.replaceChildren(make('p', null, 'Could not check Retell. Confirm this page is the protected Preview, refresh, and retry.'));
+    } finally { opDiagnose.disabled = false; }
+  });
   opForget.addEventListener('click', async () => {
-    operatorToken = ''; opForget.hidden = true; opStatus.textContent = 'Token forgotten.';
+    operatorToken = ''; opForget.hidden = true; opDiagnose.hidden = true; opDiagnostics.hidden = true; opStatus.textContent = 'Token forgotten.';
     try { const { next } = await reloadConfig(); if (next) applyConfig(next); } catch { /* keep the old view until the next load */ }
     render(controller.getState());
   });
   const action = make('details', 'vp-action'); action.setAttribute('aria-label', 'Current action');
   // A plain container with role=log: an <ol> with role=log would lose its list semantics and orphan its items.
-  const chat = make('div', 'vp-chat'); chat.setAttribute('role', 'log'); chat.setAttribute('aria-label', 'Conversation'); chat.tabIndex = 0;
+  const chat = make('div', 'vp-chat'); chat.setAttribute('role', 'log'); chat.setAttribute('aria-live', 'off'); chat.setAttribute('aria-label', 'Conversation'); chat.tabIndex = 0;
   const empty = tr('p', 'vp-empty', 'Your conversation will appear here as captions, kept on this screen only.');
   chat.append(empty);
   const jump = tr('button', 'button secondary vp-small vp-jump', 'Latest messages'); jump.type = 'button'; jump.hidden = true;
   const progress = make('details', 'vp-progress'); progress.append(tr('summary', null, 'Steps and timeline'));
   const tasks = make('ul', 'vp-tasks'); const timeline = make('ol', 'vp-timeline'); progress.append(tr('h3', null, 'Steps'), tasks, tr('h3', null, 'Timeline'), timeline);
   const announce = make('p', 'sr-only'); announce.setAttribute('role', 'status'); live.announce = announce;
-  body.append(chips, notice, consentBox, operatorBox, chat, jump, action, progress, announce);
+  // Gesture character follows the live caption stream, with an explicit manual fallback.
+  const gestureSection = make('section', 'vp-gesture-section');
+  const gestureHeader = make('div', 'vp-gesture-heading');
+  const gestureTitle = make('strong', null, 'Visual gesture companion');
+  const gestureToggle = make('button', 'button secondary vp-small', 'Show gestures'); gestureToggle.type='button'; gestureToggle.setAttribute('aria-expanded','false');
+  gestureHeader.append(gestureTitle, gestureToggle);
+  const gestureArea = make('div', 'vp-gesture-area'); gestureArea.hidden = true;
+  const gestureCanvas = make('canvas'); gestureCanvas.width = 440; gestureCanvas.height = 518; gestureCanvas.setAttribute('aria-label', 'Illustrative hand and arm gestures, not South African Sign Language'); gestureCanvas.setAttribute('role','img');
+  const gestureLabel = make('p', 'vp-gesture-word', 'Say STOP, CALL, SAVE, HELP, CHECK or PROTECT.');
+  const gestureExplanation = make('p','vp-note','Animations follow recognized words in live captions. These are illustrative gestures, NOT SASL translations.');
+  const gestureButtons = make('div','vp-gesture-buttons');
+  const gestureNames = [['stop','Stop'],['call','Call'],['save','Save'],['help','Help'],['check','Check'],['protect','Protect']];
+  gestureArea.append(gestureCanvas,gestureLabel,gestureExplanation,gestureButtons);
+  gestureSection.append(gestureHeader,gestureArea);
+  let gestureAvatar = null, gestureLast = '', gestureTimeout = null;
+  function setGesture(key, source='manual') {
+    if (!gestureAvatar || !key) return;
+    gestureAvatar.setGesture(key);
+    gestureLabel.textContent = `${key.toUpperCase()} · ${source === 'live' ? 'recognized in live captions' : 'manual preview'}`;
+    for(const b of gestureButtons.children) b.setAttribute('aria-pressed',String(b.dataset.gesture===key));
+    clearTimeout(gestureTimeout);
+    gestureTimeout = setTimeout(() => { gestureAvatar?.setGesture('none'); gestureLabel.textContent='Listening for STOP, CALL, SAVE, HELP, CHECK or PROTECT.'; }, 3800);
+  }
+  for (const [key,label] of gestureNames) {
+    const b = make('button','button secondary vp-small',label); b.type='button'; b.dataset.gesture=key; b.addEventListener('click',()=>setGesture(key)); gestureButtons.append(b);
+  }
+  gestureToggle.addEventListener('click',()=>{
+    gestureArea.hidden = !gestureArea.hidden; gestureToggle.setAttribute('aria-expanded', String(!gestureArea.hidden));
+    gestureToggle.textContent = gestureArea.hidden ? 'Show gestures' : 'Hide gestures';
+    if(!gestureArea.hidden && !gestureAvatar){gestureAvatar=createGestureAvatar(gestureCanvas); if(!matchMedia('(prefers-reduced-motion: reduce)').matches) gestureAvatar.play();}
+    else if(gestureAvatar){if(gestureArea.hidden)gestureAvatar.pause();else if(!matchMedia('(prefers-reduced-motion: reduce)').matches)gestureAvatar.play();}
+  });
+  body.append(notice, consentBox, operatorBox, gestureSection, chat, jump, action, progress, privacyLine, announce);
   const controls = make('div', 'vp-controls');
   const startBtn = tr('button', 'button vp-start', 'Start voice conversation'); startBtn.type = 'button';
   const muteBtn = tr('button', 'button secondary', 'Mute microphone'); muteBtn.type = 'button';
   const endBtn = tr('button', 'button danger', 'End call'); endBtn.type = 'button';
-  const textBtn = tr('button', 'button secondary', 'Use text guidance'); textBtn.type = 'button';
+  const textBtn = tr('button', 'button secondary', 'Use text guidance'); textBtn.type = 'button'; textBtn.dataset.wide = '';
   const avatarBtn = tr('button', 'button secondary', 'Show avatar'); avatarBtn.type = 'button';
   const clearBtn = tr('button', 'button secondary', 'Clear conversation'); clearBtn.type = 'button';
   const sound = tr('button', 'button secondary', 'No sound? Tap to enable'); sound.type = 'button'; sound.hidden = true;
@@ -132,10 +210,36 @@ export async function initVoice({ bridge }) {
   panel.append(head, body, controls);
   document.body.append(panel);
 
-  const dock = createAvatarDock({ createAvatar });
-  const stage = make('div', 'vp-stage'); stage.hidden = true;
-  stage.append(dock.root, tr('p', 'vp-note', 'Visual companion · not SASL translation'));
-  body.insertBefore(stage, chat);
+  // The avatar floats in a bottom corner (see voice.css); it is not part of the panel's scrolling content.
+  const dock = createAvatarDock({ createCompanion, prefer: params.get('avatar') === 'lite' ? 'lite' : 'auto' });
+
+  // No-cost, honest character preview, independent of Retell and microphone permissions.
+  // It uses the ACTUAL WebGL/lite renderer; it must never be labelled live voice or SASL.
+  let avatarPreviewing = false;
+  let avatarPreviewMood = 'idle';
+  const avatarPreviewBtn = make('button', 'button secondary vp-preview-toggle', 'Preview 3D avatar');
+  avatarPreviewBtn.type = 'button';
+  const avatarPreviewBox = make('section', 'vp-preview');
+  avatarPreviewBox.hidden = true;
+  avatarPreviewBox.setAttribute('aria-label', '3D companion animation preview');
+  const avatarPreviewInfo = make('p', 'vp-note', '3D animation preview only. No microphone or live AI audio. The character is not a sign language translator.');
+  const avatarPreviewModes = make('div', 'vp-preview-modes');
+  const avatarPreviewChoices = new Map();
+  for (const [mood, label] of [['idle', 'Resting'], ['listening', 'Listening'], ['thinking', 'Thinking'], ['speaking', 'Speaking']]) {
+    const button = make('button', 'button secondary', label);
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      if (!avatarPreviewing || ['connecting', 'live', 'reconnecting'].includes(controller.getState().phase)) return;
+      avatarPreviewMood = mood;
+      render(controller.getState());
+    });
+    avatarPreviewChoices.set(mood, button);
+    avatarPreviewModes.append(button);
+  }
+  avatarPreviewBox.append(avatarPreviewInfo, avatarPreviewModes);
+  body.insertBefore(avatarPreviewBox, consentBox);
+  controls.insertBefore(avatarPreviewBtn, startBtn);
+  const stopKeyboardWatch = watchKeyboard();
   let opener = null;
 
   let showBank = () => bridge.showBank();
@@ -143,6 +247,9 @@ export async function initVoice({ bridge }) {
   const chip = (text, tone) => { const li = make('li', `vp-chip${tone ? ` ${tone}` : ''}`, text); chips.append(li); };
   function renderChips(s) {
     chips.replaceChildren();
+    const live = ['connecting', 'live', 'reconnecting'].includes(s.phase);
+    privacySummary.textContent = config.mode === 'mock' ? 'Simulation · no microphone · nothing sent anywhere'
+      : `${live ? (s.muted ? 'Mic muted' : 'Mic on') : 'Mic off'} · AI voice by Retell · Mgadi saves no audio or transcript`;
     const inCall = ['connecting', 'live', 'reconnecting'].includes(s.phase);
     chip(config.mode === 'mock' ? 'No microphone · simulation' : !inCall ? 'Microphone off' : s.muted ? 'Microphone muted' : 'Microphone on', inCall && !s.muted ? 'on' : '');
     if (config.mode === 'mock') chip('Simulation: nothing is sent anywhere', 'on');
@@ -195,7 +302,12 @@ export async function initVoice({ bridge }) {
       const video = make('video'); video.controls = true; video.preload = 'none'; video.src = clip.src; video.setAttribute('aria-label', 'Reviewed SASL guidance for this step');
       const track = make('track'); track.kind = 'captions'; track.src = clip.captions; track.srclang = 'en'; track.label = 'Captions'; track.default = true; video.append(track);
       more.append(tr('h4', null, 'Reviewed SASL video'), video, make('p', 'vp-note', `Reviewed by ${clip.reviewer} on ${clip.reviewedOn}.`));
-    } else more.append(tr('p', 'vp-note', 'No reviewed SASL video exists for this step yet. The avatar is a visual companion, not a sign language translator.'));
+    } else {
+      more.append(tr('p', 'vp-note', 'A reviewed SASL translation of this emergency instruction is not available yet. Do not rely on the talking avatar as signing.'));
+      const resource = make('a', 'button secondary', 'Explore authentic SASL videos (NID)');
+      resource.href = 'https://nid.org.za/resources/'; resource.target = '_blank'; resource.rel = 'noopener noreferrer';
+      more.append(resource, make('p', 'vp-note', 'This opens an independent SASL learning resource, not a translation of the current emergency step.'));
+    }
     action.append(more);
   }
   function renderProgress() {
@@ -222,29 +334,67 @@ export async function initVoice({ bridge }) {
     notice.textContent = testNote ? 'Operator test: this language is not yet verified for the public. Use only synthetic information and keep the call short.' : !a.available ? `Voice in ${a.label ?? getLocale()}: ${a.reason} You can use the text guidance, which keeps all your progress.` : s.phase === 'failed' ? s.error.message : s.captions === 'unavailable' ? 'Live captions are not available for this call, so the conversation will not appear as text. You can still talk, and the text guidance is below.' : '';
     startBtn.hidden = inCall; startBtn.disabled = !a.available || (!s.consented && !consentCheck.checked);
     startBtn.textContent = s.phase === 'failed' ? 'Try again' : s.phase === 'ended' ? 'Talk again' : 'Start voice conversation';
-    muteBtn.hidden = s.phase !== 'live'; muteBtn.textContent = s.muted ? 'Unmute microphone' : 'Mute microphone'; muteBtn.setAttribute('aria-pressed', String(s.muted));
+    muteBtn.hidden = s.phase !== 'live'; muteBtn.textContent = s.muted ? 'Unmute' : 'Mute'; muteBtn.setAttribute('aria-label', s.muted ? 'Unmute microphone' : 'Mute microphone'); muteBtn.setAttribute('aria-pressed', String(s.muted));
     endBtn.hidden = !inCall; endBtn.textContent = s.phase === 'connecting' ? 'Cancel' : 'End call';
-    sound.hidden = !(s.phase === 'live' && s.captions === 'on' && !s.audioHeard);
+    sound.hidden = !(s.phase === 'live' && s.needsSoundTap);
     avatarBtn.hidden = !(inCall && dock.isHidden());
+    avatarPreviewBtn.hidden = inCall;
+    avatarPreviewBtn.textContent = avatarPreviewing ? 'Hide 3D preview' : 'Preview 3D avatar';
+    avatarPreviewBtn.setAttribute('aria-expanded', String(avatarPreviewing && !inCall));
+    avatarPreviewBox.hidden = inCall || !avatarPreviewing;
+    for (const [mood, button] of avatarPreviewChoices) button.setAttribute('aria-pressed', String(avatarPreviewMood === mood));
     clearBtn.hidden = s.messages.length === 0 || inCall;
   }
   function render(s) {
     panel.dataset.phase = s.phase;
     const label = s.muted && s.phase === 'live' ? "Muted. Mgadi can't hear you" : STATUS[s.phase] ?? (s.phase === 'live' ? 'Connected' : '');
     if (status.textContent !== label) status.textContent = label;
-    activity.textContent = s.phase === 'live' && !s.muted ? ACTIVITY[s.activity] ?? '' : '';
+    activity.textContent = s.phase === 'live' ? (s.muted && s.activity !== 'speaking' ? '' : ACTIVITY[s.activity] ?? '') : '';
+    const inCall = ['connecting', 'live', 'reconnecting'].includes(s.phase);
+    opPill.hidden = config.access !== 'operator';
+    micPill.hidden = !inCall || config.mode === 'mock'; micPill.textContent = s.muted ? 'Mic muted' : 'Mic on'; micPill.dataset.muted = String(s.muted);
     renderChips(s); renderMessages(s); renderControls(s); if (progress.open) renderProgress();
-    stage.hidden = !['connecting', 'live', 'reconnecting'].includes(s.phase);
-    dock.setActive(!stage.hidden);
-    dock.setMood(s.phase === 'live' ? (s.activity === 'speaking' ? 'speaking' : s.muted ? 'muted' : 'listening') : ['connecting', 'reconnecting'].includes(s.phase) ? 'connecting' : 'idle');
+    if (inCall && gestureArea.hidden) gestureToggle.click();
+    if (inCall && gestureAvatar) {
+      // Streaming transcripts may repeat or extend; only newly matched words animate.
+      const candidates = s.messages.filter(m => m.role !== 'system' && m.callIndex === s.callIndex).slice(-5);
+      for (const m of candidates) {
+        const match = recognizeGesture(m.text);
+        const signature = cueSignature(m.key,match);
+        if (signature && signature !== gestureLast) { gestureLast=signature; setGesture(match.key,'live'); }
+      }
+    }
+    if (inCall) avatarPreviewing = false;
+    dock.setActive(inCall || avatarPreviewing);
+    dock.setState({ uiState: inCall ? s.uiState : avatarPreviewing ? avatarPreviewMood : s.uiState, muted: inCall && s.muted });
+    dock.setApproximate(avatarPreviewing && avatarPreviewMood === 'speaking');
+    publishState(s);
+  }
+  // The contract for the rest of the app: one attribute and one event carry the voice state, so any screen can react without
+  // reaching into this module. uiState is one of idle | connecting | listening | thinking | speaking | muted | reconnecting | failed | ended.
+  let published = '';
+  function publishState(s) {
+    const key = `${s.uiState}|${s.muted}|${s.phase}|${s.captions}`;
+    if (key === published) return; published = key;
+    panel.dataset.voiceState = s.uiState; document.documentElement.dataset.voiceState = s.uiState;
+    document.dispatchEvent(new CustomEvent('mgadi:voice-state', { detail: { uiState: s.uiState, phase: s.phase, muted: s.muted, captions: s.captions, messageCount: s.messages.length } }));
   }
 
   // ---- behaviour
   controller.subscribe(render);
+  // Loudness of the ASSISTANT's audio drives the mouth. It bypasses render(): it fires about 60 times a second.
+  controller.onLevel((level) => dock.setLevel(level));
   bridge.subscribe(() => { renderAction(); renderProgress(); });
   const refresh = () => { renderAction(); renderProgress(); render(controller.getState()); };
   progress.addEventListener('toggle', () => { if (progress.open) renderProgress(); });
   consentCheck.addEventListener('change', () => render(controller.getState()));
+  avatarPreviewBtn.addEventListener('click', () => {
+    if (['connecting', 'live', 'reconnecting'].includes(controller.getState().phase)) return;
+    avatarPreviewing = !avatarPreviewing;
+    avatarPreviewMood = 'idle';
+    if (avatarPreviewing) dock.show();
+    render(controller.getState());
+  });
   startBtn.addEventListener('click', () => { if (consentCheck.checked) controller.giveConsent(); controller.start(); });
   endBtn.addEventListener('click', () => controller.end());
   muteBtn.addEventListener('click', () => (controller.getState().muted ? controller.unmute() : controller.mute()));
@@ -277,7 +427,7 @@ export async function initVoice({ bridge }) {
     document.documentElement.dataset.voice = 'open'; refresh(); title.focus();
   }
   function close({ keepFocus = false }) {
-    panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setActive(false);
+    avatarPreviewing = false; panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setApproximate(false); dock.setActive(false);
     if (!keepFocus && opener?.isConnected) opener.focus();
   }
   refresh();
@@ -285,5 +435,6 @@ export async function initVoice({ bridge }) {
     open,
     launchButton() { const b = tr('button', 'button secondary voice-launch', 'Talk to Mgadi'); b.type = 'button'; b.addEventListener('click', open); return b; },
     controller, dock, config,
+    destroy() { stopKeyboardWatch(); dock.destroy(); },
   };
 }

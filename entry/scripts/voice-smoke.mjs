@@ -27,7 +27,7 @@ const launch = async (page) => { await page.click('.voice-launch'); await page.w
 const talk = async (page) => { await page.check('#voice-consent-check'); await page.click('.vp-start'); await page.waitForSelector('.vp-status:has-text("Connected")'); };
 const rect = (page, sel) => page.evaluate((s) => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return { x: r.x, y: r.y, w: r.width, h: r.height, visible: r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && !e.closest('[hidden]') }; }, sel);
 const hit = (a, b) => a && b && a.visible && b.visible && !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
-const label = (page) => page.locator('.avatar-dock canvas').getAttribute('aria-label');
+const label = (page) => page.locator('.avatar-dock [role="img"]').getAttribute('aria-label');
 const overflowX = (page) => page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
 const dockButtons = (page) => page.evaluate(() => [...document.querySelectorAll('.vp-controls button, .vp-btnrow button, #emergency-button')].filter((b) => !b.closest('[hidden]') && b.offsetWidth > 0).map((b) => { const r = b.getBoundingClientRect(); return { n: b.textContent.trim(), x: r.x, y: r.y, w: r.width, h: r.height, visible: true }; }));
 
@@ -57,12 +57,12 @@ try {
   await page.waitForFunction(() => /said:/.test(document.querySelector('.vp-body .sr-only')?.textContent ?? ''), null, { timeout: 8000 }).catch(() => {});
   check('finished messages are announced to screen readers, unfinished ones are not', /(Mgadi assistant|You) said: /.test(await page.locator('.vp-body .sr-only').innerText()));
   check('chat is a labelled log region and stays visible', (await page.locator('.vp-chat').getAttribute('role')) === 'log' && await page.locator('.vp-chat').isVisible());
-  await page.waitForFunction(() => document.querySelector('.avatar-dock canvas')?.getAttribute('aria-label')?.includes('speaking'), null, { timeout: 8000 }).catch(() => {});
+  await page.waitForFunction(() => document.querySelector('.avatar-dock [role="img"]')?.getAttribute('aria-label')?.includes('speaking'), null, { timeout: 8000 }).catch(() => {});
   check('avatar shows the speaking state', (await label(page)).includes('speaking'), await label(page));
-  await page.waitForFunction(() => document.querySelector('.avatar-dock canvas')?.getAttribute('aria-label')?.includes('listening'), null, { timeout: 8000 }).catch(() => {});
+  await page.waitForFunction(() => document.querySelector('.avatar-dock [role="img"]')?.getAttribute('aria-label')?.includes('listening'), null, { timeout: 8000 }).catch(() => {});
   check('avatar shows the listening state', (await label(page)).includes('listening'), await label(page));
   check('avatar says it is not a sign language translator', (await label(page)).includes('not a sign language translation'));
-  check('privacy indicators are visible while connected', (await page.locator('.vp-chips').innerText()).includes('Microphone on') && (await page.locator('.vp-chips').innerText()).includes('saves no audio or transcript'));
+  check('privacy summary is visible while connected and its details say Mgadi saves nothing', /Simulation/.test(await page.locator('.vp-privacyline summary').innerText()) && (await page.locator('.vp-chips').textContent()).includes('saves no audio or transcript') && (await page.locator('.vp-chips').textContent()).includes('No microphone · simulation'));
   check('the current action is always visible in the header', (await page.locator('.vp-now').innerText()).includes("Call your bank's fraud line now"));
 
   // 3. Nothing covers the bank button or the call controls (Playwright refuses to click covered elements).
@@ -83,7 +83,7 @@ try {
 
   // 4. Mute, end, history, privacy.
   await page.click('.vp-controls button:has-text("Mute")');
-  check('muting shows muted status and chip', (await page.locator('.vp-status').innerText()).includes('Muted') && (await page.locator('.vp-chips').innerText()).includes('No microphone · simulation'));
+  check('muting shows the muted status and the avatar\'s mic-muted badge', (await page.locator('.vp-status').innerText()).includes('Muted') && (await page.locator('.avatar-badge').innerText()) === 'Mic muted' && (await label(page)).includes('muted, so Mgadi cannot hear you'));
   await page.click('.vp-controls button:has-text("Unmute")');
   const chatBefore = await page.locator('.msg-assistant .said').allInnerTexts();
   await page.click('.vp-controls button:has-text("End call")'); await page.waitForSelector('.vp-status:has-text("ended")');
@@ -104,13 +104,13 @@ try {
   await page.click('.vp-controls button:has-text("Use text guidance")').catch(() => {});
   page = await open(); await begin(page); await launch(page);
   await page.locator('.vp-action > summary').click(); await page.click('.vp-action button:has-text("I\'ve called the bank")');
-  check('confirming in the panel advances the main journey', (await page.locator('.step-count').innerText()).includes('Step 2 of'));
+  check('confirming in the panel advances the main journey', /step 2 of/i.test(await page.locator('.step-count').innerText()));
   check('the panel shows the new current action', (await page.locator('.vp-now').innerText()).includes('Confirm with your supplier'));
   await page.evaluate(() => { document.querySelector('.vp-progress').open = true; });
   check('tasks show Done and Now', (await page.locator('.vp-task.confirmed .mark').innerText()) === 'Done' && (await page.locator('.vp-task.now .mark').count()) === 1);
   check('timeline shows the confirmation', (await page.locator('.vp-timeline').innerText()).includes("I've called the bank"));
   await page.click('.vp-controls button:has-text("Use text guidance")');
-  check('switching to text keeps progress and closes the panel', await page.locator('.voice-panel').isHidden() && (await page.locator('.step-count').innerText()).includes('Step 2 of'));
+  check('switching to text keeps progress and closes the panel', await page.locator('.voice-panel').isHidden() && /step 2 of/i.test(await page.locator('.step-count').innerText()));
   await page.click('.voice-launch'); check('reopening the panel shows the same progress', (await page.locator('.vp-task.confirmed').count()) === 1);
 
   // 6. Failure and recovery states.
@@ -158,15 +158,17 @@ try {
   await page.click('.vp-controls button:has-text("Show avatar")'); check('Show avatar brings it back', await page.locator('.avatar-dock').isVisible());
   await page.evaluate(() => { document.querySelector('#accessibility details').open = true; });
   await page.check('#text-only'); check('low-data mode hides the avatar', await page.locator('.avatar-dock').isHidden()); await page.uncheck('#text-only');
-  const snap = () => page.evaluate(() => document.querySelector('.avatar-dock canvas').toDataURL().length + ':' + document.querySelector('.avatar-dock canvas').toDataURL().slice(-40));
-  const moving = new Set(); for (let i = 0; i < 6; i += 1) { moving.add(await snap()); await page.waitForTimeout(180); }
-  check('with motion allowed the avatar animates', moving.size > 1);
-  await page.check('#reduced-motion'); await page.waitForTimeout(150);
-  const still = new Set(); for (let i = 0; i < 6; i += 1) { still.add(await snap()); await page.waitForTimeout(180); }
-  check('with reduce-movement on the avatar is still (poses change, nothing animates)', still.size <= 2, String(still.size));
-  page = await open({ reducedMotion: true }); await begin(page); await launch(page); await talk(page);
-  const still2 = new Set(); for (let i = 0; i < 6; i += 1) { still2.add(await snap()); await page.waitForTimeout(180); }
-  check('the operating-system reduced-motion preference is honoured', still2.size <= 2, String(still2.size));
+  // A WebGL canvas cannot be read back with toDataURL outside its own draw call, so compare what is actually on screen.
+  const snap = async () => (await page.locator('.avatar-figure').screenshot()).toString('base64');
+  // Sample only once the scripted conversation has finished and the state is steady, so any difference is animation, not a state change.
+  const steady = async () => { await page.waitForSelector('.msg-assistant:nth-of-type(2), .vp-chat .msg-assistant >> nth=1', { timeout: 15_000 }).catch(() => {}); let last = ''; let since = Date.now(); for (let i = 0; i < 80; i += 1) { const now = await page.locator('.vp-activity').innerText(); if (now !== last) { last = now; since = Date.now(); } if (now === 'Listening' && Date.now() - since > 1200) return; await page.waitForTimeout(100); } };
+  const samples = async (n, gap) => { await snap(); await page.waitForTimeout(gap); /* the first capture re-composites the element: discard it */ const out = new Set(); for (let i = 0; i < n; i += 1) { out.add(await snap()); await page.waitForTimeout(gap); } return out.size; };
+  await steady();
+  check('with motion allowed the avatar animates while the state is steady', (await samples(8, 300)) > 1);
+  await page.check('#reduced-motion'); await page.waitForTimeout(200);
+  check('with reduce-movement on, the avatar is completely still while the state is steady', (await samples(8, 300)) === 1);
+  page = await open({ reducedMotion: true }); await begin(page); await launch(page); await talk(page); await steady();
+  check('the operating-system reduced-motion preference is honoured (completely still)', (await samples(8, 300)) === 1);
 
   // 9. Layout at several sizes: no overlaps, no sideways scroll, bank button reachable.
   for (const [w, h] of [[320, 568], [360, 740], [768, 1024], [1280, 800]]) {
@@ -195,8 +197,8 @@ try {
   const kept = await page.locator('.vp-chat .msg:not(.msg-system) .said').allInnerTexts();
   check('the conversation already shown is kept (nothing disappears or is rewritten; a message still being spoken may have grown)', kept.length >= heard.length && heard.length >= 2 && heard.every((text, i) => kept[i].startsWith(text)), JSON.stringify({ heard, kept }));
   check('the message points to the guide on this phone', /guide on this phone/.test(await page.locator('.vp-avail').innerText()));
-  check('the call controls reset: no mute or end buttons, and no microphone indicator left on', (await page.locator('.vp-controls button:has-text("End call")').isHidden()) && (await page.locator('.vp-chips').innerText()).includes('Microphone off'));
-  check('the current action and the progress are unchanged', (await page.locator('.vp-now').innerText()).startsWith('Now:') && (await page.locator('.vp-count').innerText()).includes('step 2 of 4'));
+  check('the call controls reset: no mute or end buttons, and no microphone indicator left on', (await page.locator('.vp-controls button:has-text("End call")').isHidden()) && (await page.locator('.vp-mic').isHidden()) && (await page.locator('.vp-privacyline summary').innerText()).startsWith('Simulation'));
+  check('the current action and the progress are unchanged', (await page.locator('.vp-now').innerText()).startsWith('Now:') && (await page.locator('.vp-count').textContent()).includes('step 2 of 4'));
   check('the Bank fraud line button in the panel still works', await page.locator('.vp-bank').isEnabled());
   await page.waitForTimeout(6000);
   check('nothing retries or restarts while offline', (await page.locator('.vp-status').innerText()).includes("Couldn't connect") && page.requests.slice(requestsBefore).filter((r) => r.url.includes('/api/voice/session')).length === 0);
@@ -204,7 +206,7 @@ try {
   await page.waitForTimeout(800);
   check('coming back online does not silently restart the call; the person chooses "Try again"', (await page.locator('.vp-status').innerText()).includes("Couldn't connect") && (await page.locator('.vp-start').innerText()) === 'Try again');
   await page.click('.vp-controls button:has-text("Use text guidance")');
-  check('"Use text guidance" returns to the same step, with progress kept', (await page.locator('.step-count').innerText()).includes('Step 2 of'));
+  check('"Use text guidance" returns to the same step, with progress kept', /step 2 of/i.test(await page.locator('.step-count').innerText()));
   check('no page errors during the connection loss', page.errors.length === 0, JSON.stringify(page.errors));
 
 } finally { await browser.close(); app.close(); }

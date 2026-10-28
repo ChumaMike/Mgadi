@@ -88,6 +88,9 @@ Record each item PASS / FAIL / NOT SEEN in `VOICE-TEST-RESULTS.md`:
 | 14 | Live captions work, or the app says "Live captions unavailable" | Console shows an SDK warning if the transcript socket failed |
 | 15 | **At Retell**: the call appears with **no transcript, no recording, no logs** | Dashboard call history, after the call |
 | 16 | Cost of the call matches minutes × price | Dashboard |
+| 17 | Mouth movement matches what you **hear**: it moves when Mgadi talks, stays shut when it pauses, never moves while only you talk (try a loud cough while Mgadi is silent) | Watch the avatar. The movement is approximate (loudness), not phoneme-exact: record how convincing it looks |
+| 18 | **Thinking** appears after you finish a sentence and before the answer, and does not get stuck | Visual. It is inferred from captions, not reported by Retell |
+| 19 | The microphone is requested **before** a call is created: tap Block and confirm Retell's dashboard shows **no** new call and our quota did not move | Block the microphone once; check call history |
 
 Decide **captions** explicitly:
 - Captions worked (#4 and #5 PASS): record that this public key, on a workspace used only for Mgadi, can open the monitor socket,
