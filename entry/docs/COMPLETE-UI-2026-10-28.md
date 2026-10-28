@@ -45,3 +45,18 @@ Real Retell, physical Android/iOS audio/file selection, TalkBack and VoiceOver s
 The legacy general browser suite stopped at its inherited `Get safe next step` selector, which already differed from the baseline button. The full legacy batch was not certified; other old suites assume immediate incident-tile navigation or a floating avatar. Their migration remains outstanding. The new complete acceptance suite covers the current journey. `npm start` hit this runtime's `os.networkInterfaces()` restriction; browser suites used the same application through local `createApp` servers.
 
 GitHub CI is inactive: the existing workflow lives under `entry/ci/`, not `.github/workflows/`. These are local results.
+
+
+## Additional end-to-end demo enhancements (same branch, after the initial acceptance run)
+
+This draft now also implements:
+- A plain-language bank feedback field on the relevant step. It does not imply Mgadi contacted the bank; text is pattern-redacted and included only when the owner chooses the handoff details.
+- **Go to evidence & report** from the response steps, without marking any remaining step as Done. The evidence screen can return to the active response step without losing progress.
+- Privacy switches to exclude both evidence metadata and the timeline from the downloaded JSON. This choice is reflected in the review and generated report; original files are never embedded.
+- Mobile sizing and focus affordances for the optional controls.
+- New unit tests in `test/product-journey-ux.test.js` and expanded checks in `scripts/experience-smoke.mjs`.
+- Read-only `.github/workflows/mgadi-ui.yml` for unit tests, build and redesigned Chromium journey checks.
+
+**Verification distinction:** The 300-unit/103-browser/37-mocked-SDK results above were obtained before these additional commits. The new code and assertions were reviewed and committed through GitHub, but there is no completed GitHub Actions result for the final commit yet; **do not label the new head tested** until CI actually runs and passes. The Vercel status for the latest head reports a build-rate-limit failure, not a confirmed source-code failure. A prior READY preview belongs to an earlier commit and does not include all enhancements.
+
+No production deployment, branch merge, secret changes, provider calls or release approval was performed.
