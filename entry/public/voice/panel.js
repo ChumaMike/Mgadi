@@ -178,8 +178,28 @@ export async function initVoice({ bridge }) {
   const gestureButtons = make('div','vp-gesture-buttons');
   const gestureNames = [['stop','Stop'],['call','Call'],['save','Save'],['help','Help'],['check','Check'],['protect','Protect']];
   gestureArea.append(gestureCanvas,gestureLabel,gestureExplanation,gestureButtons);
+  const localButton=make('button','button secondary vp-small','Speak gesture words'); localButton.type='button';
+  const localStatus=make('p','vp-note','Optional microphone gesture recognition. Not connected to Retell; browser speech services may process audio.');
+  gestureArea.append(localButton,localStatus);
   gestureSection.append(gestureHeader,gestureArea);
   let gestureAvatar = null, gestureLast = '', gestureTimeout = null;
+  let localRecognizer = null;
+  const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
+  if (!Recognition) {localButton.disabled=true; localStatus.textContent='Browser speech recognition unavailable. Gesture buttons still work.';}
+  const stopLocal = () => { if (localRecognizer) {const active=localRecognizer; localRecognizer=null;try{active.stop();}catch{} } localButton.textContent='Speak gesture words'; };
+  localButton.addEventListener('click',()=>{
+    if(localRecognizer){stopLocal();return;}
+    if(!Recognition || !globalThis.isSecureContext){localStatus.textContent='Speech recognition needs a supported browser and HTTPS.';return;}
+    const rec=new Recognition();localRecognizer=rec;rec.lang='en-ZA';rec.interimResults=true;rec.continuous=true;
+    rec.onresult=(e)=>{const words=e.results[e.results.length-1]?.[0]?.transcript||'';
+      localStatus.textContent='Heard: '+words;
+      const match=recognizeGesture(words);if(match)setGesture(match.key,'microphone');
+    };
+    rec.onerror=(e)=>{localStatus.textContent='Microphone recognition error: '+e.error;};
+    rec.onend=()=>{if(localRecognizer===rec){localRecognizer=null;localButton.textContent='Speak gesture words';}};
+    try{rec.start();localButton.textContent='Stop gesture microphone';localStatus.textContent='Listening for STOP, CALL, SAVE, HELP, CHECK and PROTECT…';}
+    catch{localRecognizer=null;localStatus.textContent='Unable to start microphone recognition.';}
+  });
   function setGesture(key, source='manual') {
     if (!gestureAvatar || !key) return;
     gestureAvatar.setGesture(key);
@@ -194,6 +214,7 @@ export async function initVoice({ bridge }) {
   gestureToggle.addEventListener('click',()=>{
     gestureArea.hidden = !gestureArea.hidden; gestureToggle.setAttribute('aria-expanded', String(!gestureArea.hidden));
     gestureToggle.textContent = gestureArea.hidden ? 'Show gestures' : 'Hide gestures';
+    if(gestureArea.hidden)stopLocal();
     if(!gestureArea.hidden && !gestureAvatar){gestureAvatar=createGestureAvatar(gestureCanvas); if(!matchMedia('(prefers-reduced-motion: reduce)').matches) gestureAvatar.play();}
     else if(gestureAvatar){if(gestureArea.hidden)gestureAvatar.pause();else if(!matchMedia('(prefers-reduced-motion: reduce)').matches)gestureAvatar.play();}
   });
@@ -355,6 +376,7 @@ export async function initVoice({ bridge }) {
     micPill.hidden = !inCall || config.mode === 'mock'; micPill.textContent = s.muted ? 'Mic muted' : 'Mic on'; micPill.dataset.muted = String(s.muted);
     renderChips(s); renderMessages(s); renderControls(s); if (progress.open) renderProgress();
     if (inCall && gestureArea.hidden) gestureToggle.click();
+    if(inCall && localRecognizer)stopLocal();
     if (inCall && gestureAvatar) {
       // Streaming transcripts may repeat or extend; only newly matched words animate.
       const candidates = s.messages.filter(m => m.role !== 'system' && m.callIndex === s.callIndex).slice(-5);
@@ -427,7 +449,7 @@ export async function initVoice({ bridge }) {
     document.documentElement.dataset.voice = 'open'; refresh(); title.focus();
   }
   function close({ keepFocus = false }) {
-    avatarPreviewing = false; panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setApproximate(false); dock.setActive(false);
+    stopLocal(); avatarPreviewing = false; panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setApproximate(false); dock.setActive(false);
     if (!keepFocus && opener?.isConnected) opener.focus();
   }
   refresh();
