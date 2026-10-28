@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const ALL = ['browser-smoke', 'emergency-smoke', 'voice-smoke', 'retell-sdk-smoke', 'pwa-smoke', 'a11y-smoke', 'tools-smoke'];
+const ALL = ['browser-smoke', 'emergency-smoke', 'voice-smoke', 'retell-sdk-smoke', 'pwa-smoke', 'a11y-smoke', 'tools-smoke', 'evidence-smoke'];
 const TIMEOUT_MS = Number(process.env.MGADI_SUITE_TIMEOUT_MS ?? 240_000);
 const chosen = process.argv.slice(2).length ? process.argv.slice(2) : ALL;
 

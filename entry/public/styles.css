@@ -231,3 +231,12 @@ html { scroll-padding-top: calc(var(--header-h) + .75rem); scroll-padding-bottom
 .popia-draft h3 { font-size: 1rem; margin-top: 1.2rem; }
 .field input[readonly] { background: #eef1e9; }
 @media print { .tool-entry { display: none !important; } }
+
+/* ---- Trusted-details comparison and evidence panel ---- */
+fieldset { min-width: 0; max-width: 100%; }
+.compare { padding-left: 1.2rem; }
+.evidence-panel textarea { min-height: 90px; }
+.evidence-source { border-top: 1px solid var(--mg-line); margin-top: 1rem; padding-top: .5rem; }
+.evidence-source h3, .evidence-result h3 { font-size: 1rem; margin-top: 1rem; }
+.evidence-source select { width: 100%; }
+@media print { .evidence-panel { display: none !important; } }
