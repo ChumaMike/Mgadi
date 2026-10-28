@@ -64,7 +64,7 @@ export function createAvatar(canvas) {
     limb([palm[0]-side*.07,palm[1]-.03,palm[2]],[palm[0]-side*.165,palm[1]+.015,palm[2]+.04],.028,skin);
   }
   function arms(){
-    const easing=smooth((phase-gestureAt)*2.4);
+    const easing=running?smooth((phase-gestureAt)*2.4):1;
     const sway=Math.sin(phase*2.7)*.028;
     for(const side of [-1,1]){
       const shoulder=[side*.59,-.55,.05];
@@ -76,6 +76,16 @@ export function createAvatar(canvas) {
         goalElbow=[.78,-.24,.34];goalWrist=[.43,.42+sway*.35,.55];shape='phone';
       } else if(gesture==='save'){
         goalElbow=[side*.79,-.38,.34];goalWrist=[side*.27,-.26+sway*.4,.63];
+      } else if(gesture==='help'){
+        // Both arms above shoulder height: a familiar attention/help pose.
+        goalElbow=[side*.87,-.07,.40];goalWrist=[side*.76,.53+sway,.66];
+      } else if(gesture==='check'){
+        // One hand near the chin while the other presents an open palm.
+        if(side===1){goalElbow=[.74,-.25,.43];goalWrist=[.24,.24+sway,.66];}
+        else{goalElbow=[-.79,-.43,.33];goalWrist=[-.52,-.31,.64];}
+      } else if(gesture==='protect'){
+        // Forearms crossed in front of the torso: illustrative protection pose.
+        goalElbow=[side*.82,-.49,.46];goalWrist=[-side*.35,-.35+sway*.4,.77];
       }
       const elbow=mix(baseElbow,goalElbow,easing);
       const wrist=mix(baseWrist,goalWrist,easing);
@@ -114,5 +124,5 @@ export function createAvatar(canvas) {
   }
   function animate(now=0){if(!running)return;if(previous && now-previous<32){frame=requestAnimationFrame(animate);return;}const elapsed=previous?Math.min(now-previous,50):16;previous=now;phase+=elapsed*.0017;draw();frame=requestAnimationFrame(animate);}
   draw();
-  return {play(){if(!running){running=true;previous=0;frame=requestAnimationFrame(animate);}},pause(){running=false;cancelAnimationFrame(frame);draw();},rotate(value){angle=Number.isFinite(value)?value:0;draw();},setMood(next){mood=['idle','listening','speaking'].includes(next)?next:'idle';if(!running)draw();},setGesture(next){gesture=['stop','call','save'].includes(next)?next:'none';gestureAt=phase;if(!running)draw();},getGesture(){return gesture;},destroy(){running=false;cancelAnimationFrame(frame);}};
+  return {play(){if(!running){running=true;previous=0;frame=requestAnimationFrame(animate);}},pause(){running=false;cancelAnimationFrame(frame);draw();},rotate(value){angle=Number.isFinite(value)?value:0;draw();},setMood(next){mood=['idle','listening','speaking'].includes(next)?next:'idle';if(!running)draw();},setGesture(next){gesture=['stop','call','save','help','check','protect'].includes(next)?next:'none';gestureAt=phase;if(!running)draw();},getGesture(){return gesture;},destroy(){running=false;cancelAnimationFrame(frame);}};
 }
