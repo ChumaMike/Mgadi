@@ -1,0 +1,219 @@
+/* Mgadi design system: tokens first, then the shared components that use them.
+   Loaded last, so it is the one place that decides how the home screen, the status chips, the step tracker and the optional
+   groups look. Colours were chosen for text contrast on their own background (see docs/DESIGN-SYSTEM.md for the pairs checked).
+   Everything respects the person's own settings: text size, high contrast, reduced movement. No inline styles (the policy forbids them). */
+
+/* ---------------------------------------------------------------- tokens */
+:root {
+  /* Surfaces and lines: warm ivory and soft green, never a dark page. */
+  --ds-surface: #f7f7f0;
+  --ds-card: #fffefb;
+  --ds-soft: #eef2e9;
+  --ds-line: #dce3d9;
+  --ds-line-strong: #aebcae;
+  /* Text */
+  --ds-ink: #162e29;
+  --ds-muted: #50645d;
+  /* Brand: forest, with teal and emerald as accents (the logo is navy and teal). */
+  --ds-brand: #173e35;
+  --ds-teal: #0d6f66;
+  --ds-teal-soft: #e0f1ee;
+  --ds-emerald: #1f7a4c;
+  /* Status: each pair is background + text colour, never colour alone (every status also has a symbol and words). */
+  --ds-ok-bg: #e5f2e7;   --ds-ok-ink: #185532;   --ds-ok-line: #7fb591;
+  --ds-warn-bg: #fff2d3; --ds-warn-ink: #5f3d00; --ds-warn-line: #9b690f;
+  --ds-danger-bg: #fae8e3; --ds-danger-ink: #8b271f; --ds-danger: #ad352c; --ds-danger-line: #d9a99c;
+  --ds-info-bg: #e0f1ee; --ds-info-ink: #0b4f49; --ds-info-line: #7fb8b0;
+  --ds-neutral-bg: #eceee8; --ds-neutral-ink: #34443d; --ds-neutral-line: #b5bfb6;
+  /* Space (4px base) */
+  --ds-space-1: .25rem; --ds-space-2: .5rem; --ds-space-3: .75rem; --ds-space-4: 1rem; --ds-space-5: 1.5rem; --ds-space-6: 2rem; --ds-space-7: 3rem;
+  /* Shape */
+  --ds-radius-s: 10px; --ds-radius-m: 16px; --ds-radius-l: 22px; --ds-radius-pill: 999px;
+  /* Type scale: sizes are in rem, so the person's text-size setting scales all of them. */
+  --ds-text-xs: .78rem; --ds-text-s: .9rem; --ds-text-m: 1rem; --ds-text-l: 1.15rem; --ds-text-xl: 1.4rem; --ds-text-hero: clamp(1.9rem, 7.4vw, 3.2rem);
+  /* Touch targets: 48px is the floor for anything a person must tap (WCAG 2.2 asks 24px; the larger size is deliberate). */
+  --ds-target: 48px;
+  --ds-ease: 160ms ease;
+  --ds-shadow: 0 10px 34px #173e3510;
+}
+html[data-contrast='true'] {
+  --ds-surface: #fff; --ds-card: #fff; --ds-soft: #fff; --ds-line: #000; --ds-line-strong: #000; --ds-ink: #000; --ds-muted: #111;
+  --ds-brand: #00261c; --ds-teal: #00423c; --ds-teal-soft: #fff; --ds-emerald: #0b4a2a;
+  --ds-ok-bg: #fff; --ds-ok-ink: #00391a; --ds-ok-line: #000; --ds-warn-bg: #fff; --ds-warn-ink: #3b2500; --ds-warn-line: #000;
+  --ds-danger-bg: #fff; --ds-danger-ink: #6b0f08; --ds-danger: #6b0f08; --ds-danger-line: #000; --ds-info-bg: #fff; --ds-info-ink: #00322e; --ds-info-line: #000;
+  --ds-neutral-bg: #fff; --ds-neutral-ink: #000; --ds-neutral-line: #000;
+}
+
+/* ---------------------------------------------------------------- icons */
+.icon { width: 1.5rem; height: 1.5rem; flex: 0 0 auto; display: block; }
+
+/* ---------------------------------------------------------------- home */
+.welcome-intro { padding: var(--ds-space-4) 0 var(--ds-space-4); }
+.eyebrow { font-size: var(--ds-text-xs); font-weight: 750; letter-spacing: .14em; color: var(--ds-muted); margin: 0 0 var(--ds-space-2); }
+.welcome-intro h1 { font-size: var(--ds-text-hero); line-height: 1.06; letter-spacing: -.05em; font-weight: 700; margin: 0 0 var(--ds-space-2); max-width: 16ch; }
+.hero-intro { font-size: var(--ds-text-l); color: var(--ds-muted); margin: 0; max-width: 46ch; line-height: 1.45; }
+
+.primary-actions { display: grid; grid-template-columns: 1fr; gap: var(--ds-space-4); align-items: start; }
+.action-card { background: var(--ds-card); border: 1px solid var(--ds-line); border-radius: var(--ds-radius-l); padding: var(--ds-space-4); box-shadow: var(--ds-shadow); min-width: 0; }
+.action-card__head { display: flex; gap: var(--ds-space-3); align-items: flex-start; }
+.action-card__icon { flex: 0 0 44px; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; background: var(--ds-soft); color: var(--ds-brand); }
+.action-card h2 { margin: 0; font-size: var(--ds-text-l); line-height: 1.25; letter-spacing: -.01em; }
+.action-card__head p { margin: var(--ds-space-1) 0 0; color: var(--ds-muted); font-size: var(--ds-text-s); line-height: 1.45; }
+.action-card--urgent { border-color: var(--ds-danger-line); border-inline-start: 6px solid var(--ds-danger); }
+.action-card--urgent .action-card__icon { background: var(--ds-danger-bg); color: var(--ds-danger-ink); }
+.action-card--calm { border-inline-start: 6px solid var(--ds-teal); }
+.action-card--calm .action-card__icon { background: var(--ds-teal-soft); color: var(--ds-info-ink); }
+.action-card .tool-entry { width: 100%; margin: var(--ds-space-3) 0 0; display: flex; align-items: center; justify-content: center; gap: var(--ds-space-2); background: var(--ds-teal); color: #fff; min-height: 52px; }
+html[data-contrast='true'] .action-card .tool-entry { background: #00261c; color: #fff; border: 2px solid #000; }
+
+/* The five situations sit inside the urgent card as a compact list, one tap each. */
+.action-card .welcome-choices { display: grid; grid-template-columns: 1fr; gap: var(--ds-space-2); padding: 0; margin: var(--ds-space-3) 0 0; }
+.action-card .welcome-choices .situation-card { display: flex; align-items: center; gap: var(--ds-space-3); width: 100%; min-height: 54px; margin: 0; padding: .5rem var(--ds-space-3); text-align: start; background: var(--ds-card); color: var(--ds-ink); border: 1px solid var(--ds-line-strong); border-radius: 14px; font-size: var(--ds-text-m); font-weight: 650; line-height: 1.3; transition: border-color var(--ds-ease), background var(--ds-ease); }
+.action-card .welcome-choices .situation-card:hover { background: var(--ds-soft); border-color: var(--ds-brand); transform: none; filter: none; }
+.action-card .welcome-choices .situation-card:last-child { background: var(--ds-soft); min-height: 54px; }
+.choice-icon { flex: 0 0 36px; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; background: var(--ds-soft); color: var(--ds-brand); border: 0; }
+.choice-icon .icon { width: 1.25rem; height: 1.25rem; }
+.situation-card:last-child .choice-icon { background: var(--ds-card); }
+.choice-arrow { margin-inline-start: auto; color: var(--ds-muted); display: grid; place-items: center; }
+.choice-arrow .icon { width: 1.1rem; height: 1.1rem; }
+
+.describe-incident { border: 0; border-top: 1px solid var(--ds-line); border-radius: 0; padding: var(--ds-space-3) 0 0; margin: var(--ds-space-3) 0 0; background: transparent; }
+.describe-incident > summary { font-size: var(--ds-text-s); padding: .5rem 0; border: 0; min-height: 44px; display: flex; align-items: center; }
+
+/* Continue banner: only shown while an incident is open on this page. */
+.continue-card { display: flex; gap: var(--ds-space-3); align-items: center; flex-wrap: wrap; background: var(--ds-info-bg); color: var(--ds-info-ink); border: 1px solid var(--ds-info-line); border-radius: var(--ds-radius-m); padding: var(--ds-space-3) var(--ds-space-4); margin-bottom: var(--ds-space-4); }
+.continue-card .icon { color: var(--ds-info-ink); }
+.continue-card__text { flex: 1 1 14rem; min-width: 0; }
+.continue-card strong { display: block; font-size: var(--ds-text-m); }
+.continue-card p { margin: var(--ds-space-1) 0 0; font-size: var(--ds-text-xs); line-height: 1.4; }
+.continue-card .button { flex: 0 0 auto; background: var(--ds-brand); color: #fff; }
+
+/* Secondary access: calm rows, not cards. */
+.secondary-actions { margin-top: var(--ds-space-5); padding-top: var(--ds-space-4); border-top: 1px solid var(--ds-line); }
+.secondary-actions h2 { margin: 0 0 var(--ds-space-2); font-size: var(--ds-text-m); }
+.secondary-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; }
+.secondary-item { display: flex; gap: var(--ds-space-3); align-items: flex-start; padding: var(--ds-space-3) 0; border-bottom: 1px solid var(--ds-line); margin: 0; }
+.secondary-item:last-child { border-bottom: 0; }
+.secondary-icon { flex: 0 0 36px; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; background: var(--ds-soft); color: var(--ds-brand); }
+.secondary-icon .icon { width: 1.25rem; height: 1.25rem; }
+.secondary-text { min-width: 0; flex: 1; }
+.secondary-text .button { display: block; width: 100%; text-align: start; min-height: 44px; padding: .4rem 0; margin: 0; background: transparent; color: var(--ds-brand); font-size: var(--ds-text-m); font-weight: 700; text-decoration: underline; text-underline-offset: .22em; text-decoration-thickness: 1px; border-radius: var(--ds-radius-s); }
+.secondary-text .button:hover { filter: none; text-decoration-thickness: 2px; }
+.secondary-text p { margin: 0; color: var(--ds-muted); font-size: var(--ds-text-s); line-height: 1.4; }
+.capability-limits { background: transparent; padding: var(--ds-space-2) 0; border: 0; font-size: var(--ds-text-s); }
+.capability-limits > summary { border: 0; padding-inline: 0; }
+
+@media (min-width: 760px) {
+  .welcome-intro { padding: var(--ds-space-6) 0 var(--ds-space-5); }
+  .primary-actions { grid-template-columns: 1.25fr 1fr; gap: var(--ds-space-5); }
+  .action-card { padding: var(--ds-space-5); }
+  .secondary-list { grid-template-columns: 1fr 1fr; column-gap: var(--ds-space-6); }
+  .secondary-item:nth-last-child(2):nth-child(odd) { border-bottom: 0; }
+}
+html[data-text-size='largest'] .primary-actions, html[data-text-size='larger'] .primary-actions { grid-template-columns: 1fr; }
+html[data-text-size='largest'] .secondary-list, html[data-text-size='larger'] .secondary-list { grid-template-columns: 1fr; }
+html[data-contrast='true'] :is(.action-card, .continue-card, .secondary-icon, .choice-icon) { border: 2px solid #000; background: #fff; color: #000; }
+html[data-contrast='true'] .action-card--urgent { border-inline-start-width: 8px; }
+html[data-reduced-motion='true'] .action-card .situation-card { transition: none; }
+
+/* ---------------------------------------------------------------- status chips and banners */
+.ds-chip { display: inline-flex; align-items: center; gap: var(--ds-space-1); padding: .2rem .65rem; border-radius: var(--ds-radius-pill); border: 1px solid var(--ds-neutral-line); background: var(--ds-neutral-bg); color: var(--ds-neutral-ink); font-size: var(--ds-text-xs); font-weight: 750; line-height: 1.3; }
+.ds-chip .icon { width: .95rem; height: .95rem; }
+.ds-chip--ok { background: var(--ds-ok-bg); color: var(--ds-ok-ink); border-color: var(--ds-ok-line); }
+.ds-chip--warn { background: var(--ds-warn-bg); color: var(--ds-warn-ink); border-color: var(--ds-warn-line); }
+.ds-chip--danger { background: var(--ds-danger-bg); color: var(--ds-danger-ink); border-color: var(--ds-danger-line); }
+.ds-chip--info { background: var(--ds-info-bg); color: var(--ds-info-ink); border-color: var(--ds-info-line); }
+
+.ds-status { display: flex; gap: var(--ds-space-3); align-items: flex-start; padding: var(--ds-space-3) var(--ds-space-4); border-radius: var(--ds-radius-m); border: 1px solid var(--ds-neutral-line); background: var(--ds-neutral-bg); color: var(--ds-neutral-ink); margin: var(--ds-space-3) 0; }
+.ds-status > .icon { margin-top: .1rem; }
+.ds-status strong { display: block; font-size: var(--ds-text-m); }
+.ds-status p { margin: var(--ds-space-1) 0 0; font-size: var(--ds-text-s); line-height: 1.45; }
+.ds-status--ok { background: var(--ds-ok-bg); color: var(--ds-ok-ink); border-color: var(--ds-ok-line); }
+.ds-status--warn { background: var(--ds-warn-bg); color: var(--ds-warn-ink); border-color: var(--ds-warn-line); }
+.ds-status--danger { background: var(--ds-danger-bg); color: var(--ds-danger-ink); border-color: var(--ds-danger-line); }
+.ds-status--info { background: var(--ds-info-bg); color: var(--ds-info-ink); border-color: var(--ds-info-line); }
+html[data-contrast='true'] :is(.ds-status, .ds-chip) { border: 2px solid #000; background: #fff; color: #000; }
+
+/* ---------------------------------------------------------------- step tracker (supplier check: Describe, Review, Record) */
+.ds-steps { display: flex; gap: var(--ds-space-2); list-style: none; padding: 0; margin: 0 0 var(--ds-space-4); counter-reset: ds-step; }
+.ds-steps li { flex: 1 1 0; min-width: 0; margin: 0; display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-1); text-align: center; font-size: var(--ds-text-xs); font-weight: 650; color: var(--ds-muted); border-top: 4px solid var(--ds-line); padding-top: var(--ds-space-2); overflow-wrap: anywhere; }
+.ds-steps li[aria-current='step'] { border-top-color: var(--ds-teal); color: var(--ds-ink); font-weight: 800; }
+.ds-steps li.is-done { border-top-color: var(--ds-emerald); color: var(--ds-ok-ink); }
+.ds-step-mark { width: 1.7rem; height: 1.7rem; display: grid; place-items: center; border-radius: 50%; border: 2px solid currentColor; font-weight: 800; font-size: var(--ds-text-xs); }
+.ds-steps li.is-done .ds-step-mark { background: var(--ds-emerald); border-color: var(--ds-emerald); color: #fff; }
+.ds-steps li[aria-current='step'] .ds-step-mark { background: var(--ds-teal); border-color: var(--ds-teal); color: #fff; }
+html[data-contrast='true'] .ds-steps li { border-top-color: #000; }
+
+/* ---------------------------------------------------------------- optional groups (collapsed so the short path stays short) */
+.ds-optional { border: 1px solid var(--ds-line); border-radius: var(--ds-radius-m); background: var(--ds-card); padding: 0 var(--ds-space-4); margin: var(--ds-space-4) 0; }
+.ds-optional > summary { border: 0; padding: var(--ds-space-3) 0; min-height: var(--ds-target); display: flex; align-items: center; gap: var(--ds-space-2); font-weight: 750; list-style-position: inside; }
+.ds-optional[open] > summary { border-bottom: 1px solid var(--ds-line); margin-bottom: var(--ds-space-3); }
+.ds-optional > .privacy:first-of-type { margin-top: 0; }
+.ds-help { color: var(--ds-muted); font-size: var(--ds-text-s); margin: 0 0 var(--ds-space-3); }
+.ds-actions { display: flex; flex-wrap: wrap; gap: var(--ds-space-2); margin-top: var(--ds-space-4); }
+.ds-actions .button { margin: 0; }
+
+/* ---------------------------------------------------------------- shared small pieces */
+.ds-kv { display: grid; grid-template-columns: max-content 1fr; gap: var(--ds-space-1) var(--ds-space-4); margin: var(--ds-space-3) 0; padding: 0; }
+.ds-kv dt { color: var(--ds-muted); font-size: var(--ds-text-s); font-weight: 650; }
+.ds-kv dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 420px) { .ds-kv { grid-template-columns: 1fr; gap: 0; } .ds-kv dd { margin-bottom: var(--ds-space-2); } }
+
+/* ---------------------------------------------------------------- small phones: keep the emergency choices on the first screen */
+@media (max-width: 600px) {
+  .eyebrow { display: none; }
+  .welcome-intro { padding: var(--ds-space-2) 0 var(--ds-space-3); }
+  .welcome-intro h1 { font-size: clamp(1.7rem, 7vw, 2.2rem); }
+  .hero-intro { font-size: var(--ds-text-m); }
+  .action-card { padding: var(--ds-space-3) var(--ds-space-3) var(--ds-space-3) var(--ds-space-4); }
+  .action-card .welcome-choices { gap: 6px; margin-top: var(--ds-space-2); }
+  .action-card .welcome-choices .situation-card { min-height: 50px; padding: .3rem .6rem; font-size: .95rem; }
+  .choice-icon { flex-basis: 32px; width: 32px; height: 32px; }
+}
+
+/* ---------------------------------------------------------------- evidence review stages */
+.evidence-panel h3, .evidence-result h3 { font-size: var(--ds-text-m); margin: var(--ds-space-5) 0 var(--ds-space-2); padding-top: var(--ds-space-3); border-top: 1px solid var(--ds-line); }
+.evidence-source h4 { font-size: var(--ds-text-m); margin: 0 0 var(--ds-space-1); }
+.evidence-source h5 { font-size: var(--ds-text-s); margin: var(--ds-space-3) 0 var(--ds-space-1); color: var(--ds-muted); text-transform: uppercase; letter-spacing: .06em; }
+.evidence-chips { display: flex; flex-wrap: wrap; gap: var(--ds-space-2); margin: var(--ds-space-1) 0 var(--ds-space-3); }
+.compare { list-style: none; padding: 0; margin: 0; }
+.compare li { margin: var(--ds-space-2) 0; padding: var(--ds-space-2) var(--ds-space-3); border-inline-start: 5px solid var(--ds-neutral-line); background: var(--ds-card); border-radius: 0 var(--ds-radius-s) var(--ds-radius-s) 0; overflow-wrap: anywhere; }
+.compare .compare-agree { border-inline-start-color: var(--ds-emerald); }
+.compare .compare-single { border-inline-start-color: var(--ds-warn-line); background: var(--ds-warn-bg); }
+.compare .compare-conflict { border-inline-start-color: var(--ds-danger); background: var(--ds-danger-bg); color: var(--ds-danger-ink); }
+.confirmed-facts { padding-inline-start: 1.2rem; }
+html[data-contrast='true'] .compare li { border: 2px solid #000; background: #fff; color: #000; }
+
+/* ---------------------------------------------------------------- pack: what happens next */
+.pack-next { margin-top: var(--ds-space-5); padding-top: var(--ds-space-4); border-top: 1px solid var(--ds-line); }
+.pack-next h2 { margin: 0 0 var(--ds-space-2); font-size: var(--ds-text-l); }
+.pack-list { grid-template-columns: 1fr; }
+.secondary-text .button.row-primary { display: inline-flex; width: auto; padding: .6rem 1.1rem; background: var(--ds-brand); color: #fff; text-decoration: none; border-radius: var(--ds-radius-s); margin-bottom: var(--ds-space-1); }
+html[data-contrast='true'] .secondary-text .button.row-primary { background: #00261c; color: #fff; border: 2px solid #000; }
+@media print { .pack-next, .secondary-actions, .continue-card { display: none !important; } }
+
+/* ---------------------------------------------------------------- settings notes */
+.setting-note { color: var(--ds-muted); font-size: var(--ds-text-s); line-height: 1.45; margin: var(--ds-space-2) 0 var(--ds-space-3); }
+.setting-note:empty { display: none; }
+html[data-contrast='true'] .setting-note { color: #000; }
+
+/* ---------------------------------------------------------------- step outcome buttons: never break a word in half */
+.step-outcomes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ds-space-2); }
+.step-outcomes .button { margin: 0; min-height: 52px; flex: none; overflow-wrap: normal; word-break: normal; hyphens: manual; }
+.step-outcomes > :first-child { grid-column: 1 / -1; }
+@media (min-width: 640px) { .step-outcomes { grid-template-columns: 1.4fr 1fr 1fr; } .step-outcomes > :first-child { grid-column: auto; } }
+html[data-text-size='larger'] .step-outcomes, html[data-text-size='largest'] .step-outcomes { grid-template-columns: 1fr; }
+html[data-text-size='larger'] .step-outcomes > :first-child, html[data-text-size='largest'] .step-outcomes > :first-child { grid-column: auto; }
+
+/* ---------------------------------------------------------------- larger text: spacing must not grow as fast as the letters
+   Spacing is in rem, so at 150% and 200% text it would double and leave a few letters per line on a small phone. These steps keep
+   the gaps readable but small, and drop decoration (arrows) so the words get the width. */
+html[data-text-size='larger'] { --ds-space-2: .35rem; --ds-space-3: .5rem; --ds-space-4: .7rem; --ds-space-5: 1rem; --ds-space-6: 1.4rem; }
+html[data-text-size='largest'] { --ds-space-2: .25rem; --ds-space-3: .35rem; --ds-space-4: .45rem; --ds-space-5: .7rem; --ds-space-6: 1rem; }
+html[data-text-size='larger'] :is(.choice-arrow, .choice-icon, .action-card__icon, .secondary-icon),
+html[data-text-size='largest'] :is(.choice-arrow, .choice-icon, .action-card__icon, .secondary-icon) { display: none; }
+html[data-text-size='larger'] .action-card .welcome-choices .situation-card,
+html[data-text-size='largest'] .action-card .welcome-choices .situation-card { padding: .25rem .4rem; gap: .35rem; }
+html[data-text-size='largest'] .action-card { padding: .5rem .5rem .5rem .7rem; }
+/* The home card has no frame of its own; the older large-text rule that pads every .card must not pad it. */
+html[data-text-size] .welcome-card { padding: 0; }
