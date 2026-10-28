@@ -1,0 +1,36 @@
+name: Mgadi UI pull request checks
+on:
+  pull_request:
+    paths:
+      - 'entry/**'
+      - '.github/workflows/mgadi-ui.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: entry
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: entry/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Install browser test tooling, not runtime dependencies
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0 axe-core@4.11.0
+      - run: npx playwright install --with-deps chromium
+      - name: Test redesigned journey in Chromium
+        env:
+          MGADI_PLAYWRIGHT: ${{ github.workspace }}/entry/node_modules/playwright/index.mjs
+          MGADI_AXE: ${{ github.workspace }}/entry/node_modules/axe-core/axe.min.js
+        run: node scripts/experience-smoke.mjs
