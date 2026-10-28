@@ -180,7 +180,42 @@ export async function initVoice({ bridge }) {
   gestureArea.append(gestureCanvas,gestureLabel,gestureExplanation,gestureButtons);
   const localButton=make('button','button secondary vp-small','Speak gesture words'); localButton.type='button';
   const localStatus=make('p','vp-note','Optional microphone gesture recognition. Not connected to Retell; browser speech services may process audio.');
-  gestureArea.append(localButton,localStatus);
+  const guideButton=make('button','button secondary vp-small','Start guided voice replies'); guideButton.type='button';
+  const guideLog=make('div','vp-local-dialogue'); guideLog.setAttribute('role','log'); guideLog.setAttribute('aria-label','Browser-guided voice captions');
+  const guideStatus=make('p','vp-note','Browser guided voice: live text and spoken safety replies without Retell. Uses predefined guidance, not an AI model. Your browser may use online speech recognition.');
+  gestureArea.append(localButton,localStatus,guideButton,guideStatus,guideLog);
+  let guideMode=false;
+  const safeSpeech=(text)=>{
+    if(!('speechSynthesis' in globalThis)) {guideStatus.textContent='Speech playback unavailable here. Read the captions below.';return;}
+    globalThis.speechSynthesis.cancel();
+    const utterance=new SpeechSynthesisUtterance(text); utterance.lang='en-ZA'; utterance.rate=.93;utterance.volume=1;
+    globalThis.speechSynthesis.speak(utterance);
+  };
+  const guideReply=(spoken)=>{
+    const match=recognizeGesture(spoken);
+    const responses={
+      stop:'Stop. Do not pay using changed bank details until you verify them independently with your supplier.',
+      call:'Call your bank fraud department immediately using the official number on your bank card or website.',
+      save:'Preserve the suspicious messages, invoice and proof of payment. Never share passwords or one time codes.',
+      help:'I can help you follow the first-hour guide. If money was sent, contact your bank fraud team first.',
+      check:'Verify the supplier through a phone number you already trusted before receiving the changed details.',
+      protect:'Secure your account using your bank or provider official instructions. Never share PINs or one time codes.'
+    };
+    const answer=match?responses[match.key]:'I can guide you with six actions: stop, call, save, help, check and protect. Say one of those words, or follow the on-screen emergency steps.';
+    const line=make('p',null,'You: '+spoken);const reply=make('p',null,'Mgadi guided reply: '+answer);
+    guideLog.append(line,reply); while(guideLog.children.length>12) guideLog.firstChild.remove();
+    if(match)setGesture(match.key,'microphone');
+    safeSpeech(answer);
+  };
+  guideButton.addEventListener('click',()=>{
+    guideMode=!guideMode;
+    guideButton.textContent=guideMode?'Stop guided replies':'Start guided voice replies';
+    if(guideMode) {
+      if(!Recognition){guideMode=false;guideButton.textContent='Start guided voice replies';guideStatus.textContent='This browser cannot recognize speech. Use the gesture buttons.';return;}
+      if(!gestureArea.hidden && !localRecognizer)localButton.click();
+      guideStatus.textContent='Guided voice active. Say STOP, CALL, SAVE, HELP, CHECK or PROTECT.';
+    }else {stopLocal();globalThis.speechSynthesis?.cancel();}
+  });
   gestureSection.append(gestureHeader,gestureArea);
   let gestureAvatar = null, gestureLast = '', gestureTimeout = null;
   let localRecognizer = null;
@@ -194,6 +229,7 @@ export async function initVoice({ bridge }) {
     rec.onresult=(e)=>{const words=e.results[e.results.length-1]?.[0]?.transcript||'';
       localStatus.textContent='Heard: '+words;
       const match=recognizeGesture(words);if(match)setGesture(match.key,'microphone');
+      if(guideMode && e.results[e.results.length-1]?.isFinal && words.trim()) guideReply(words.trim());
     };
     rec.onerror=(e)=>{localStatus.textContent='Microphone recognition error: '+e.error;};
     rec.onend=()=>{if(localRecognizer===rec){localRecognizer=null;localButton.textContent='Speak gesture words';}};
@@ -214,7 +250,7 @@ export async function initVoice({ bridge }) {
   gestureToggle.addEventListener('click',()=>{
     gestureArea.hidden = !gestureArea.hidden; gestureToggle.setAttribute('aria-expanded', String(!gestureArea.hidden));
     gestureToggle.textContent = gestureArea.hidden ? 'Show gestures' : 'Hide gestures';
-    if(gestureArea.hidden)stopLocal();
+    if(gestureArea.hidden){guideMode=false;guideButton.textContent='Start guided voice replies';stopLocal();globalThis.speechSynthesis?.cancel();}
     if(!gestureArea.hidden && !gestureAvatar){gestureAvatar=createGestureAvatar(gestureCanvas); if(!matchMedia('(prefers-reduced-motion: reduce)').matches) gestureAvatar.play();}
     else if(gestureAvatar){if(gestureArea.hidden)gestureAvatar.pause();else if(!matchMedia('(prefers-reduced-motion: reduce)').matches)gestureAvatar.play();}
   });
@@ -377,6 +413,7 @@ export async function initVoice({ bridge }) {
     renderChips(s); renderMessages(s); renderControls(s); if (progress.open) renderProgress();
     if (inCall && gestureArea.hidden) gestureToggle.click();
     if(inCall && localRecognizer)stopLocal();
+    if(inCall && guideMode){guideMode=false;guideButton.textContent='Start guided voice replies';globalThis.speechSynthesis?.cancel();}
     if (inCall && gestureAvatar) {
       // Streaming transcripts may repeat or extend; only newly matched words animate.
       const candidates = s.messages.filter(m => m.role !== 'system' && m.callIndex === s.callIndex).slice(-5);
