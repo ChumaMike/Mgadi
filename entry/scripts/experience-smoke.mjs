@@ -99,6 +99,9 @@ try {
   await page.fill('#incident-description', 'We paid after our supplier emailed changed bank details. Phone 082 123 4567.');
   await page.getByRole('button', { name: 'Find my next safe step', exact: true }).click();
   await page.locator('.journey-card').waitFor();
+  await page.locator('.bank-feedback-details summary').click();
+  await page.fill('#bank-feedback', 'The bank told me to save the transfer reference.');
+  check('bank step: optional feedback can be recorded without claiming the bank responded', await page.locator('#bank-feedback').inputValue() === 'The bank told me to save the transfer reference.');
   check('description reaches real local triage endpoint with redaction', requests.some(r => r.url.endsWith('/api/triage') && r.body.includes('[PHONE]') && !r.body.includes('082 123 4567')));
   await page.getByRole('button', { name: 'Need help', exact: true }).click();
   await page.locator('.step-outcomes > button').first().click();
@@ -122,7 +125,7 @@ try {
   await page.locator('.pack-result-screen').waitFor();
   await shot(page, '07-result-mobile'); await audit(page, 'result');
   const pack = JSON.parse(await page.locator('.pack-json').textContent());
-  check('report: fingerprint verifies and selected file contents excluded', await verifyPack(pack) && !JSON.stringify(pack).includes('synthetic evidence; do not upload') && pack.evidence.length === 1);
+  check('report: fingerprint verifies, optional bank feedback recorded and raw files excluded', await verifyPack(pack) && !JSON.stringify(pack).includes('synthetic evidence; do not upload') && pack.evidence.length === 1 && pack.handoff.bankFeedback.includes('save the transfer reference'));
   check('report: one completion heading and technical details collapsed', await page.locator('#app h1').count() === 1 && !(await page.locator('.pack-technical').getAttribute('open')));
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download report (.json)', exact: true }).click()]);
   const file = path.join(temp, 'pack.json'); await download.saveAs(file);
@@ -137,6 +140,15 @@ try {
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
   await page.getByRole('button', { name: 'Review again', exact: true }).click();
   check('review again retains evidence and business', (await page.locator('.preview-box').innerText()).includes('Test Business'));
+  await page.locator('.pack-preferences summary').click();
+  await page.locator('#include-evidence').uncheck();
+  await page.locator('#include-timeline').uncheck();
+  check('privacy choices: files and timeline visibly excluded before pack creation', (await page.locator('.evidence-file-list').innerText()).includes('proof-of-payment.txt') && (await page.locator('.evidence-file-list').isVisible()));
+  await page.getByRole('button', { name: 'Make incident pack', exact: true }).click();
+  await page.locator('.pack-result-screen').waitFor();
+  const privatePack = JSON.parse(await page.locator('.pack-json').textContent());
+  check('private pack: selected filenames and timeline omitted', privatePack.evidence.length === 0 && privatePack.timeline.length === 0 && privatePack.omittedByOwner?.evidence && privatePack.omittedByOwner?.timeline && await verifyPack(privatePack));
+  await page.getByRole('button', { name: 'Review again', exact: true }).click();
   await page.getByRole('button', { name: 'Back to evidence', exact: true }).click();
   await page.getByRole('button', { name: 'Start a new incident', exact: true }).click();
   await choose(page, 'A suspicious message or link'); await page.locator('.step-outcomes > button').first().click();
