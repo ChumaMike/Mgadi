@@ -61,10 +61,10 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
   const visualButtons = el('div', 'vp-compact-visual-buttons');
   const avatarToggle = el('button', 'vp-compact-toggle', 'Hide 3D');
   avatarToggle.type = 'button'; avatarToggle.setAttribute('aria-pressed', 'true');
-  const visualToggle = el('button', 'vp-compact-toggle', 'Show gestures');
+  const visualToggle = el('button', 'vp-compact-toggle', 'Show 3D signing preview');
   visualToggle.type = 'button'; visualToggle.setAttribute('aria-pressed', 'false');
   visualButtons.append(avatarToggle, visualToggle);
-  const stageNote = el('p', 'vp-compact-stage-note', 'Gestures are illustrative, not SASL');
+  const stageNote = el('p', 'vp-compact-stage-note', '3D signing preview only. These movements are NOT verified South African Sign Language. Live voice and captions are separate.');
   side.append(stage, visualButtons, stageNote);
 
   const main = el('section', 'vp-compact-main');
@@ -129,8 +129,9 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
     if (gesturesOn && gestureArea?.hidden) gestureToggle?.click();
     if (!gesturesOn && gestureArea && !gestureArea.hidden) gestureToggle?.click();
     gesturePreview.hidden = !gesturesOn;
+    avatarArea.hidden = gesturesOn;
     stage.dataset.gestures = String(gesturesOn);
-    visualToggle.textContent = gesturesOn ? 'Hide gestures' : 'Show gestures';
+    visualToggle.textContent = gesturesOn ? 'Hide 3D signing preview' : 'Show 3D signing preview';
     visualToggle.setAttribute('aria-pressed', String(gesturesOn));
   };
   visualToggle.addEventListener('click', () => setGestureMode(!gesturesOn));
@@ -223,6 +224,8 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
     document.querySelector('#accessibility')?.setAttribute('inert', '');
     if (interval) clearInterval(interval);
     interval = setInterval(tick, 1000);
+    // Start with the gesture-capable 3D character, not the voice mouth avatar.
+    setGestureMode(true);
     if (drawer.hidden === false) setDrawer(false);
   }
   function close() {
