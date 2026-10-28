@@ -9,6 +9,7 @@
 //                           following real provider, audio, language, privacy and cost checks.
 // The operator state never makes a language public, and it is refused on production deployments unless explicitly allowed.
 import { buildGuidance, guidanceToText, VOICE_LANGUAGES } from '../public/voice/guidance.js';
+import { isProductionDeployment, requiresSharedStore } from './deployment-env.js';
 import { catalog } from '../public/accessibility/catalog.js';
 import { LABELS } from '../public/shared/labels.js';
 import { consumeAll, createStoreFromEnv, hashId, safeEqual } from './quota.js';
@@ -34,7 +35,7 @@ export function loadVoiceConfig(env = process.env) {
   const hasKeys = Boolean(env.RETELL_API_KEY && (agents.en || agents.af));
   const mode = requested === 'mock' ? 'mock' : requested === 'retell' && hasKeys ? 'retell' : 'off';
   const token = String(env.MGADI_OPERATOR_TOKEN ?? '');
-  const productionBlocked = env.VERCEL_ENV === 'production' && env.MGADI_OPERATOR_ALLOW_PRODUCTION !== 'yes';
+  const productionBlocked = isProductionDeployment(env) && env.MGADI_OPERATOR_ALLOW_PRODUCTION !== 'yes';
   const maxMinutes = intIn(env.MGADI_VOICE_MAX_MINUTES, 10, 1, 30);
   const dailySessions = intIn(env.MGADI_VOICE_DAILY_SESSIONS, 100, 1, 100_000);
   const version = Number(env.RETELL_AGENT_VERSION);
@@ -64,7 +65,7 @@ export function loadVoiceConfig(env = process.env) {
     operatorMaxMs: intIn(env.MGADI_OPERATOR_MAX_MINUTES, 3, 1, 10) * 60_000,
     operatorPerDay: intIn(env.MGADI_OPERATOR_MAX_SESSIONS_PER_DAY, 5, 1, 20),
     // Without a shared store the public limits only apply per serverless instance, so public calls are refused on Vercel.
-    sharedStoreRequired: Boolean(env.VERCEL),
+    sharedStoreRequired: requiresSharedStore(env),
   };
 }
 
