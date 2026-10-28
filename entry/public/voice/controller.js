@@ -11,6 +11,25 @@ const AUDIO_HOLD_MS = 450;
 const TEXT_ACTIVE_MS = 1300;
 const CAPTION_GRACE_MS = 7000;
 const MAX_MESSAGES = 200;
+// The transcript is untrusted text: the person's own speech, a scammer's voice on a speaker, and the assistant's reply, all passed through
+// a provider. It is only ever shown as text, and nothing in the app acts on what it says. These limits keep a hostile or broken stream from
+// flooding the screen or the screen reader.
+const MAX_TEXT = 4000;
+const MAX_ITEMS_PER_UPDATE = 100;
+const MAX_ID = 64;
+// Control characters (not tab or newline), and the bidirectional overrides and isolates that can make text DISPLAY as something it is not.
+const UNSAFE_TEXT = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+// Map and Set both iterate oldest first. Once one passes `limit` entries, drop the oldest until `keep` remain.
+export function trimOldest(collection, limit, keep) {
+  if (collection.size <= limit) return collection;
+  let drop = collection.size - keep;
+  for (const key of collection.keys()) { if (drop-- <= 0) break; collection.delete(key); }
+  return collection;
+}
+export function safeTranscriptText(value) {
+  const text = String(value).replace(UNSAFE_TEXT, '');
+  return text.length > MAX_TEXT ? `${text.slice(0, MAX_TEXT)}…` : text;
+}
 const RECONNECT_DELAYS = [1500, 4000];
 const QUICK_FAILURE_MS = 8000;
 
@@ -24,6 +43,9 @@ export const FAILURE_COPY = {
   voice_unavailable: 'The voice assistant is not available right now.',
   engine_missing: 'The voice engine is not installed on this server.',
   connection_lost: 'The connection was lost and could not be restored.',
+  offline: 'Live AI voice needs an internet connection and this device is offline. Your steps and the conversation so far are kept. Use the guide on this phone, which works without a connection once it has been saved.',
+  unauthorized: 'The operator test token was not accepted.',
+  quota_unavailable: 'Voice is paused for now to keep usage within its limits. Text guidance is available.',
   unknown: 'The voice conversation could not start.',
 };
 
@@ -34,6 +56,8 @@ export function describeError(error) {
   else if (/notfound|devicesnotfound|no microphone/.test(text)) code = 'no_mic';
   else if (/rate_limited|provider_busy|429/.test(text)) code = 'rate_limited';
   else if (/consent_required/.test(text)) code = 'consent_required';
+  else if (/unauthorized|401/.test(text)) code = 'unauthorized';
+  else if (/quota_unavailable|503/.test(text)) code = 'quota_unavailable';
   else if (/guidance_not_translated/.test(text)) code = 'guidance_not_translated';
   else if (/language_unavailable/.test(text)) code = 'language_unavailable';
   else if (/engine_missing/.test(text)) code = 'engine_missing';
@@ -65,16 +89,25 @@ export function createVoiceController({
   }
 
   function upsert(items) {
-    const messages = [...state.messages];
-    for (const item of items) {
+    if (!Array.isArray(items)) return;
+    const messages = [...state.messages]; let accepted = 0;
+    for (const item of items.slice(0, MAX_ITEMS_PER_UPDATE)) {
+      if (!item || typeof item !== 'object') continue;
       if (item.role !== 'user' && item.role !== 'agent') continue;
-      const key = `${state.callIndex}:${item.id}`;
-      const text = item.content === '(unintelligible audio)' ? '(could not understand the audio)' : String(item.content ?? '');
+      if (typeof item.content !== 'string') continue;
+      const id = String(item.id ?? '').slice(0, MAX_ID);
+      if (!id) continue;
+      const key = `${state.callIndex}:${id}`;
+      const text = item.content === '(unintelligible audio)' ? '(could not understand the audio)' : safeTranscriptText(item.content);
       const role = item.role === 'agent' ? 'assistant' : 'user';
       const index = messages.findIndex((m) => m.key === key);
       if (seenText.get(key) !== text) { seenText.set(key, text); if (role === 'assistant') lastAgentTextAt = now(); else lastUserTextAt = now(); }
       if (index >= 0) messages[index] = { ...messages[index], text }; else messages.push({ key, role, text, at: now(), final: false, callIndex: state.callIndex });
+      accepted += 1;
     }
+    if (!accepted) return; // nothing usable arrived: do not claim captions are working
+    // These two only help detect changes and avoid repeats, so the oldest entries can go. They must not grow with the stream.
+    trimOldest(seenText, MAX_MESSAGES * 4, MAX_MESSAGES * 2); trimOldest(finalAnnounced, MAX_MESSAGES * 4, MAX_MESSAGES * 2);
     set({ messages: messages.slice(-MAX_MESSAGES), captions: 'on' });
     gotRealTranscript = true;
     announceFinals();
@@ -101,7 +134,7 @@ export function createVoiceController({
     stopTimers(); handle = null;
     const described = error?.code && FAILURE_COPY[error.code] ? { code: error.code, message: `${FAILURE_COPY[error.code]} Your bank fraud line is still at the top of the screen.` } : describeError(error);
     set({ phase: 'failed', activity: null, error: described });
-    note('The voice conversation could not continue. Text guidance is available.');
+    note(described.code === 'offline' ? 'Live AI voice needs the internet and the connection is gone. Your steps and this conversation are kept. Use the guide on this phone.' : 'The voice conversation could not continue. Text guidance is available.');
     onEvent({ type: 'voice-failed', code: described.code });
   }
 
@@ -118,6 +151,8 @@ export function createVoiceController({
     const providerError = /^error_|registered_call_timeout/.test(info?.disconnection_reason ?? '');
     const normal = ['user_hangup', 'agent_hangup', 'inactivity', 'max_duration_reached'].includes(info?.disconnection_reason);
     const droppedNetwork = !isOnline();
+    // Offline: retrying cannot work and would only keep a dead session open. End cleanly and say so.
+    if (droppedNetwork && !normal) { try { handle?.end(); } catch { /* already gone */ } return fail({ code: 'offline' }); }
     if (normal || !(providerError || droppedNetwork || quick)) return finish(info?.disconnection_reason === 'max_duration_reached' ? 'The conversation reached its time limit.' : 'The voice conversation ended.');
     if (state.reconnects >= RECONNECT_DELAYS.length) { stopTimers(); handle = null; return fail({ code: 'connection_lost' }); }
     stopTimers(); handle = null; announceFinals(true);
@@ -129,6 +164,7 @@ export function createVoiceController({
   }
 
   async function begin(isRetry = false) {
+    if (!isOnline()) { set({ callIndex: state.callIndex + 1 }); return fail({ code: 'offline' }); }
     adapter = adapterFactory();
     const callIndex = state.callIndex + 1;
     userEnded = false; gotRealTranscript = false; assistantAudioMs = 0; lastTickAt = 0; lastAssistantAudioAt = lastAgentTextAt = lastUserTextAt = 0;
@@ -184,6 +220,15 @@ export function createVoiceController({
         set({ language });
       }
       set({ language });
+    },
+    // The browser reports the network going away. A live AI call cannot survive that, so end it cleanly, keep everything
+    // already shown, and point to the offline guide. Never pretend the cloud assistant keeps running offline.
+    networkChanged(online) {
+      if (online || !['connecting', 'live', 'reconnecting'].includes(state.phase)) return;
+      userEnded = true; timers.clearTimeout(retryTimer);
+      try { handle?.end(); } catch { /* the session may already be gone */ }
+      announceFinals(true);
+      fail({ code: 'offline' });
     },
     clearMessages() { finalAnnounced = new Set(); seenText.clear(); set({ messages: [] }); },
     systemNote: note,

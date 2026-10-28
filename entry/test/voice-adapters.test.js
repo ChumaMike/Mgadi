@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRetellAdapter, rms } from '../public/voice/retell-adapter.js';
 import { createMockAdapter } from '../public/voice/mock-adapter.js';
-import { createVoiceController } from '../public/voice/controller.js';
+import { createVoiceController, describeError } from '../public/voice/controller.js';
 
-const config = { consentVersion: 'voice-consent-1', publicKey: 'public_key_TESTONLY' };
+const config = { consentVersion: 'voice-consent-1', captions: true };
 const context = { language: 'af', route: 'payment_diversion', stepId: 'bank', confirmed: ['bank'] };
+const SESSION = { call_id: 'call_1', access_token: 'tok_1', transport: 'gateway', ice_servers: [], expires_at: 1, mgadi: { publicKey: 'public_key_TESTONLY', test: false } };
+const serverReply = (body = SESSION, status = 201) => { const sent = []; return { sent, fetchImpl: async (url, init) => { sent.push({ url, init }); return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }); } }; };
 
 // A stand-in for the official SDK that records exactly how it is used.
 function fakeSdk() {
@@ -21,47 +23,66 @@ function fakeSdk() {
 }
 const hooks = () => { const seen = []; const h = Object.fromEntries(['onStatus', 'onTranscript', 'onAudioLevel', 'onError', 'onEnd'].map((n) => [n, (...a) => seen.push([n, ...a])])); return { h, seen }; };
 
-test('Retell adapter: uses the v3 client with a PUBLIC key only, requests transcripts and audio levels, passes only the validated context', async () => {
-  const { record, importer } = fakeSdk(); const { h } = hooks();
-  await createRetellAdapter({ config, importer }).start({ context, hooks: h });
+test('Retell adapter: asks OUR server first, then uses the v3 client with the PUBLIC key from that gated response', async () => {
+  const { record, importer } = fakeSdk(); const { h } = hooks(); const server = serverReply();
+  await createRetellAdapter({ config, importer, fetchImpl: server.fetchImpl }).start({ context, hooks: h });
+  assert.equal(server.sent.length, 1);
+  assert.equal(server.sent[0].url, '/api/voice/session');
   assert.equal(record.constructed.key, 'public_key_TESTONLY');
   assert.equal(typeof record.constructed.fetch, 'function');
   assert.equal(record.call.transcript, true);
   assert.deepEqual(record.call.audio, { emitRawAudioSamples: true });
-  assert.deepEqual(record.call.metadata, { mgadi: { language: 'af', route: 'payment_diversion', stepId: 'bank', confirmed: ['bank'] } });
   assert.equal(record.call.agent_id, 'chosen-by-server');
-  assert.deepEqual(Object.keys(record.call).sort(), ['agent_id', 'audio', 'hooks', 'metadata', 'transcript']);
+  assert.deepEqual(Object.keys(record.call).sort(), ['agent_id', 'audio', 'hooks', 'transcript']);
 });
 
-test('Retell adapter: call creation goes to our server with the consent header and none of the SDK credentials', async () => {
-  const { record, importer } = fakeSdk(); const sent = [];
-  const fetchImpl = async (url, init) => { sent.push({ url, init }); return new Response('{}', { status: 201 }); };
-  await createRetellAdapter({ config, importer, fetchImpl }).start({ context, hooks: hooks().h });
-  await record.constructed.fetch('https://api.retellai.com/v3/create-web-call', { method: 'POST', headers: { Authorization: 'Bearer public_key_TESTONLY', 'X-Retell-Client-JS-SDK-Version': '3.0.3' }, body: '{"a":1}' });
-  assert.equal(sent.length, 1);
-  assert.equal(sent[0].url, '/api/voice/session');
-  assert.deepEqual(sent[0].init.headers, { 'content-type': 'application/json', 'x-mgadi-voice-consent': 'voice-consent-1' });
-  assert.equal(sent[0].init.credentials, 'omit');
-  assert.equal(sent[0].init.body, '{"a":1}');
-  for (const other of ['/v2/stop-call/x', '/v2/update-live-call/x', '/v3/anything-else']) {
-    const response = await record.constructed.fetch(`https://api.retellai.com${other}`, { method: 'POST' });
-    assert.equal(response.status, 404);
-  }
-  assert.equal(sent.length, 1, 'nothing else is forwarded');
+test('Retell adapter: our server gets the consent header and only the validated context; the SDK never reaches Retell to create the call', async () => {
+  const { record, importer } = fakeSdk(); const server = serverReply();
+  await createRetellAdapter({ config, importer, fetchImpl: server.fetchImpl }).start({ context, hooks: hooks().h });
+  const sent = server.sent[0].init;
+  assert.deepEqual(sent.headers, { 'content-type': 'application/json', 'x-mgadi-voice-consent': 'voice-consent-1' });
+  assert.equal(sent.credentials, 'omit');
+  assert.deepEqual(JSON.parse(sent.body), { metadata: { mgadi: { language: 'af', route: 'payment_diversion', stepId: 'bank', confirmed: ['bank'] } } });
+  // The SDK's own create request is answered locally from what our server returned, minus our private extras.
+  const created = await record.constructed.fetch('https://api.retellai.com/v3/create-web-call', { method: 'POST', headers: { Authorization: 'Bearer public_key_TESTONLY' }, body: '{"agent_id":"x"}' });
+  assert.equal(created.status, 201);
+  assert.deepEqual(await created.json(), { call_id: 'call_1', access_token: 'tok_1', transport: 'gateway', ice_servers: [], expires_at: 1 });
+  for (const other of ['/v2/stop-call/x', '/v2/update-live-call/x', '/v3/anything-else']) assert.equal((await record.constructed.fetch(`https://api.retellai.com${other}`, { method: 'POST' })).status, 404);
+  assert.equal(server.sent.length, 1, 'nothing else is forwarded, and no second call is created');
+});
+
+test('Retell adapter: an operator token is sent only when one has been entered', async () => {
+  const { importer } = fakeSdk();
+  const withToken = serverReply();
+  await createRetellAdapter({ config, importer, fetchImpl: withToken.fetchImpl, getOperatorToken: () => 'TESTONLY-operator' }).start({ context, hooks: hooks().h });
+  assert.equal(withToken.sent[0].init.headers['x-mgadi-operator-token'], 'TESTONLY-operator');
+  const without = serverReply();
+  await createRetellAdapter({ config, importer, fetchImpl: without.fetchImpl, getOperatorToken: () => '' }).start({ context, hooks: hooks().h });
+  assert.equal('x-mgadi-operator-token' in without.sent[0].init.headers, false);
 });
 
 test('Retell adapter: without a public key it still calls, but says live captions are not available', async () => {
   const { record, importer } = fakeSdk();
-  const adapter = createRetellAdapter({ config: { ...config, publicKey: null }, importer });
+  const adapter = createRetellAdapter({ config: { ...config, captions: false }, importer, fetchImpl: serverReply({ ...SESSION, mgadi: { publicKey: null, test: false } }).fetchImpl });
   assert.equal(adapter.captionsExpected, false);
   await adapter.start({ context, hooks: hooks().h });
   assert.equal(record.call.transcript, false);
   assert.doesNotMatch(String(record.constructed.key), /^public_key_/);
 });
 
+test('Retell adapter: a refusal from our server becomes a clear error and the SDK is never started', async () => {
+  for (const [status, error, code] of [[429, 'rate_limited', 'rate_limited'], [401, 'unauthorized', 'unauthorized'], [409, 'language_unavailable', 'language_unavailable'], [503, 'quota_unavailable', 'quota_unavailable'], [403, 'consent_required', 'consent_required']]) {
+    const { record, importer } = fakeSdk();
+    await assert.rejects(createRetellAdapter({ config, importer, fetchImpl: serverReply({ error }, status).fetchImpl }).start({ context, hooks: hooks().h }), (e) => describeError(e).code === code && e.status === status);
+    assert.equal(record.constructed, null);
+  }
+  const { importer } = fakeSdk();
+  await assert.rejects(createRetellAdapter({ config, importer, fetchImpl: async () => { throw new TypeError('Failed to fetch'); } }).start({ context, hooks: hooks().h }), (e) => describeError(e).code === 'voice_unavailable');
+});
+
 test('Retell adapter: SDK events map onto the controller hooks, and controls pass through', async () => {
   const { record, importer } = fakeSdk(); const { h, seen } = hooks();
-  const handle = await createRetellAdapter({ config, importer }).start({ context, hooks: h });
+  const handle = await createRetellAdapter({ config, importer, fetchImpl: serverReply().fetchImpl }).start({ context, hooks: h });
   const sdk = record.call.hooks;
   sdk.onStatus('live'); sdk.onTranscript([{ id: 'a' }], []); sdk.onAudio(new Float32Array([0.5, -0.5, 0.5, -0.5])); sdk.onError(new Error('x')); sdk.onEnd(undefined);
   assert.deepEqual(seen.map((s) => s[0]), ['onStatus', 'onTranscript', 'onAudioLevel', 'onError', 'onEnd']);
@@ -71,9 +92,11 @@ test('Retell adapter: SDK events map onto the controller hooks, and controls pas
   assert.equal(rms(new Float32Array(0)), 0);
 });
 
-test('Retell adapter: a missing engine bundle is reported as such, not as a mystery failure', async () => {
-  const adapter = createRetellAdapter({ config, importer: async () => { throw new TypeError('Failed to fetch dynamically imported module'); } });
+test('Retell adapter: a missing engine bundle is reported as such, not as a mystery failure, and nothing is requested', async () => {
+  const server = serverReply();
+  const adapter = createRetellAdapter({ config, importer: async () => { throw new TypeError('Failed to fetch dynamically imported module'); }, fetchImpl: server.fetchImpl });
   await assert.rejects(adapter.start({ context, hooks: hooks().h }), (e) => e.code === 'engine_missing');
+  assert.equal(server.sent.length, 0, 'no provider session is created for a page that cannot use it');
 });
 
 function timers() {

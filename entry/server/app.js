@@ -8,6 +8,7 @@ import { redactIncident } from '../public/shared/redact.js';
 import { classifyRules } from '../public/shared/rules.js';
 import { validateTriage } from '../public/shared/labels.js';
 import { createVoiceService } from './voice.js';
+import { buildPrecacheManifest } from './precache.js';
 
 const publicRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MAX_BODY_BYTES = 8 * 1024;
@@ -19,6 +20,11 @@ const contentTypes = {
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   '.vtt': 'text/vtt; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8',
 };
 const securityHeaders = {
   'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.retellai.com wss://api.retellai.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
@@ -26,10 +32,15 @@ const securityHeaders = {
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
   'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), payment=()',
+  // Nothing on this origin is meant to be embedded in or read by another site.
+  // Cross-Origin-Opener-Policy was tried and left out ON PURPOSE: with it, Chromium under Playwright's offline emulation kept reporting
+  // navigator.onLine = true on the offline reopen, so the offline indicator could not be verified. Revisit it only with a real phone.
+  // Framing is already blocked (frame-ancestors, X-Frame-Options), external links use noopener, and nothing opens popups.
+  'Cross-Origin-Resource-Policy': 'same-origin',
 };
 
 function reply(response, status, body, type = 'application/json; charset=utf-8', extra = {}) {
-  response.writeHead(status, { ...securityHeaders, ...extra, 'Content-Type': type, 'Cache-Control': 'no-store' });
+  response.writeHead(status, { ...securityHeaders, 'Cache-Control': 'no-store', ...extra, 'Content-Type': type });
   response.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
@@ -44,9 +55,15 @@ export function clientKey(request, env = process.env) {
   return request.socket?.remoteAddress ?? 'unknown';
 }
 
-function createRateLimiter(limit = 20, windowMs = 60_000) {
+// In-memory and per instance: on a serverless platform each instance has its own counters, so this slows a casual flood and no more.
+// The map is bounded so a stream of unique addresses cannot grow it without limit: expired entries go first, then the oldest.
+export function createRateLimiter(limit = 20, windowMs = 60_000, maxKeys = 10_000) {
   const requests = new Map();
-  return (key, now = Date.now()) => {
+  const allow = (key, now = Date.now()) => {
+    if (requests.size >= maxKeys && !requests.has(key)) {
+      for (const [k, v] of requests) if (now - v.startedAt >= windowMs) requests.delete(k);
+      for (const k of requests.keys()) { if (requests.size < maxKeys) break; requests.delete(k); } // Map order is oldest first
+    }
     const current = requests.get(key);
     if (!current || now - current.startedAt >= windowMs) {
       requests.set(key, { startedAt: now, count: 1 });
@@ -55,6 +72,17 @@ function createRateLimiter(limit = 20, windowMs = 60_000) {
     current.count += 1;
     return current.count <= limit;
   };
+  allow.size = () => requests.size;
+  return allow;
+}
+
+// The operator token is a credential that unlocks paid calls and travels in a header, so it is only honoured when the connection cannot
+// be read on the way: HTTPS, or the same machine. Behind a proxy the proxy says which it was; with no proxy the socket tells us.
+export function secureTransport(request) {
+  const forwarded = String(request.headers?.['x-forwarded-proto'] ?? '').split(',')[0].trim().toLowerCase();
+  if (forwarded) return forwarded === 'https';
+  if (request.socket?.encrypted) return true;
+  return ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(request.socket?.remoteAddress ?? '');
 }
 
 function readJson(request) {
@@ -86,12 +114,20 @@ function readJson(request) {
   });
 }
 
-function loadPlaybook() {
-  try { return JSON.parse(readFileSync(path.join(publicRoot, 'data', 'playbook.json'), 'utf8')); } catch { return { incidents: {} }; }
+function loadPlaybook(root = publicRoot) {
+  try { return JSON.parse(readFileSync(path.join(root, 'data', 'playbook.json'), 'utf8')); } catch { return { incidents: {} }; }
 }
 
-export function createHandler({ classifyWithAI = null, voice, env = process.env, fetchImpl = globalThis.fetch } = {}) {
-  const voiceService = voice ?? createVoiceService({ env, fetchImpl, playbook: loadPlaybook() });
+export function createHandler({ classifyWithAI = null, voice, env = process.env, fetchImpl = globalThis.fetch, publicDir } = {}) {
+  const root = publicDir ? path.resolve(publicDir) : publicRoot; // tests may serve a different copy of the app
+  const voiceService = voice ?? createVoiceService({ env, fetchImpl, playbook: loadPlaybook(root) });
+  let manifestMemo = { at: 0, value: null };
+  // Always computed from the files being served, so the list the service worker verifies can never drift from them.
+  async function precacheManifest() {
+    if (manifestMemo.value && Date.now() - manifestMemo.at < 3000) return manifestMemo.value;
+    manifestMemo = { at: Date.now(), value: await buildPrecacheManifest(root) };
+    return manifestMemo.value;
+  }
   const allow = createRateLimiter();
   const cache = new Map();
 
@@ -128,18 +164,35 @@ export function createHandler({ classifyWithAI = null, voice, env = process.env,
     return reply(response, 200, result);
   }
 
-  async function voiceRoute(request, response) {
-    if (request.url === '/api/voice/config') {
+  // Browsers attach Sec-Fetch-Site and Origin to cross-site requests; scripts can leave them out, so these checks stop
+  // other WEBSITES from spending our credits through a visitor's browser. Stopping scripts is the job of the quota layer.
+  function foreignOrigin(request) {
+    const site = request.headers['sec-fetch-site'];
+    if (site === 'cross-site' || site === 'same-site') return true;
+    const origin = request.headers.origin;
+    if (!origin) return false;
+    try { return new URL(origin).host !== String(request.headers.host ?? ''); } catch { return true; }
+  }
+
+  async function voiceRoute(request, response, pathname) {
+    const clientId = clientKey(request);
+    // Over a connection that could be read, a token is ignored (answered as the public view) and is never compared or counted.
+    const token = secureTransport(request) ? request.headers['x-mgadi-operator-token'] : undefined;
+    if (pathname === '/api/voice/config') {
       if (request.method !== 'GET') return reply(response, 405, { error: 'GET only' }, undefined, { Allow: 'GET' });
-      const result = await voiceService.config();
+      const auth = await voiceService.authenticate(token, clientId);
+      // A wrong token is answered exactly like no token (public view), so it reveals nothing; only a lockout is visible.
+      if (auth.limited) return reply(response, 429, { error: 'rate_limited' });
+      const result = await voiceService.config(auth.rejected ? { access: 'public' } : auth);
       return reply(response, result.status, result.body);
     }
     if (request.method !== 'POST') return reply(response, 405, { error: 'POST only' }, undefined, { Allow: 'POST' });
-    if (request.headers['sec-fetch-site'] === 'cross-site') return reply(response, 403, { error: 'forbidden' });
+    if (foreignOrigin(request)) return reply(response, 403, { error: 'forbidden' });
     if (!String(request.headers['content-type'] ?? '').startsWith('application/json')) return reply(response, 415, { error: 'JSON only' });
     let payload;
     try { payload = await readJson(request); } catch (error) { return reply(response, error.status ?? 400, { error: error.status ? 'too large' : 'bad JSON' }); }
-    const result = await voiceService.createSession({ payload, consent: request.headers['x-mgadi-voice-consent'], clientId: clientKey(request) });
+    const auth = await voiceService.authenticate(token, clientId);
+    const result = await voiceService.createSession({ payload, consent: request.headers['x-mgadi-voice-consent'], clientId, auth });
     return reply(response, result.status, result.body);
   }
 
@@ -147,8 +200,9 @@ export function createHandler({ classifyWithAI = null, voice, env = process.env,
     let pathname;
     try { pathname = decodeURIComponent(new URL(request.url, 'http://mgadi.local').pathname); } catch { return reply(response, 400, 'Bad request', 'text/plain; charset=utf-8'); }
     if (pathname === '/') pathname = '/index.html';
-    const filename = path.resolve(publicRoot, `.${pathname}`);
-    if (!filename.startsWith(`${publicRoot}${path.sep}`)) return reply(response, 404, 'Not found', 'text/plain; charset=utf-8');
+    if (pathname === '/precache-manifest.json') { try { return reply(response, 200, await precacheManifest(), undefined, { 'Cache-Control': 'no-store' }); } catch { return reply(response, 500, { error: 'manifest unavailable' }); } }
+    const filename = path.resolve(root, `.${pathname}`);
+    if (!filename.startsWith(`${root}${path.sep}`)) return reply(response, 404, 'Not found', 'text/plain; charset=utf-8');
     const type = contentTypes[path.extname(filename)];
     if (!type) return reply(response, 404, 'Not found', 'text/plain; charset=utf-8');
     try { return reply(response, 200, await readFile(filename), type, { 'Cache-Control': 'no-cache' }); }
@@ -157,9 +211,12 @@ export function createHandler({ classifyWithAI = null, voice, env = process.env,
 
   return async (request, response) => {
     try {
-      if (request.url === '/api/health') return reply(response, 200, { ok: true, ai: Boolean(classifyWithAI) });
-      if (request.url === '/api/voice/config' || request.url === '/api/voice/session') return await voiceRoute(request, response);
-      if (request.url === '/api/triage') {
+      // Match on the path only, so a query string (cache-busting, tracking) never turns an API route into a static lookup.
+      let pathname = '';
+      try { pathname = new URL(request.url, 'http://mgadi.local').pathname; } catch { /* handled by the static route */ }
+      if (pathname === '/api/health') return reply(response, 200, { ok: true, ai: Boolean(classifyWithAI) });
+      if (pathname === '/api/voice/config' || pathname === '/api/voice/session') return await voiceRoute(request, response, pathname);
+      if (pathname === '/api/triage') {
         if (request.method !== 'POST') return reply(response, 405, { error: 'POST only' }, undefined, { Allow: 'POST' });
         return await triage(request, response);
       }

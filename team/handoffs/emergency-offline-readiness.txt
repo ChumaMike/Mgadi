@@ -1,0 +1,40 @@
+Task: emergency-offline-readiness
+Date: 27 October 2026
+Branch: feature/emergency-offline-readiness (from feature/live-voice-companion 148d189, which is PR #3 on feature/critical-fixes, PR #2). NOT merged. NOT deployed. BOARD.json not modified (coordinator-only).
+Direction: a focused sprint to make Mgadi stable and demo-ready: real-voice readiness, cyber-emergency routing, offline use, accessibility, handoff, security, CI. Work incrementally on the existing app; feature branch only; no deploy, no paid service, no live webhook without approval.
+
+READ FIRST: entry/RELEASE-READINESS.md (status, evidence, the numbered list of what needs your decision), entry/SECURITY-REVIEW.md (findings and residual risk), entry/VOICE-REAL-TEST.md (the first approved real call, step by step).
+
+BUILT
+A. Real-voice readiness: operator test gate (24+ char token, timing-safe, lockout, capped 3-minute labelled test calls, refused on production by default, honoured only over https or the same machine); shared quota layer (per visitor, hourly, daily sessions, worst-case minutes, all-or-nothing, fail closed; public voice refused on Vercel without a shared store); Retell public key no longer in /api/voice/config; agent version pinning; transcript options; read-only preflight script; offline handling in the voice controller and panel.
+B. Symptom-first entry (five plain choices + a money sub-question); new label ransomware_suspected with a seven-step DRAFT guide and trusted resources (CISA, No More Ransom, NIST; host allowlist, https only); a mixed payment-and-locked-files story always keeps the bank step.
+C. Offline PWA: precache manifest from file hashes, versioned service worker, atomic hash-verified install with rollback, no runtime caching, headers kept, update waits, eviction repair, honest status line; manifest and icons; build script.
+D. Accessibility audit and fixes (voice chat log role, no focus steal on load, 28 px checkboxes), honest SASL dialog, translation coverage report, incident-pack handoff (format /3), PIN/OTP/password values hidden in free text.
+E. Hostile-transcript hardening, bounded rate limiter, operator token over secure transport only, CORP header, a CI workflow (written, not active), browser-suite runner that fails on skipped suites, security review.
+
+RESULTS (actual, this branch, desktop Chromium, synthetic data)
+- npm test 175/175. Browser: browser-smoke 37/37, emergency-smoke 59/59, voice-smoke 88/88, retell-sdk-smoke 37/37 (real SDK, MOCKED provider), pwa-smoke 34/34 (HTTP server shut down), a11y-smoke 49/49 (no serious/critical axe findings). npm audit: 0 vulnerabilities.
+- Scoreboard on unsealed sets: full marks, 0 unsafe. heldout-3 (reopened): 9/17, 0 unsafe. heldout-4 (sealed before any ransomware rule, 46 cases): 46/46 on its first score and never tuned on, with the author-bias caveat (same author wrote rules and set and had seen it). Not evidence of real-world accuracy.
+- Build reproducible (two builds byte-identical with a fixed SOURCE_DATE_EPOCH).
+- Mutation checks were done on the new tests (list in RELEASE-READINESS.md section 2); not on the older browser-smoke and voice-smoke.
+
+FOUND AND FIXED ON THE WAY (details in SECURITY-REVIEW.md section 3)
+Operator token readable on plain-http wifi; unbounded transcript text/count; unbounded rate-limiter map; PIN/password values surviving "masking"; prototype-key lookup in the handoff code (caught by its own test). Also: Cross-Origin-Opener-Policy was tried and left out because it hid navigator.onLine from the offline test (A/B documented).
+
+NOT DONE / NOT VERIFIED
+- No real Retell call, microphone, speaker or captions authorization. VOICE-TEST-RESULTS.md is an empty template. The preflight has only run against a local fake.
+- No deployment, no URL, no HTTPS or Vercel check, no shared-store check.
+- No physical phone (offline, install, print/PDF, hashing), no native screen reader or TalkBack/VoiceOver, no WCAG claim.
+- CI is NOT ACTIVE and has never run on GitHub: the workflow could not be published to .github/workflows/ (the connection I publish with was refused permission for workflow files). It is committed at entry/ci/github-actions-ci.yml. To switch it on, copy it to .github/workflows/ci.yml with an account that has workflow permission.
+- No practitioner, legal (POPIA/consent/SAPS/Information Regulator wording), translator or SASL review. No penetration test.
+
+UNRESOLVED QUESTIONS FOR THE COORDINATOR / CHUMA
+1. Merge order (recommended #2, #3, then this) and who confirms each merge.
+2. Is the ransomware route (a second incident type beside payment diversion) approved as product scope? It was built in the sprint; the label table and four proposed invariants in SOURCE-OF-TRUTH.md need team confirmation.
+3. Vercel target, Deployment Protection, shared quota store (may cost money), Retell workspace and spend limit, approval for the preflight and one capped operator call.
+4. Judging criteria for the hackathon were not provided.
+
+INTEGRATION NOTES
+- Touches shared files: app.js, styles.css, accessibility.js, panel.js, summary.js, redact.js, rules.js, labels.js, ai.js, playbook.json, server/app.js, vercel.json, package.json. package-lock.json is unchanged by the sprint code (no new runtime dependency). Test tooling (Playwright 1.56.0, axe-core 4.10.2) is installed outside the lock file on purpose.
+- Generated and git-ignored: public/vendor/, public/icons/*.png, public/precache-manifest.json. Run `npm run build` before the browser suites.
+- Adds entry/ci/github-actions-ci.yml (a CI workflow: no secrets, read-only, never deploys or calls a provider). NOT active until copied to .github/workflows/ci.yml.

@@ -67,8 +67,10 @@ function openSign(targets,messageId,call=false){
   for(const target of targets){const p=el('p',target.textContent,{lang:target.lang||'en'});caption.append(p);}
   video.hidden=true;video.removeAttribute('src');
   const clip=findReviewedSign(messageId);
-  signStatus.textContent=clip?`Reviewed SASL clip: ${clip.reviewer}`:'SASL translation unavailable for this message. The 3D model is a visual prototype, not a signing translation.';
-  if(clip){video.src=clip.src;video.hidden=false;}
+  signStatus.textContent=clip?`Reviewed SASL clip, reviewed by ${clip.reviewer} on ${clip.reviewedOn}.`:'SASL translation unavailable for this message. The 3D model is a visual prototype, not a signing translation. Other help that works: Listen, the transcript below, or Talk to Mgadi, which shows live captions when voice is available.';
+  video.replaceChildren();
+  // A reviewed clip always carries its captions (the registry will not accept one without).
+  if(clip){video.src=clip.src;const track=document.createElement('track');track.kind='captions';track.src=clip.captions;track.srclang='en';track.label='Captions';track.default=true;video.append(track);video.hidden=false;}
   document.querySelector('#call-demo-note').hidden=!call;
   dialog.showModal();
 }

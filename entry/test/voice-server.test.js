@@ -35,7 +35,7 @@ test('voice is off by default and reports every language unavailable without cal
   const { body } = await voice.config();
   assert.equal(body.mode, 'off');
   for (const lang of Object.values(body.languages)) assert.equal(lang.available, false);
-  assert.equal(body.publicKey, null);
+  assert.equal('publicKey' in body, false);
   assert.equal((await voice.createSession({ payload: ask(), consent: VOICE_CONSENT_VERSION, clientId: 'a' })).status, 409);
   assert.equal(retell.calls.length, 0);
 });
@@ -76,11 +76,20 @@ test('a language needs a configured agent, an operator verification, and an agen
   assert.equal(good.body.languages.af.available, true);
 });
 
-test('config never exposes the private key; the public key is shared only in live mode', async () => {
+test('config exposes neither key; the public key is handed out only inside a gated session response', async () => {
   const { body } = await service({}, okRetell()).config();
-  assert.equal(body.publicKey, PUBLIC);
-  assert.doesNotMatch(JSON.stringify(body), new RegExp(SECRET));
-  assert.equal((await createVoiceService({ env: { MGADI_VOICE_MODE: 'mock' }, fetchImpl: okRetell().fetchImpl, playbook }).config()).body.publicKey, null);
+  assert.equal('publicKey' in body, false);
+  assert.doesNotMatch(JSON.stringify(body), new RegExp(`${SECRET}|${PUBLIC}`));
+  assert.equal(body.captions, true);
+  const voice = service({}, okRetell());
+  const refused = await voice.createSession({ payload: ask(), consent: undefined, clientId: 'k' });
+  assert.doesNotMatch(JSON.stringify(refused), new RegExp(PUBLIC), 'no consent, no key');
+  const ok = await voice.createSession({ payload: ask(), consent: VOICE_CONSENT_VERSION, clientId: 'k' });
+  assert.equal(ok.body.mgadi.publicKey, PUBLIC);
+  const off = await service({ MGADI_TRANSCRIPTS: 'off' }, okRetell());
+  assert.equal((await off.config()).body.captions, false);
+  assert.equal((await off.createSession({ payload: ask(), consent: VOICE_CONSENT_VERSION, clientId: 'k2' })).body.mgadi.publicKey, null, 'transcripts off: no key reaches the browser');
+  assert.equal((await createVoiceService({ env: { MGADI_VOICE_MODE: 'mock' }, fetchImpl: okRetell().fetchImpl, playbook }).config()).body.captions, true);
 });
 
 test('consent is required, and the upstream request is built from validated inputs only', async () => {
@@ -109,7 +118,8 @@ test('consent is required, and the upstream request is built from validated inpu
 
 test('the browser gets only the fields it needs to join, and never the private key', async () => {
   const result = await service({}, okRetell()).createSession({ payload: ask(), consent: VOICE_CONSENT_VERSION, clientId: 'a' });
-  assert.deepEqual(Object.keys(result.body).sort(), ['access_token', 'call_id', 'expires_at', 'ice_servers', 'transport']);
+  assert.deepEqual(Object.keys(result.body).sort(), ['access_token', 'call_id', 'expires_at', 'ice_servers', 'mgadi', 'transport']);
+  assert.deepEqual(Object.keys(result.body.mgadi).sort(), ['publicKey', 'test']);
   assert.doesNotMatch(JSON.stringify(result), new RegExp(`${SECRET}|LEAK`));
 });
 

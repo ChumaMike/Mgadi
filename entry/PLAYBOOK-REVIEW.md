@@ -1,6 +1,6 @@
 # Mgadi playbook: provenance and review record
 
-Status: draft, not practitioner-reviewed. Prepared 27 October 2026.
+Status: draft, not practitioner-reviewed. Prepared 27 October 2026. Ransomware route and entry screen added the same day (see "Ransomware route" below); they are drafts too.
 
 ## What it is and where it came from
 
@@ -21,6 +21,31 @@ Checked online 27 October 2026. These support specific actions, not blanket appr
 | SASL assistance design | [W3C sign languages](https://www.w3.org/WAI/media/av/sign-languages/) | Sign languages differ by region; automatic avatars are not an adequate substitute without validation. Accessibility guidance, not fraud procedure. |
 
 Preserving original messages/payment records is in the draft; ask the responder to confirm artefacts, format and ordering. SAPS reporting, insurer notification and Information Regulator wording need current South African primary sources and review before new operational claims are added. IC3 does not establish local reporting procedures.
+
+## Ransomware route (added 27 October 2026, `ransomware_suspected`)
+
+**Provenance.** Written by the AI lead developer from public guidance, not from a South African procedure and not by a practitioner. Sources, checked online 27 October 2026 (kept in `public/data/resources.json`, which allows only these hosts and only https):
+
+| Used for | Source | Limitation |
+|---|---|---|
+| Isolate affected systems, preserve evidence, do not rely on paying | [CISA: I've been hit by ransomware](https://www.cisa.gov/stopransomware/ive-been-hit-ransomware) | United States government. Its reporting contacts do not apply in South Africa and are not copied. |
+| Free decryption tools exist only for some kinds; never upload private files; why paying is discouraged | [No More Ransom: decryption tools](https://www.nomoreransom.org/en/decryption-tools.html) and [Q&A](https://www.nomoreransom.org/en/ransomware-qa.html) | Europol, police and security companies; international. |
+| How organisations prepare for, respond to and recover from ransomware | [NIST IR 8374 Rev. 1](https://csrc.nist.gov/pubs/ir/8374/r1/final) | Written for IT and risk teams, not first-hour steps. US. |
+
+No South African ransomware source is cited, because I did not verify one. Please suggest South African resources; do not let the draft imply any.
+
+**What the owner sees:** seven steps (look without clicking; disconnect from the network; do not pay or reply yet; get a trusted specialist on a different device; keep what a specialist needs; protect backups; prepare a handoff and report). A note tells people at larger organisations to go to IT or security first. The guide never asks whether a payment was made. The bank button is on every screen, and step 3 points to it only *if* the owner has already sent money.
+
+**Questions for the reviewer, because guidance genuinely varies:**
+1. **Power.** Step 2 says to disconnect and *not* switch the machine off unless it cannot be disconnected, so clues are not lost. Some guidance prefers other handling. What should a non-technical owner be told?
+2. **Photograph the screen with another phone** and do not click anything: appropriate? Anything to add (time, the machine name)?
+3. **"Do not pay yet"** and "official guidance does not recommend paying": acceptable wording for an owner who faces a deadline and a threat to leak data? Anything to add about threats to publish data?
+4. **Calling a specialist the owner already knows**, and the warning that criminals pose as helpers: anything to add about verifying a helper?
+5. **Insurer:** "check your policy and ask what they need, and when": correct and sufficient?
+6. **Backups** (do not connect a backup to the affected computer; do not restore until told): correct and sufficient for a small business?
+7. **Reporting.** "Report the crime to SAPS. Ask your specialist about other duties. If personal information may have been exposed, they can advise whether the Information Regulator and the people affected must be told." This is **unreviewed South African legal and reporting wording** (POPIA). It deliberately stops short of saying what the law requires. Confirm or correct it, and say who should be told, how, and by when.
+8. **Mixed incidents.** A story that mentions both a payment problem and locked files asks one question and keeps the bank step. Is that the right priority?
+9. **Entry screen.** Are the five plain choices and the "what happened with the money?" sub-question understandable and complete for a small-business owner?
 
 ## How to request the review
 
@@ -49,5 +74,16 @@ Scope/routes/languages: __________  Public attribution permitted: yes / no
 | Unsure / ordinary payment problem | | | | | |
 | Evidence / pack sharing | | | | | |
 | Referral / reporting / language caveats | | | | | |
+| Ransomware 1 Look without clicking | | | | | |
+| Ransomware 2 Disconnect (and the power question) | | | | | |
+| Ransomware 3 Do not pay or reply yet | | | | | |
+| Ransomware 4 Specialist on a different device | | | | | |
+| Ransomware 5 Keep what a specialist needs | | | | | |
+| Ransomware 6 Protect backups | | | | | |
+| Ransomware 7 Handoff, SAPS, Information Regulator wording | | | | | |
+| Entry screen: five choices and the money sub-question | | | | | |
+| Pack handoff wording ("reported by the owner", "no referral was made") | | | | | |
+
+Voice consent wording and the cross-border note are **legal** review items, not playbook review items (see `RELEASE-READINESS.md` §5).
 
 Open content fixes: remove stale “evidence pack feature is next” copy; render draft status; avoid asserting confirmed fraud before investigation; add session-revocation/admin escalation wording after review. This document does not silently approve those edits.

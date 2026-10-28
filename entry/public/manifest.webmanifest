@@ -1,0 +1,20 @@
+{
+  "name": "Mgadi: The First Hour, Guided",
+  "short_name": "Mgadi",
+  "description": "Calm first-hour guidance after a payment scam, locked files or a hacked account. Works offline once saved. Not a replacement for your bank or a specialist.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f4ec",
+  "theme_color": "#123c35",
+  "lang": "en",
+  "categories": ["security", "utilities"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

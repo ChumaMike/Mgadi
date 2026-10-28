@@ -21,11 +21,20 @@ const ACTIVITY = { listening: 'Listening', speaking: 'Mgadi is speaking', 'you-s
 export async function initVoice({ bridge }) {
   let config;
   try { const response = await fetch('/api/voice/config', { cache: 'no-store' }); config = await response.json(); }
-  catch { config = { mode: 'off', languages: {}, captions: false, maxCallMs: 600000, consentVersion: '' }; }
+  catch { config = { mode: 'off', configFailed: true, languages: {}, captions: false, maxCallMs: 600000, consentVersion: '' }; }
   const params = new URLSearchParams(location.search);
-  const adapter = config.mode === 'mock' ? createMockAdapter({ scenario: params.get('mockvoice') || '' })
-    : config.mode === 'retell' ? createRetellAdapter({ config })
-      : { captionsExpected: false, start: async () => { throw new Error('voice_unavailable'); } };
+  // Operator test token: typed by the person testing, kept in memory only (never stored, never in the URL), and sent only as a header.
+  let operatorToken = '';
+  // The adapter follows the CURRENT mode, so voice that was unreachable at page load (for example offline) can start once the
+  // configuration is fetched again. One adapter per mode, so a scripted simulation keeps its state across a reconnect.
+  const adapters = {};
+  const makeAdapter = () => {
+    const mode = config.mode === 'mock' || config.mode === 'retell' ? config.mode : 'off';
+    adapters[mode] ??= mode === 'mock' ? createMockAdapter({ scenario: params.get('mockvoice') || '' })
+      : mode === 'retell' ? createRetellAdapter({ config, getOperatorToken: () => operatorToken })
+        : { captionsExpected: false, start: async () => { throw new Error('voice_unavailable'); } };
+    return adapters[mode];
+  };
 
   const getContext = () => {
     const journey = bridge.getJourney();
@@ -33,14 +42,14 @@ export async function initVoice({ bridge }) {
   };
   const live = { announce: null };
   const controller = createVoiceController({
-    adapterFactory: () => adapter, getContext, config,
+    adapterFactory: makeAdapter, getContext, config,
     isOnline: () => navigator.onLine,
     onEvent: (event) => {
       const text = timelineTextFor(event); if (text) bridge.log(text);
       if (event.type === 'message-final' && live.announce) live.announce.textContent = `${event.message.role === 'user' ? 'You said' : 'Mgadi assistant said'}: ${event.message.text}`;
     },
   });
-  const availability = () => config.languages?.[getLocale()] ?? { available: false, reason: 'Voice is not set up on this server.', label: getLocale() };
+  const availability = () => config.languages?.[getLocale()] ?? { available: false, label: getLocale(), reason: config.configFailed ? 'Live AI voice could not be reached. It needs an internet connection. The guide on this phone still works.' : 'Voice is not set up on this server.' };
 
   // ---- structure
   const panel = make('section', 'voice-panel'); panel.hidden = true; panel.setAttribute('aria-label', 'Talk to Mgadi');
@@ -65,15 +74,49 @@ export async function initVoice({ bridge }) {
   const consentText = tr('span', null, 'I understand and agree that my voice is processed by Retell AI for this conversation.');
   consentLabel.append(consentCheck, consentText);
   consentBox.append(tr('p', null, config.mode === 'mock' ? 'This is a simulated conversation. No microphone is used and nothing leaves this device.' : "Your browser will ask to use your microphone. Your voice is sent to Retell AI, our voice provider, which turns it into text and produces the assistant's replies. Mgadi does not record or save the conversation, and the Retell agent is set not to store transcripts or recordings, but Retell does process your audio while the call runs, possibly outside South Africa. The assistant is an AI, not a person. It can only explain Mgadi's draft guidance. It cannot call your bank, tick steps for you, or give legal advice. Never say passwords, PINs, one-time codes or card numbers."), consentLabel);
+  // Operator test access: shown only when the server has an operator token configured. It never makes a language public.
+  const operatorBox = make('details', 'vp-operator'); operatorBox.hidden = !config.operatorAvailable;
+  const opLabel = make('label', null, 'Operator test token'); opLabel.setAttribute('for', 'voice-operator-token');
+  const opInput = make('input'); opInput.type = 'password'; opInput.id = 'voice-operator-token'; opInput.autocomplete = 'off'; opInput.spellcheck = false; opInput.setAttribute('autocapitalize', 'off');
+  const opCheck = make('button', 'button secondary vp-small', 'Check test access'); opCheck.type = 'button';
+  const opForget = make('button', 'button secondary vp-small', 'Forget token'); opForget.type = 'button'; opForget.hidden = true;
+  const opStatus = make('p', 'vp-note'); opStatus.setAttribute('role', 'status');
+  operatorBox.append(make('summary', null, 'Operator test access'), make('p', 'vp-note', 'For the person testing this deployment only. It needs the operator token from the server settings. Test calls are short and limited, and they do not make a language available to the public.'), opLabel, opInput, opCheck, opForget, opStatus);
+  // A token typed on a page that is not a secure context (plain http on a network address) could be read on the way, and the server
+  // ignores it there anyway. So the field is switched off and the token is never sent.
+  if (config.operatorAvailable && globalThis.isSecureContext === false) {
+    opInput.disabled = true; opCheck.disabled = true;
+    opStatus.textContent = 'Operator test access needs a secure connection: https, or localhost on this computer. This page is not secure, so the token field is switched off and no token is sent.';
+  }
+  const reloadConfig = async (headers = {}) => { const response = await fetch('/api/voice/config', { cache: 'no-store', headers }); return { response, next: response.ok ? await response.json() : null }; };
+  const applyConfig = (next) => { for (const key of Object.keys(config)) delete config[key]; Object.assign(config, next); };
+  opCheck.addEventListener('click', async () => {
+    const value = opInput.value.trim(); opInput.value = '';
+    if (!value) { opStatus.textContent = 'Enter the token first.'; return; }
+    opStatus.textContent = 'Checking…';
+    try {
+      const { response, next } = await reloadConfig({ 'x-mgadi-operator-token': value });
+      if (response.status === 429) opStatus.textContent = 'Too many attempts. Wait a few minutes and try again.';
+      else if (next?.access === 'operator') { operatorToken = value; applyConfig(next); opForget.hidden = false; opStatus.textContent = `Test access is on. Calls are limited to ${Math.round(next.maxCallMs / 60000)} minutes and are not public.`; }
+      else opStatus.textContent = 'That token was not accepted.';
+    } catch { opStatus.textContent = 'Could not check the token. Is the connection working?'; }
+    render(controller.getState());
+  });
+  opForget.addEventListener('click', async () => {
+    operatorToken = ''; opForget.hidden = true; opStatus.textContent = 'Token forgotten.';
+    try { const { next } = await reloadConfig(); if (next) applyConfig(next); } catch { /* keep the old view until the next load */ }
+    render(controller.getState());
+  });
   const action = make('section', 'vp-action'); action.setAttribute('aria-label', 'Current action');
-  const chat = make('ol', 'vp-chat'); chat.setAttribute('role', 'log'); chat.setAttribute('aria-label', 'Conversation'); chat.tabIndex = 0;
-  const empty = tr('li', 'vp-empty', 'Your conversation will appear here as captions, kept on this screen only.');
+  // A plain container with role=log: an <ol> with role=log would lose its list semantics and orphan its items.
+  const chat = make('div', 'vp-chat'); chat.setAttribute('role', 'log'); chat.setAttribute('aria-label', 'Conversation'); chat.tabIndex = 0;
+  const empty = tr('p', 'vp-empty', 'Your conversation will appear here as captions, kept on this screen only.');
   chat.append(empty);
   const jump = tr('button', 'button secondary vp-small vp-jump', 'Latest messages'); jump.type = 'button'; jump.hidden = true;
   const progress = make('details', 'vp-progress'); progress.append(tr('summary', null, 'Steps and timeline'));
   const tasks = make('ul', 'vp-tasks'); const timeline = make('ol', 'vp-timeline'); progress.append(tr('h3', null, 'Steps'), tasks, tr('h3', null, 'Timeline'), timeline);
   const announce = make('p', 'sr-only'); announce.setAttribute('role', 'status'); live.announce = announce;
-  body.append(chips, notice, consentBox, chat, jump, action, progress, announce);
+  body.append(chips, notice, consentBox, operatorBox, chat, jump, action, progress, announce);
   const controls = make('div', 'vp-controls');
   const startBtn = tr('button', 'button vp-start', 'Start voice conversation'); startBtn.type = 'button';
   const muteBtn = tr('button', 'button secondary', 'Mute microphone'); muteBtn.type = 'button';
@@ -98,18 +141,19 @@ export async function initVoice({ bridge }) {
     chip(!inCall ? 'Microphone off' : s.muted ? 'Microphone muted' : 'Microphone on', inCall && !s.muted ? 'on' : '');
     if (config.mode === 'mock') chip('Simulation: nothing is sent anywhere', 'on');
     else chip(inCall ? 'Your voice is being processed by Retell AI' : 'Not connected to Retell AI', inCall ? 'on' : '');
+    if (config.access === 'operator') chip('Operator test call: short, limited, not public', 'warn');
     chip('Mgadi saves no audio or transcript');
     chip(s.captions === 'unavailable' ? 'Live captions unavailable' : 'Captions stay on this screen only', s.captions === 'unavailable' ? 'warn' : '');
   }
   function renderMessages(s) {
     const keys = new Set(s.messages.map((m) => m.key));
-    for (const li of [...chat.querySelectorAll('li[data-key]')]) if (!keys.has(li.dataset.key)) li.remove();
+    for (const item of [...chat.querySelectorAll('[data-key]')]) if (!keys.has(item.dataset.key)) item.remove();
     empty.hidden = s.messages.length > 0;
     const nearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 48;
     for (const m of s.messages) {
-      let li = chat.querySelector(`li[data-key="${CSS.escape(m.key)}"]`);
+      let li = chat.querySelector(`[data-key="${CSS.escape(m.key)}"]`);
       if (!li) {
-        li = make('li', `msg msg-${m.role}`); li.dataset.key = m.key;
+        li = make('div', `msg msg-${m.role}`); li.dataset.key = m.key;
         if (m.role !== 'system') { li.append(make('span', 'who', m.role === 'user' ? 'You' : 'Mgadi assistant (AI)')); li.append(make('span', 'said')); li.append(make('time', 'at', timeOf(m.at))); }
         else li.append(make('span', 'said'));
         chat.append(li);
@@ -164,8 +208,10 @@ export async function initVoice({ bridge }) {
     const inCall = ['connecting', 'live', 'reconnecting'].includes(s.phase);
     const a = availability();
     consentBox.hidden = inCall || s.consented || !a.available;
-    notice.hidden = a.available && !(s.phase === 'failed') && s.captions !== 'unavailable';
-    notice.textContent = !a.available ? `Voice in ${a.label ?? getLocale()}: ${a.reason} You can use the text guidance, which keeps all your progress.` : s.phase === 'failed' ? s.error.message : s.captions === 'unavailable' ? 'Live captions are not available for this call, so the conversation will not appear as text. You can still talk, and the text guidance is below.' : '';
+    operatorBox.hidden = !config.operatorAvailable || inCall;
+    const testNote = a.available && a.testOnly && !inCall && s.phase !== 'failed';
+    notice.hidden = a.available && !(s.phase === 'failed') && s.captions !== 'unavailable' && !testNote;
+    notice.textContent = testNote ? 'Operator test: this language is not yet verified for the public. Use only synthetic information and keep the call short.' : !a.available ? `Voice in ${a.label ?? getLocale()}: ${a.reason} You can use the text guidance, which keeps all your progress.` : s.phase === 'failed' ? s.error.message : s.captions === 'unavailable' ? 'Live captions are not available for this call, so the conversation will not appear as text. You can still talk, and the text guidance is below.' : '';
     startBtn.hidden = inCall; startBtn.disabled = !a.available || (!s.consented && !consentCheck.checked);
     startBtn.textContent = s.phase === 'failed' ? 'Try again' : s.phase === 'ended' ? 'Talk again' : 'Start voice conversation';
     muteBtn.hidden = s.phase !== 'live'; muteBtn.textContent = s.muted ? 'Unmute microphone' : 'Mute microphone'; muteBtn.setAttribute('aria-pressed', String(s.muted));
@@ -209,6 +255,10 @@ export async function initVoice({ bridge }) {
   closeBtn.addEventListener('click', () => { controller.end('You closed the voice panel.'); close({}); });
   panel.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !['connecting', 'live', 'reconnecting'].includes(controller.getState().phase)) close({}); });
   document.addEventListener('mgadi:language', (e) => { const lang = e.detail.locale; controller.languageChanged(lang, config.languages?.[lang]); refresh(); });
+  // A live AI call cannot survive losing the internet. End it cleanly, keep everything shown, and point to the offline guide.
+  window.addEventListener('offline', () => controller.networkChanged(false));
+  // Voice settings that could not be fetched (offline at load) are fetched again when the connection returns.
+  window.addEventListener('online', async () => { if (!config.configFailed) return; try { const { next } = await reloadConfig(); if (next) { applyConfig(next); operatorBox.hidden = !config.operatorAvailable; refresh(); } } catch { /* still unreachable */ } });
   new ResizeObserver(() => document.documentElement.style.setProperty('--voice-h', panel.hidden ? '0px' : `${Math.ceil(panel.getBoundingClientRect().height)}px`)).observe(panel);
   const header = document.querySelector('.site-header');
   if (header) new ResizeObserver(() => document.documentElement.style.setProperty('--header-h', `${Math.ceil(header.getBoundingClientRect().height)}px`)).observe(header);

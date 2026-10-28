@@ -1,7 +1,7 @@
 # Mgadi — Source of Truth
 
 **Status:** active build document
-**Last updated:** 2026-10-27 11:32 SAST (UTC+02:00)
+**Last updated:** 2026-10-27 (late) SAST (UTC+02:00), emergency/offline readiness branch
 **Owners:** Chuma (product, security, server, pitch) and Dalindyebo (mobile experience, browser features, integration)
 **Audience:** team members and any AI agent working in this repository
 
@@ -30,6 +30,7 @@ The primary incident is **payment diversion / business email compromise**. We su
 | `suspicious_message` | Suspicious request, but no money moved yet | Stop-and-verify steps |
 | `not_cyber` | Ordinary payment/admin problem | Cautious double-check guidance |
 | `unsure` | Not enough reliable detail | Bank-first caution route, reached through a one-question clarification (built on `feature/critical-fixes`) |
+| `ransomware_suspected` | Files or a device are locked or encrypted, or someone demands money to unlock them or threatens to leak data | Seven-step ransomware first-steps guide. **Draft (`reviewed: false`)**: written from public CISA, No More Ransom and NIST IR 8374 Rev.1 material; no practitioner has reviewed it. Added in the emergency-readiness sprint (branch `feature/emergency-offline-readiness`); Chuma to confirm the product decision |
 
 ### Explicitly out of scope for this MVP
 
@@ -60,6 +61,10 @@ flowchart TD
   K --> L[Create incident pack]
   L --> M[Download / print / verify for tampering]
 ```
+
+### Entry and the ransomware route (branch `feature/emergency-offline-readiness`)
+
+The first screen now offers **five plain-language choices** beside the free-text box, so nobody has to name an attack: money or a payment problem, my device or files are locked, someone accessed my email or account, a suspicious message or link, I don't know what happened. "Money" asks one second question and then goes to the payment guide, or the bank-first caution route. "Locked files" goes to the ransomware guide. A story that mixes a payment problem with locked files is **never** sent only to the ransomware guide: it asks one question so the bank step is not lost. Ransomware rules never ask whether a payment was made and never advise paying or replying. The bank button stays in the header on every screen.
 
 ### Payment-diversion journey in detail
 
@@ -94,22 +99,31 @@ flowchart TD
 | Scoreboard | Built | `scripts/scoreboard.js` |
 | Triage timeout and skip | Built (branch `feature/critical-fixes`) | `public/shared/triage-client.js`: 5 s limit, validated response, local rules on any failure, "Use the guide on this phone now" button |
 | Clarifying question for unclear cases | Built (branch) | `playbook.json` `clarify`; owner's answer picks a reviewed route. Free-text intake still English-first |
-| Privacy-first pack preview and readable summary | Built (branch) | `public/shared/summary.js`, `app.js`. Masked story by default; original words, business name and amount are the owner's choice. Pack format `mgadi-incident-pack/2` |
+| Privacy-first pack preview and readable summary | Built (branch) | `public/shared/summary.js`, `app.js`. Masked story by default; original words, business name and amount are the owner's choice. Pack format is now `mgadi-incident-pack/3` (see the handoff row); older `/2` packs still verify |
 | Visible draft status and bank-directory date | Built (branch) | `reviewBadge()` in `app.js`; driven by `playbook.reviewed` |
 | Browser voice conversation ("Talk to Mgadi") | Built on `feature/live-voice-companion`; **never run against a real Retell account** | Retell v3 SDK, server-side authorization, consent, live captions, states, mute/end. See `VOICE-COMPANION.md`. Off by default (`MGADI_VOICE_MODE`) |
 | Floating 3D avatar during voice | Built (same branch) | Idle/listening/speaking poses on the original avatar; larger/smaller/hide; reduced motion; steps aside at 150%+ text on narrow screens. A visual companion, not a SASL translator |
 | Reviewed-SASL video player | Built, **no clip exists** | `public/accessibility/signs.js` requires reviewer, date, rights, captions; registry is empty |
 | Voice by language | English yes (once configured and verified); Afrikaans blocked until its guide strings are all translated; isiZulu and isiXhosa never (Retell lists no support) | `server/voice.js` |
+| Symptom-first entry (five plain choices) | Built (branch) | `public/data/playbook.json` `entry`, `app.js`; `scripts/emergency-smoke.mjs` |
+| Ransomware guide | Built (branch), **draft, unreviewed** | `ransomware_suspected` in `labels.js`/`rules.js`/`ai.js`/`playbook.json`; resources in `public/data/resources.json` (reviewed host allowlist, https only, outside Mgadi). Rules scored on a sealed set once: see limitation 10 |
+| Incident-pack handoff (pack format /3) | Built (branch) | `public/shared/summary.js`, `app.js`. Optional, collapsed form; what the owner typed is bounded and masked, taps are worded "reported by the owner (a tap)", never "completed"; ransomware gets a specialist summary; no referral is claimed |
+| Operator test gate and shared quota layer for voice | Built (branch); **never run against a real Retell account** | `server/voice.js`, `server/quota.js`, `VOICE-REAL-TEST.md`. Token only over https or the same machine; public voice refused on Vercel without a shared store |
+| Accessibility audit (automated) | Built (branch). **Not a WCAG claim** | `scripts/a11y-smoke.mjs`: axe, keyboard order, focus, target sizes, language honesty, SASL gate. No real assistive-technology testing |
+| Translation coverage report | Built (branch) | `scripts/translation-coverage.mjs` generates `TRANSLATION-COVERAGE.md`; a test fails if it is stale. Coverage is partial and every draft is unreviewed |
+| CI workflow | Written and its steps run locally, but **NOT ACTIVE and never run on GitHub**: the connection used to publish this branch was refused permission to write under `.github/workflows/` | `entry/ci/github-actions-ci.yml` (copy it to `.github/workflows/ci.yml` to switch it on): unit, scoreboard, reproducible build, browser suites (a skipped suite fails), audit. No secrets |
+| Security self-review | Written (branch). **Not a penetration test** | `SECURITY-REVIEW.md` |
 | Real AI evaluation score | Not done | Needs API key and fresh held-out cases |
 | Full phone evidence test | Not done | Needs HTTPS because Web Crypto is restricted on HTTP LAN addresses |
 | Practitioner review of playbook | Not done | Ask Track 3 mentor; keep draft badge until done |
 | Timed user test / demo video | Not done | Recruit 3–5 people; record results honestly |
 | Real phone callback to reporter | Approved scope; not implemented; **no longer the primary path** (browser voice replaces it) | Retell AI is the assumed candidate from Chuma's reply; South African routing/account setup unverified. See `VOICE-CALLS.md` |
-| Vercel HTTPS deployment / PWA offline reopen | Vercel adapters/config prepared and locally tested; cloud deployment blocked by network access. PWA not implemented | `api/`, `vercel.json`, `DEPLOYMENT.txt`; service worker/manifest/icons and actual HTTPS checks remain pending |
-| Elapsed time / outcomes / bank reference | Approved; not implemented | Existing timestamps cannot establish faster help or recovery |
+| Vercel HTTPS deployment | Vercel adapters/config prepared and locally tested. **Nothing has been deployed; no URL exists** | `api/`, `vercel.json`, `DEPLOYMENT.txt`, `RELEASE-READINESS.md` §5. The Vercel build and runtime, HTTPS headers and Deployment Protection are unverified |
+| Offline PWA (installable, reopens with no connection) | **Built and tested in desktop Chromium with the HTTP server shut down** (branch). Not tested on any phone | `server/precache.js`, `public/sw.js`, `public/offline/register.js`, `scripts/build.mjs`, `scripts/pwa-smoke.mjs`. Public static files only, saved all-or-nothing and hash-checked; no runtime caching; needs HTTPS or localhost and one completed online visit; the browser can still evict it |
+| Elapsed time / outcomes / bank reference | **Partly built (branch):** an optional reference number the owner types (never generated; account-like numbers refused) and an outcome (unknown / pending / told) are in the pack handoff. Elapsed time, recall-requested and recovered-amount fields are **not** built | Existing timestamps cannot establish faster help or recovery |
 | Redaction preview / readable pack / privacy demo view | Readable summary and pack sharing preview built (branch). Redaction preview before sending and the privacy demo view are not implemented | See §11 and `REVIEW-AND-TEST-CHECKLIST.md` |
 | Language choice / translated interview / accessible assistance | Language choice and draft text in 4 languages built; voice per language as above; translated interview and SASL content not built | All requested text languages are a coverage goal; release per reviewed language. SASL needs distinct content |
-| Default referrals / preferred contacts / task tracking | Approved; not implemented | No registration prerequisite; referral is not accepted dispatch |
+| Default referrals / preferred contacts / task tracking | Approved; not implemented beyond the pack handoff, which lists the owner's tapped steps and states **"No referral was made"** | No registration prerequisite; referral is not accepted dispatch |
 
 ### Known limitations to say plainly
 
@@ -118,14 +132,19 @@ flowchart TD
 3. Fraud-line entries were checked online on 2026-10-26; phone-check them before a live demo.
 4. Playbook wording is a draft until a practitioner reviews it.
 5. AI triage is optional and must be tested against a fresh held-out set; never claim performance not measured by the team.
-6. Local rules run when an API request fails or takes longer than 5 seconds (built on `feature/critical-fixes`), but there is still no service worker for offline reopening. Do not call this offline-ready.
+6. Local rules run when an API request fails or takes longer than 5 seconds. **Offline reopening now exists** (service worker, branch `feature/emergency-offline-readiness`) and is tested in desktop Chromium with the server shut down. It has **not** been tested on a phone, needs HTTPS or localhost and one completed online visit, and the browser can evict the copy. Do not say "works offline on phones" until it has been checked on one.
 7. ~~Bank-directory Back returns home~~ Fixed on `feature/accessibility`; on `feature/critical-fixes` a triage result that arrives while the bank directory is open now waits until the owner presses Back.
 8. Redaction is pattern based; names are hidden only when supplied in the optional names field. It is not guaranteed anonymisation. The pack now holds the masked description by default; the original words, business name and amount are opt-in after a preview (built on `feature/critical-fixes`).
 9. The draft status is now rendered on guidance, clarify and summary screens (from `playbook.reviewed`). It is still a draft: do not describe the guide or any translation as practitioner-reviewed.
-10. Rules accuracy: 100% on the sets the rules were written against is a regression guard only. The one sealed set (`prep/heldout-3.json`) scored 9/17 with 0 unsafe diversion misses; every miss but one went to the clarifying question. Free text in isiZulu, isiXhosa and Afrikaans is not verified.
+10. Rules accuracy: 100% on the sets the rules were written against is a regression guard only. `prep/heldout-3.json` scored 9/17 with 0 unsafe misses, then was **reopened** (a PIN-request fix was made after reading one case); every miss but one goes to the clarifying question. `prep/heldout-4.json` (46 synthetic cases, SHA-256 recorded in `prep/SEALED.json`, committed before any ransomware rule) first scored 46/46 before any change was made in response to it (later runs are regression checks; no rule has been tuned on it), with no unsafe routing, **but the same author wrote the rules and the set and had seen it**, so this is not evidence of real-world accuracy. Free text in isiZulu, isiXhosa and Afrikaans is not verified.
 11. Redaction preview before sending is still not built. The pack now defaults to the masked story, but masking is pattern based and names are only hidden when listed.
-13. Voice: no real Retell call has been tested. The transcript stream needs a Retell public key whose permission to open the monitor socket is unverified; the SDK does not report that failure (the app detects it and shows "Live captions unavailable"). Consent wording, playbook and translations are unreviewed. Serverless voice limits are per instance. See `VOICE-COMPANION.md`.
-12. Translations: only the payment-diversion route is drafted in isiZulu, isiXhosa and Afrikaans, and the new clarify, unsure, evidence and pack screens fall back to English (marked `lang="en"`). All of it is unreviewed.
+13. Voice: **no real Retell call has been tested.** The transcript stream needs a Retell public key whose permission to open the monitor socket is unverified; the SDK does not report that failure (the app detects it and shows "Live captions unavailable"). Consent wording, playbook and translations are unreviewed. Public voice is refused on Vercel unless a shared quota store is configured; without one, limits are per instance. An operator test path exists (capped, labelled, https or same machine only) and has only been exercised against fakes. The assistant has not been tested with adversarial speech. See `VOICE-COMPANION.md`, `VOICE-REAL-TEST.md`, `SECURITY-REVIEW.md`.
+12. Translations: only the payment-diversion route is substantially drafted in isiZulu, isiXhosa and Afrikaans; the entry screen is about 28% covered, and the ransomware guide, errors and handoff are 0%, so they fall back to English (marked `lang="en"`). See `TRANSLATION-COVERAGE.md`. All of it is unreviewed.
+14. The ransomware guide is a draft from public sources. No practitioner has reviewed it, and South African reporting and POPIA wording (SAPS, Information Regulator) in it is unreviewed.
+15. The pack handoff records what the owner **tapped and typed**. A tap is "reported by the owner", never proof an action happened or worked; showing a contact is never a referral. Masking is pattern based: a value typed straight after PIN/OTP/password/CVV is hidden, but a secret written another way is missed, and the reference-number field is deliberately not masked (account-like numbers are refused as a heuristic).
+16. Accessibility: automated checks only (axe, keyboard, target size, language honesty). No real screen reader, TalkBack/VoiceOver or user testing. The SASL registry is empty, so there is no signing content. This is not a WCAG conformance claim.
+17. CI is **not active**: the workflow could not be published to `.github/workflows/` (no permission), so it sits at `entry/ci/github-actions-ci.yml` and has never run on GitHub. Its steps were run locally. Browser suites use desktop Chromium only.
+18. Security: self-review only (`SECURITY-REVIEW.md`); no penetration test. Integrity of the offline copy is consistency, not authenticity. COOP was tried and deliberately left out (it hid `navigator.onLine` from the offline test).
 
 ---
 
@@ -152,7 +171,10 @@ flowchart LR
 | Location | What may exist | What must not exist |
 |---|---|---|
 | Browser session | Incident state, timeline, redacted text, fingerprints and generated pack | Uploaded evidence files after the owner closes the tab; credentials |
-| Node server memory | Rate-limit counters and temporary hash-keyed triage cache | Raw incident logs, analytics, evidence files, secrets in output |
+| Node server memory | Rate-limit counters (bounded) and temporary hash-keyed triage cache; voice quota counters keyed by hashed visitor id (or in a shared store if configured) | Raw incident logs, analytics, evidence files, secrets in output |
+| Browser memory only | Typed handoff fields, the open voice conversation and its transcript | Anything written to localStorage, sessionStorage, IndexedDB or a cookie (none is used) |
+| Service-worker cache | Public static files only: the app, the playbook, the bank directory, reviewed language data, icons | Any typed text, API reply, voice session, evidence, pack or key. No runtime caching. Checked by listing every cache and storage after a full journey |
+| Voice provider (Retell), when voice is on | Audio during the call; the agent is configured not to store transcripts or recordings | Anything the owner has not agreed to on the consent screen. Retention at the provider is verified by a manual dashboard check, not by the app |
 | AI provider, if enabled | Redacted incident text for one classification | Raw evidence, names, accounts, passwords, phone numbers, invented advice |
 | Git repository | Code, synthetic test data, reviewed public guidance | API keys, real victim data, recordings, real call numbers beyond public official support lines |
 
@@ -177,6 +199,13 @@ These are the product's safety invariants. An AI or developer must not remove, w
 13. **Callbacks are user-requested.** Chuma chose real calls to the person reporting. Each call needs the user's affirmative request, an authorised number, provider setup, named operational owner, cost limits and reviewed script. Record action events by default; audio/transcript retention is a separate choice. No automatic calls to banks, suppliers, interpreters or cyber responders.
 
 ---
+
+### Proposed additions from the emergency-readiness sprint (NEED TEAM CONFIRMATION; not yet part of the agreed list)
+
+14. The offline copy holds public static files only. No runtime caching of typed text, API replies, voice sessions, evidence or packs.
+15. A tap is the owner's report. The pack and handoff say "reported by the owner", never "completed", and never imply a referral was accepted.
+16. Operator test access never makes a language public, never bypasses the privacy and translation checks, and its token is honoured only over https or the same machine.
+17. Ransomware guidance never asks whether a payment was made, never tells the owner to pay or reply, and a mixed payment-and-locked-files story always keeps the bank step.
 
 ## 6. CAN CHANGE freely
 
@@ -263,6 +292,8 @@ From `build/entry`:
 npm.cmd start
 npm.cmd test
 npm.cmd run scoreboard
+npm.cmd run build          # engine bundle, icons and the offline manifest (needed for the offline copy)
+npm.cmd run test:browser   # every browser suite; needs Playwright and axe-core installed outside the lock file
 ```
 
 ### Review script
@@ -283,6 +314,7 @@ npm.cmd run scoreboard
 
 | Time (SAST) | Owner | Files / area | Change | Verification / decision |
 |---|---|---|---|---|
+| 2026-10-27 (late) | Claude (lead developer) with Chuma | `server/{voice,quota,app,precache}.js`, `public/{sw.js,offline/,voice/,shared/,app.js,accessibility/,data/}`, `scripts/` (build, five browser suites, runner, preflight, translation coverage), `test/`, `ci/github-actions-ci.yml` (not active), `prep/heldout-4.json`, docs (`SECURITY-REVIEW.md`, `RELEASE-READINESS.md`, `VOICE-REAL-TEST.md`, `VOICE-TEST-RESULTS.md`, `TRANSLATION-COVERAGE.md`) | Branch `feature/emergency-offline-readiness` (from `feature/live-voice-companion` 148d189). **A** real-voice readiness: operator test gate, shared quota layer, key out of config, offline voice handling. **B** symptom-first entry and the draft ransomware guide, new sealed evaluation set. **C** installable offline PWA (atomic hash-verified install, rollback, eviction repair, headers kept, no runtime caching). **D** accessibility audit and fixes, honest SASL dialog, translation coverage report, pack handoff (format /3), value hiding after PIN/OTP/password. **E** hostile-transcript hardening, bounded rate limiter, operator token only over https or the same machine, CORP, a CI workflow (written, NOT active: it could not be published to `.github/workflows/`), security review. | `npm test` **175/175**. Browser (desktop Chromium, synthetic data): browser-smoke 37/37, emergency 59/59, voice 88/88, real SDK vs mocked provider 37/37, offline with server stopped 34/34, accessibility 49/49 (no serious or critical axe findings). Scoreboard on unsealed sets full marks, 0 unsafe; `heldout-3` 9/17 (reopened); `heldout-4` first scored 46/46 and never tuned on (author-bias caveat). `npm audit` 0. Build reproducible. Mutation checks on the new tests (see `RELEASE-READINESS.md` §2 for which). **NOT done:** any real Retell call, any phone, any screen reader, any deployment, any CI run on GitHub, practitioner/legal/translator/SASL review, penetration test. COOP tried and rejected (hid `navigator.onLine` from the offline test). Not merged. |
 | 2026-10-27 (night) | Claude with Chuma | `server/voice.js`, `server/app.js`, `api/voice/`, `vercel.json`, `public/voice/`, `public/accessibility/{avatar,signs,accessibility}.js`, `public/app.js`, `public/styles.css`, `scripts/`, tests, `VOICE-COMPANION.md` | Branch `feature/live-voice-companion` (from `feature/critical-fixes` 6280f81): Retell v3 browser voice with a server-side proxy (private key never in the browser), consent, enforced `basic_attributes_only`, language gating (no isiZulu/isiXhosa), live captions, states, mute/end, current action and bank button always visible, floating avatar, reviewed-SASL player (empty), tasks, timeline, privacy indicators, shared journey state. Only two header changes: `microphone=(self)` and `connect-src` + `api.retellai.com` (https/wss). | `npm test`: 93/93. Simulation browser checks 78/78. Real SDK against a mocked provider 20/20. **No real provider call, microphone, phone, screen reader or speaker test.** Not merged or deployed. |
 | 2026-10-27 (evening) | Claude with Chuma | `entry/public/shared/{rules,redact,triage-client,summary}.js`, `public/app.js`, `public/data/playbook.json`, `public/styles.css`, `public/accessibility/accessibility.js`, `server/app.js`, `scripts/`, tests, `prep/heldout-{2,3}.json`, docs | Branch `feature/critical-fixes`: triage timeout + skip; broader rules (negation, conflict, scam-word guard, more phrasings); redaction of `R70k`/`70k`/`R1.5m`; clarifying question; honest bank "haven't called yet" option; stale text removed; draft status and directory date shown; privacy-first pack preview and readable summary (pack format /2); no repeated "Audio stopped." announcements; no sideways scroll at 320px/200% text; late triage no longer replaces the bank directory; Vercel rate-limit key. | `npm test`: 44/44 (was 13). Browser smoke (Chromium, 390px and 320px, synthetic data): 37/37. Scoreboard: used sets 100% (regression only); sealed set `heldout-3` 9/17, 0 unsafe. Physical phone, screen reader, HTTPS deployment, practitioner and translation review NOT done. Not merged or deployed. |
 | 2026-10-27 11:32 | Codex with Chuma | `CLAUDE.md`, `team/`, `presentation/`, `entry/api/`, `entry/vercel.json`, `entry/server/app.js`, `entry/test/deployment.test.js`, deployment/readme/ignore files, `public/index.html` | Prepared the full Claude coordinator/interview handover, shared task board, pitch snapshot and Vercel rules-only Node adapters. Shared request handler preserves local server support; accepts raw and pre-parsed JSON with size checks. Added visible draft footer. Chuma authorised GitHub push and Vercel publication in this conversation. | `npm.cmd test`: 10/10; scoreboard: 7/7 fixed synthetic rules cases. No provider keys added. GitHub network check and Vercel link failed in this session; no live URL or successful push claimed. Actual publication checks and commit status are in `team/handoffs/publish-baseline.txt`. |
@@ -318,3 +350,11 @@ Implemented: four-locale selection with partial draft translation bundles; DOM-p
 Not implemented: real callback, speech recognition, arbitrary text-to-SASL, camera sign recognition, reviewed SASL motions/media, full approved translation coverage or production deployment. No paid service, real call or evidence upload was used. Read `docs/ACCESSIBILITY-AND-PLAYBOOK.md` for the source map, playbook explanation and questions for Chuma/reviewers.
 
 Validation: 13 Node tests passed; JS syntax and diff whitespace checks passed. Browser checks: typed input retained after language switch; bank-directory return preserves the step after another language change; signing model/transcript renders; consent required before read aloud; text-only call walkthrough at 200% text excludes model controls. Physical phone, native screen reader, actual voice playback and SASL/native-speaker review remain unverified. This is not a WCAG conformance claim.
+
+## Emergency and offline readiness handover — 27 October 2026
+
+Branch `feature/emergency-offline-readiness`, stacked on `feature/live-voice-companion` (PR #3), which is stacked on `feature/critical-fixes` (PR #2). Recommended merge order: #2, then #3 (retarget to `main` once #2 is in), then this branch. **Nothing is merged, deployed or pushed to `main`.** Start with `RELEASE-READINESS.md` (status, evidence, what you must decide) and `SECURITY-REVIEW.md` (findings and residual risk), then `VOICE-REAL-TEST.md` for the first approved real call.
+
+Built: symptom-first entry; a draft ransomware guide with trusted resources; offline PWA; pack handoff; real-voice readiness code (operator gate, quota layer, preflight); accessibility and translation-coverage tooling; a CI workflow (written, not active); security hardening.
+
+Not done, and not claimed: any real Retell call (the empty template is `VOICE-TEST-RESULTS.md`), deployment, phone testing, assistive-technology testing, practitioner, legal, translator or SASL review, penetration test. CI is written but **not active** (see limitation 17). All guidance remains a draft.

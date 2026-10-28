@@ -1,0 +1,114 @@
+# NOT ACTIVE WHERE IT SITS. GitHub only runs workflows from .github/workflows/, and the connection used to publish this branch was
+# refused permission to write there (a token needs "workflow" permission for that). So the file is kept here, reviewable, unchanged.
+# TO TURN CI ON: with an account that has workflow permission, copy this file to .github/workflows/ci.yml on this branch (GitHub web UI:
+# Add file > Create new file, name it .github/workflows/ci.yml, paste, commit to the branch). Its steps were run locally; it has NEVER
+# run on GitHub, so the first run may need a small fix. It uses no secrets.
+# Mgadi CI. It runs the unit tests, the rules scoreboard, the reproducible-build check and every browser suite (real Chromium, axe,
+# offline mode, the real Retell browser SDK against a MOCKED provider).
+#
+# What this workflow does NOT do, on purpose:
+#   - It uses no secrets and no environment variables of ours. It never contacts Retell or any paid service.
+#   - It never deploys, never publishes, and has read-only access to the repository.
+#   - It does not run scripts/voice-preflight.mjs (that one talks to the real provider and needs the owner's approval).
+# Actions are pinned to full commit SHAs (checked against the tags v4.2.2 and v4.4.0 at the time of writing).
+name: ci
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: entry
+
+jobs:
+  unit:
+    name: unit tests, scoreboard, build (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: entry/package-lock.json
+      - name: Install exactly what the lock file says
+        run: npm ci
+      - name: Build (voice engine bundle, icons, offline manifest)
+        run: npm run build
+      - name: Unit tests
+        run: npm test
+      - name: Rules scoreboard (fails on any unsafe routing or a changed sealed set; accuracy below 100% is reported, not hidden)
+        run: npm run scoreboard
+      - name: Build twice and compare (version, every asset hash, engine bundle, icons)
+        run: |
+          snap() { (cd public && sha256sum vendor/retell-client.js icons/*.png && node -e "const m=JSON.parse(require('fs').readFileSync('precache-manifest.json','utf8')); console.log(m.version); for (const a of m.assets) console.log(a.url, a.sha256)"); }
+          export SOURCE_DATE_EPOCH=1798329600
+          snap > /tmp/build-1.txt
+          touch public/index.html
+          npm run build > /dev/null
+          snap > /tmp/build-2.txt
+          diff /tmp/build-1.txt /tmp/build-2.txt && echo "Reproducible: $(wc -l < /tmp/build-1.txt) lines compared"
+      - name: Tripwire for committed credentials (a crude pattern check, NOT a scanner, so back it with a real secret scanner)
+        working-directory: .
+        run: |
+          if git grep -nIE '(sk_live_[0-9A-Za-z]{16,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|key_[a-f0-9]{24,}|ghp_[0-9A-Za-z]{30,}|xox[abp]-[0-9A-Za-z-]{20,})' -- . ':(exclude)*.lock' ':(exclude)package-lock.json'; then
+            echo "A string that looks like a credential is committed. Remove it and rotate it."; exit 1
+          fi
+          echo "No credential-shaped strings found in tracked files."
+
+  browser:
+    name: browser suites (Chromium, axe, offline, mocked voice provider)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: entry/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      # Test tooling is installed OUTSIDE the lock file on purpose: it is never shipped, never added to package.json, and the exact versions are
+      # the ones the suites were written and run against.
+      - name: Install test tooling (Playwright 1.56.0, axe-core 4.10.2) without touching package.json
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0 axe-core@4.10.2
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run every browser suite (a skipped suite counts as a failure)
+        env:
+          MGADI_PLAYWRIGHT: ${{ github.workspace }}/entry/node_modules/playwright/index.mjs
+          MGADI_AXE: ${{ github.workspace }}/entry/node_modules/axe-core/axe.min.js
+        run: node scripts/run-browser-suites.mjs
+
+  dependency-audit:
+    name: dependency audit (advisories change over time; treat as advice, not as a code failure)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Audit everything that is installed (the voice engine is bundled into the page, so its tree matters)
+        run: npm audit --audit-level=high

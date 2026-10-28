@@ -76,14 +76,14 @@ try {
   // 4. Clarifying question replaces the silent "unsure" route.
   page = await fresh(); await type(page, 'My bookkeeper says there is a problem with the supplier payment.'); await send(page);
   await page.waitForSelector('text=One quick question');
-  check('unclear text asks one question', (await page.locator('.incident-choices button').count()) === 4);
+  check('unclear text asks one question', (await page.locator('.incident-choices button').count()) === 5);
   await page.click('button:has-text("I am not sure")'); await page.waitForSelector('text=Step 1 of');
   check('unsure route lets the owner continue without claiming a call', (await page.locator('#app button:has-text("I haven\'t called yet")').count()) === 1);
   await page.click('button:has-text("I haven\'t called yet")');
   check('unsure route has a second "pause and verify" step', (await h1(page)).includes('Pause before you pay'));
-  page = await fresh(); await page.click('.incident-choices button:has-text("I am not sure")'); await page.waitForSelector('text=One quick question');
-  await page.click('button:has-text("No, nothing has been paid")'); await page.waitForSelector('text=Step 1 of');
-  check('answering "nothing paid" goes to the stop-and-verify guide', (await page.locator('.step-count').innerText()).includes('no money moved'));
+  page = await fresh(); await page.click('.incident-choices button:has-text("know what happened")'); await page.waitForSelector('text=One quick question');
+  await page.click('button:has-text("nothing has been paid or locked")'); await page.waitForSelector('text=Step 1 of');
+  check('answering "suspicious message, nothing paid or locked" goes to the stop-and-verify guide', (await page.locator('.step-count').innerText()).includes('no money moved'));
 
   // 5. Hung API, API down, and the skip button.
   page = await fresh(); await page.route('**/api/triage', () => {}); await type(page, 'We paid after the supplier changed banking details.'); await send(page);
@@ -105,7 +105,7 @@ try {
 
   // 7. Accessibility: no "Audio stopped." churn on navigation; language keeps input.
   page = await fresh(); await page.evaluate(() => { window.__m = 0; new MutationObserver((l) => { window.__m += l.length; }).observe(document.querySelector('.audio-status'), { childList: true, characterData: true, subtree: true }); });
-  await page.click('.incident-choices button:has-text("I paid after")'); await page.waitForSelector('text=Step 1 of'); await page.click('text=Start again'); await page.waitForSelector('text=What happened?');
+  await page.click('.incident-choices button:has-text("Money or a payment problem")'); await page.click('.incident-choices button:has-text("I paid after")'); await page.waitForSelector('text=Step 1 of'); await page.click('text=Start again'); await page.waitForSelector('text=What happened?');
   check('navigation does not change the audio status region', (await page.evaluate(() => window.__m)) === 0);
   await page.click('summary'); await page.selectOption('#language', 'zu'); await page.fill('#incident-description', 'typed text kept?'); await page.selectOption('#language', 'af');
   check('typed text survives a language switch', (await page.inputValue('#incident-description')) === 'typed text kept?');
@@ -115,7 +115,7 @@ try {
   check('home: no sideways scroll at 320px / 200%', !(await overflow(page)));
   await type(page, 'My bookkeeper says there is a problem with the supplier payment.'); await send(page); await page.waitForSelector('text=One quick question');
   check('clarify: no sideways scroll', !(await overflow(page)));
-  await page.click('button:has-text("Yes, money has been paid")'); await page.waitForSelector('text=Step 1 of');
+  await page.click('button:has-text("Money has been paid out, or is missing")'); await page.waitForSelector('text=Step 1 of');
   check('guidance step: no sideways scroll', !(await overflow(page)));
   await page.click('#emergency-button'); check('bank directory: no sideways scroll', !(await overflow(page))); await page.click('button:has-text("Back")');
   await page.click('button:has-text("I haven\'t called yet")'); for (const l of ["I've spoken to the supplier", "I've checked the mailbox", "I've kept the evidence"]) await page.click(`button:has-text("${l}")`);
