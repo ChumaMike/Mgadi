@@ -242,3 +242,6 @@ html[data-voice='open']{overflow:hidden}
 @media(max-width:380px){.vp-compact-shell{grid-template-columns:82px minmax(0,1fr)}.vp-compact-main .vp-action{max-height:45%}.voice-panel .vp-workspace-logo{width:24px;height:24px}}
 @media(max-height:550px){.vp-compact-stage-note{display:none}.vp-compact-main .vp-action{max-height:43%}}
 @media(prefers-reduced-motion:reduce){.vp-compact-wave-bar{animation:none!important}}html[data-reduced-motion='true'] .vp-compact-wave-bar{animation:none!important}
+
+/* Keep the bank emergency shortcut available even on narrow screens. */
+@media(max-width:700px){.voice-panel .vp-btnrow{display:flex!important;flex:0 0 auto}.voice-panel .vp-btnrow .vp-bank{font-size:.65rem;padding:.3rem .4rem;min-height:40px;max-width:100px;white-space:normal;line-height:1.1}}
