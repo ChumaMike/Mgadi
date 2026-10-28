@@ -20,12 +20,25 @@ export function rms(samples) {
   return Math.sqrt(sum / samples.length);
 }
 
-export function createRetellAdapter({ config, importer = loadRetellClient, fetchImpl = (...args) => globalThis.fetch(...args), getOperatorToken = () => '' }) {
+// Ask for the microphone BEFORE our server creates a Retell call. The SDK only asks after the call exists, so a person who taps "Block"
+// would otherwise use up a server quota slot and leave a call at the provider that nobody joins. The stream is stopped at once; the
+// browser remembers the permission for the page, so the SDK's own request a moment later does not prompt again.
+// Errors keep their standard names (NotAllowedError, NotFoundError, NotReadableError) so the controller can word each one plainly.
+export async function ensureMicrophone(env = globalThis) {
+  const devices = env.navigator?.mediaDevices;
+  if (!devices?.getUserMedia || env.isSecureContext === false) throw Object.assign(new Error('insecure_context'), { code: 'insecure_context' });
+  const stream = await devices.getUserMedia({ audio: true });
+  for (const track of stream.getTracks()) track.stop();
+}
+
+export function createRetellAdapter({ config, importer = loadRetellClient, fetchImpl = (...args) => globalThis.fetch(...args), getOperatorToken = () => '', microphone = () => ensureMicrophone() }) {
   return {
     captionsExpected: Boolean(config.captions),
     async start({ context, hooks }) {
       let RetellClient;
       try { RetellClient = await importer(); } catch { throw Object.assign(new Error('engine_missing'), { code: 'engine_missing' }); }
+      // 0. The microphone, first. Nothing is created anywhere until the person has allowed it.
+      await microphone();
       // 1. Ask OUR server for the call. It holds the private key, checks consent and quotas, and builds the Retell request.
       const headers = { 'content-type': 'application/json', 'x-mgadi-voice-consent': config.consentVersion };
       const token = getOperatorToken();

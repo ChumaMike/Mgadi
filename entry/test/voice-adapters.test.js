@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRetellAdapter, rms } from '../public/voice/retell-adapter.js';
+import { createRetellAdapter, ensureMicrophone, rms } from '../public/voice/retell-adapter.js';
 import { createMockAdapter } from '../public/voice/mock-adapter.js';
 import { createVoiceController, describeError } from '../public/voice/controller.js';
 
@@ -25,7 +25,7 @@ const hooks = () => { const seen = []; const h = Object.fromEntries(['onStatus',
 
 test('Retell adapter: asks OUR server first, then uses the v3 client with the PUBLIC key from that gated response', async () => {
   const { record, importer } = fakeSdk(); const { h } = hooks(); const server = serverReply();
-  await createRetellAdapter({ config, importer, fetchImpl: server.fetchImpl }).start({ context, hooks: h });
+  await createRetellAdapter({ config, importer, microphone: async () => {}, fetchImpl: server.fetchImpl }).start({ context, hooks: h });
   assert.equal(server.sent.length, 1);
   assert.equal(server.sent[0].url, '/api/voice/session');
   assert.equal(record.constructed.key, 'public_key_TESTONLY');
@@ -38,7 +38,7 @@ test('Retell adapter: asks OUR server first, then uses the v3 client with the PU
 
 test('Retell adapter: our server gets the consent header and only the validated context; the SDK never reaches Retell to create the call', async () => {
   const { record, importer } = fakeSdk(); const server = serverReply();
-  await createRetellAdapter({ config, importer, fetchImpl: server.fetchImpl }).start({ context, hooks: hooks().h });
+  await createRetellAdapter({ config, importer, microphone: async () => {}, fetchImpl: server.fetchImpl }).start({ context, hooks: hooks().h });
   const sent = server.sent[0].init;
   assert.deepEqual(sent.headers, { 'content-type': 'application/json', 'x-mgadi-voice-consent': 'voice-consent-1' });
   assert.equal(sent.credentials, 'omit');
@@ -54,16 +54,16 @@ test('Retell adapter: our server gets the consent header and only the validated 
 test('Retell adapter: an operator token is sent only when one has been entered', async () => {
   const { importer } = fakeSdk();
   const withToken = serverReply();
-  await createRetellAdapter({ config, importer, fetchImpl: withToken.fetchImpl, getOperatorToken: () => 'TESTONLY-operator' }).start({ context, hooks: hooks().h });
+  await createRetellAdapter({ config, importer, microphone: async () => {}, fetchImpl: withToken.fetchImpl, getOperatorToken: () => 'TESTONLY-operator' }).start({ context, hooks: hooks().h });
   assert.equal(withToken.sent[0].init.headers['x-mgadi-operator-token'], 'TESTONLY-operator');
   const without = serverReply();
-  await createRetellAdapter({ config, importer, fetchImpl: without.fetchImpl, getOperatorToken: () => '' }).start({ context, hooks: hooks().h });
+  await createRetellAdapter({ config, importer, microphone: async () => {}, fetchImpl: without.fetchImpl, getOperatorToken: () => '' }).start({ context, hooks: hooks().h });
   assert.equal('x-mgadi-operator-token' in without.sent[0].init.headers, false);
 });
 
 test('Retell adapter: without a public key it still calls, but says live captions are not available', async () => {
   const { record, importer } = fakeSdk();
-  const adapter = createRetellAdapter({ config: { ...config, captions: false }, importer, fetchImpl: serverReply({ ...SESSION, mgadi: { publicKey: null, test: false } }).fetchImpl });
+  const adapter = createRetellAdapter({ config: { ...config, captions: false }, importer, microphone: async () => {}, fetchImpl: serverReply({ ...SESSION, mgadi: { publicKey: null, test: false } }).fetchImpl });
   assert.equal(adapter.captionsExpected, false);
   await adapter.start({ context, hooks: hooks().h });
   assert.equal(record.call.transcript, false);
@@ -73,16 +73,16 @@ test('Retell adapter: without a public key it still calls, but says live caption
 test('Retell adapter: a refusal from our server becomes a clear error and the SDK is never started', async () => {
   for (const [status, error, code] of [[429, 'rate_limited', 'rate_limited'], [401, 'unauthorized', 'unauthorized'], [409, 'language_unavailable', 'language_unavailable'], [503, 'quota_unavailable', 'quota_unavailable'], [403, 'consent_required', 'consent_required']]) {
     const { record, importer } = fakeSdk();
-    await assert.rejects(createRetellAdapter({ config, importer, fetchImpl: serverReply({ error }, status).fetchImpl }).start({ context, hooks: hooks().h }), (e) => describeError(e).code === code && e.status === status);
+    await assert.rejects(createRetellAdapter({ config, importer, microphone: async () => {}, fetchImpl: serverReply({ error }, status).fetchImpl }).start({ context, hooks: hooks().h }), (e) => describeError(e).code === code && e.status === status);
     assert.equal(record.constructed, null);
   }
   const { importer } = fakeSdk();
-  await assert.rejects(createRetellAdapter({ config, importer, fetchImpl: async () => { throw new TypeError('Failed to fetch'); } }).start({ context, hooks: hooks().h }), (e) => describeError(e).code === 'voice_unavailable');
+  await assert.rejects(createRetellAdapter({ config, importer, microphone: async () => {}, fetchImpl: async () => { throw new TypeError('Failed to fetch'); } }).start({ context, hooks: hooks().h }), (e) => describeError(e).code === 'voice_unavailable');
 });
 
 test('Retell adapter: SDK events map onto the controller hooks, and controls pass through', async () => {
   const { record, importer } = fakeSdk(); const { h, seen } = hooks();
-  const handle = await createRetellAdapter({ config, importer, fetchImpl: serverReply().fetchImpl }).start({ context, hooks: h });
+  const handle = await createRetellAdapter({ config, importer, microphone: async () => {}, fetchImpl: serverReply().fetchImpl }).start({ context, hooks: h });
   const sdk = record.call.hooks;
   sdk.onStatus('live'); sdk.onTranscript([{ id: 'a' }], []); sdk.onAudio(new Float32Array([0.5, -0.5, 0.5, -0.5])); sdk.onError(new Error('x')); sdk.onEnd(undefined);
   assert.deepEqual(seen.map((s) => s[0]), ['onStatus', 'onTranscript', 'onAudioLevel', 'onError', 'onEnd']);
@@ -94,7 +94,7 @@ test('Retell adapter: SDK events map onto the controller hooks, and controls pas
 
 test('Retell adapter: a missing engine bundle is reported as such, not as a mystery failure, and nothing is requested', async () => {
   const server = serverReply();
-  const adapter = createRetellAdapter({ config, importer: async () => { throw new TypeError('Failed to fetch dynamically imported module'); }, fetchImpl: server.fetchImpl });
+  const adapter = createRetellAdapter({ config, importer: async () => { throw new TypeError('Failed to fetch dynamically imported module'); }, microphone: async () => {}, fetchImpl: server.fetchImpl });
   await assert.rejects(adapter.start({ context, hooks: hooks().h }), (e) => e.code === 'engine_missing');
   assert.equal(server.sent.length, 0, 'no provider session is created for a page that cannot use it');
 });
@@ -136,4 +136,48 @@ test('end to end with the controller: the simulation goes live, shows captions, 
   assert.ok(controller.getState().messages.some((m) => m.role === 'assistant'));
   clock.run(2000); // the scripted drop arrives; a young call without captions would retry, a captioned one just ends
   assert.ok(['ended', 'reconnecting'].includes(controller.getState().phase));
+});
+
+// ---- microphone first (final voice work)
+
+test('microphone first: when the person blocks the microphone, our server is never asked for a call and the SDK is never constructed', async () => {
+  const { record, importer } = fakeSdk(); const server = serverReply();
+  const adapter = createRetellAdapter({ config, importer, fetchImpl: server.fetchImpl, microphone: async () => { throw Object.assign(new Error('Permission denied'), { name: 'NotAllowedError' }); } });
+  await assert.rejects(adapter.start({ context, hooks: hooks().h }), (error) => error.name === 'NotAllowedError');
+  assert.equal(server.sent.length, 0, 'no quota slot is used and no provider call is created');
+  assert.equal(record.constructed, null);
+});
+
+test('microphone first: the order is microphone, then our server, then the SDK', async () => {
+  const order = []; const { importer } = fakeSdk();
+  const adapter = createRetellAdapter({ config, importer, microphone: async () => { order.push('microphone'); }, fetchImpl: async (url) => { order.push('server'); return new Response(JSON.stringify(SESSION), { status: 201 }); } });
+  await adapter.start({ context, hooks: hooks().h });
+  assert.deepEqual(order, ['microphone', 'server']);
+});
+
+test('ensureMicrophone: asks for audio only, releases the stream at once, and names each failure', async () => {
+  const stopped = []; let asked = null;
+  const env = { isSecureContext: true, navigator: { mediaDevices: { getUserMedia: async (c) => { asked = c; return { getTracks: () => [{ stop: () => stopped.push('a') }, { stop: () => stopped.push('b') }] }; } } } };
+  await ensureMicrophone(env);
+  assert.deepEqual(asked, { audio: true }); assert.deepEqual(stopped, ['a', 'b'], 'the check never leaves the microphone recording');
+  await assert.rejects(ensureMicrophone({ isSecureContext: false, navigator: env.navigator }), (e) => e.code === 'insecure_context');
+  await assert.rejects(ensureMicrophone({ isSecureContext: true, navigator: {} }), (e) => e.code === 'insecure_context');
+  const refuse = (name) => ({ isSecureContext: true, navigator: { mediaDevices: { getUserMedia: async () => { throw Object.assign(new Error(name), { name }); } } } });
+  await assert.rejects(ensureMicrophone(refuse('NotAllowedError')), (e) => e.name === 'NotAllowedError');
+});
+
+test('every microphone failure gets its own plain wording that points back to the bank fraud line', () => {
+  const cases = { NotAllowedError: 'mic_denied', NotFoundError: 'no_mic', NotReadableError: 'mic_busy' };
+  for (const [name, code] of Object.entries(cases)) { const d = describeError(Object.assign(new Error('x'), { name })); assert.equal(d.code, code); assert.match(d.message, /bank fraud line/i); }
+  const insecure = describeError(Object.assign(new Error('insecure_context'), { code: 'insecure_context' }));
+  assert.equal(insecure.code, 'insecure_context'); assert.match(insecure.message, /https/); assert.match(insecure.message, /text guidance/);
+});
+
+test('a refused microphone fails the controller with the right message and creates no call (end to end through the real adapter)', async () => {
+  const server = serverReply(); const states = [];
+  const controller = createVoiceController({ adapterFactory: () => createRetellAdapter({ config, importer: fakeSdk().importer, fetchImpl: server.fetchImpl, microphone: async () => { throw Object.assign(new Error('denied'), { name: 'NotAllowedError' }); } }), getContext: () => context });
+  controller.subscribe((s) => states.push(s.uiState)); controller.giveConsent(); await controller.start();
+  assert.equal(controller.getState().uiState, 'failed'); assert.equal(controller.getState().error.code, 'mic_denied');
+  assert.equal(server.sent.length, 0);
+  assert.deepEqual(states.filter((x, i, a) => a[i - 1] !== x), ['idle', 'connecting', 'failed']);
 });

@@ -31,6 +31,9 @@ Follow `VOICE-REAL-TEST.md`. Never record a key, token or agent secret here.
 | 14 | Live captions function (or app reports unavailable) | | |
 | 15 | Retell shows no transcript / recording / logs | | |
 | 16 | Cost matches minutes x price | | |
+| 17 | Mouth movement follows what is heard (approximate, not phoneme-exact) | | |
+| 18 | Thinking state appears and does not stick | | |
+| 19 | Blocked microphone creates no call at Retell | | |
 
 Captions decision (works with the public key / failed and chosen alternative): 
 

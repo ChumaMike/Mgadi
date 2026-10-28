@@ -14,8 +14,8 @@ marked `lang="en"` so screen readers pronounce it correctly. Nothing here is a c
 | Not-a-cyber-incident and unsure guides | 21 | 0 | 1 (5%) | 1 (5%) | 1 (5%) |
 | Ransomware guide (steps, organisation note, trusted resources) | 66 | 2 | 0 (0%) | 0 (0%) | 0 (0%) |
 | Bank directory and step screens | 15 | 3 | 10 (56%) | 10 (56%) | 10 (56%) |
-| Voice panel: controls, consent and conversation states | 29 | 0 | 11 (38%) | 11 (38%) | 11 (38%) |
-| Errors and connectivity notices | 13 | 7 | 0 (0%) | 0 (0%) | 0 (0%) |
+| Voice panel: controls, consent and conversation states | 28 | 0 | 10 (36%) | 10 (36%) | 10 (36%) |
+| Errors and connectivity notices | 15 | 7 | 0 (0%) | 0 (0%) | 0 (0%) |
 | Evidence and incident packs | 30 | 2 | 1 (3%) | 1 (3%) | 1 (3%) |
 | Accessibility settings and signing dialog | 22 | 0 | 5 (23%) | 5 (23%) | 5 (23%) |
 | Supplier check, responder handoff and POPIA draft (screens and the texts they build) | 164 | 53 | 3 (1%) | 3 (1%) | 3 (1%) |
