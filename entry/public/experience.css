@@ -397,3 +397,32 @@ html[data-reduced-motion='true'] .landing-choice{transition:none;transform:none}
  .site-header .brand .brand-logo{flex-basis:100px;width:100px;height:48px}
  .site-header .brand-logo img{width:100px;height:100px}
 }
+
+
+/* A non-modal evidence suggestion: the safety steps remain interactive behind it. */
+.evidence-permission-prompt{
+ position:fixed;inset:auto clamp(.75rem,3vw,2rem) max(1rem,env(safe-area-inset-bottom)) auto;
+ width:min(400px,calc(100vw - 1.5rem));max-height:min(80dvh,560px);overflow:auto;
+ z-index:75;border-radius:20px;border:1px solid #b9cdbf;background:#fffefa;
+ box-shadow:0 12px 45px #102e2840;color:#153c32;
+}
+.evidence-permission-content{position:relative;padding:1.4rem 1.25rem 1.2rem;}
+.evidence-permission-eyebrow{margin:0 0 .7rem;color:#658471;font-size:.7rem;font-weight:800;letter-spacing:.13em;}
+.evidence-permission-prompt h2{color:#173d33;font-size:1.4rem;letter-spacing:-.04em;margin:0 0 .65rem;line-height:1.25;}
+.evidence-permission-prompt p:not(.evidence-permission-eyebrow){font-size:.91rem;line-height:1.5;margin:0 0 1.2rem;}
+.evidence-permission-actions{display:flex;flex-wrap:wrap;gap:.55rem;align-items:center;margin-bottom:.8rem;}
+.evidence-permission-actions .button{min-height:46px;flex:1 1 auto;margin:0;font-size:.84rem;padding:.65rem .75rem;}
+.evidence-permission-actions .button:last-child{background:#174b3b;color:#fff;flex:2 1 180px;}
+.evidence-permission-close{position:absolute;right:.55rem;top:.5rem;width:44px;height:44px;border:0;border-radius:12px;background:transparent;color:#52695c;font:inherit;font-size:1.7rem;cursor:pointer;}
+.evidence-permission-close:hover,.evidence-permission-close:focus-visible{background:#edf3e9;}
+.evidence-permission-explain{display:inline-block;min-height:44px;padding:.5rem 0;color:#205b46;text-decoration:underline;text-underline-offset:3px;font-size:.85rem;font-weight:650;}
+.evidence-step-picker{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden!important;}
+.evidence-feedback{color:#205b46;font-size:.9rem;font-weight:650;}
+.evidence-step-recorded{padding-left:1.15rem;font-size:.84rem;color:#3a6151;}
+@media(max-width:540px){
+ .evidence-permission-prompt{inset:auto .6rem max(.6rem,env(safe-area-inset-bottom)) .6rem;width:auto;border-radius:18px;}
+ .evidence-permission-content{padding:1.1rem .95rem .85rem;}
+ .evidence-permission-prompt h2{font-size:1.2rem;}
+ .evidence-permission-actions .button{flex:1 1 125px;}
+}
+@media(prefers-reduced-motion:reduce){.evidence-permission-prompt *{scroll-behavior:auto}}
