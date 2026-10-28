@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { isProductionDeployment, requiresSharedStore } from '../server/deployment-env.js';
-import { loadVoiceConfig } from '../server/voice.js';
+import { loadVoiceConfig, createVoiceService } from '../server/voice.js';
 import { chatConfig } from '../server/ai-chat.js';
 import { createLinkStoreFromEnv } from '../server/links.js';
 import { clientKey } from '../server/app.js';
@@ -53,4 +53,12 @@ test('Railway public edge client IP is used only when valid edge headers are pre
   assert.equal(clientKey({ headers: { ...edge, 'x-real-ip': 'unsafe' }, socket }, env), '10.0.0.3');
   assert.equal(clientKey({ headers: { 'x-real-ip': '198.51.100.10' }, socket }, env), '10.0.0.3');
   assert.equal(clientKey({ headers: edge, socket }, {}), '10.0.0.3');
+});
+
+test('public voice is correctly labelled unavailable without a Railway shared quota store', async () => {
+  const env = { ...base, RAILWAY_PROJECT_ID: 'project-test', MGADI_VOICE_VERIFIED_LANGUAGES: 'en' };
+  const voice = createVoiceService({ env });
+  const { body } = await voice.config();
+  assert.equal(body.languages.en.available, false);
+  assert.match(body.languages.en.reason, /shared quota store/);
 });
