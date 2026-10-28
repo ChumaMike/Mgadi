@@ -414,6 +414,74 @@ function reportOther(state) {
   advance();
 }
 
+// Evidence selection is explicit. Mgadi records metadata and a SHA-256 fingerprint
+// only for files that the owner chooses in the browser's native file picker.
+async function recordSelectedEvidence(selectedFiles, feedback, onAdded = () => {}) {
+  const currentIncident = incident;
+  let recorded = 0;
+  for (const file of Array.from(selectedFiles ?? [])) {
+    if (incident !== currentIncident) break;
+    try {
+      const sha256 = await sha256Hex(await file.arrayBuffer());
+      if (incident !== currentIncident) break;
+      if (currentIncident.evidence.some((item) => item.sha256 === sha256 && item.name === file.name)) continue;
+      const item = {
+        name: file.name, size: file.size, type: file.type || 'unknown',
+        sha256, addedAt: new Date().toISOString()
+      };
+      currentIncident.evidence.push(item);
+      currentIncident.timeline.push({ at: new Date().toISOString(), text: 'Fingerprinted evidence: ' + file.name });
+      onAdded(item);
+      recorded++;
+    } catch (error) {
+      feedback.textContent = error?.message || 'This file could not be recorded. Try selecting it again.';
+    }
+  }
+  if (recorded && incident === currentIncident)
+    feedback.textContent = recorded + ' file' + (recorded === 1 ? '' : 's') + ' recorded in your incident pack. The original files stay on your device.';
+}
+
+function attachEvidencePicker(input, feedback, onAdded) {
+  input.addEventListener('change', async () => {
+    feedback.textContent = '';
+    await recordSelectedEvidence(input.files, feedback, onAdded);
+    input.value = '';
+  });
+}
+
+function makeEvidencePermissionPrompt(picker) {
+  if (incident.evidencePromptSeen) return null;
+  incident.evidencePromptSeen = true;
+  const prompt = document.createElement('section');
+  prompt.className = 'evidence-permission-prompt';
+  prompt.setAttribute('role', 'dialog');
+  prompt.setAttribute('aria-modal', 'false');
+  prompt.setAttribute('aria-labelledby', 'evidence-permission-title');
+  const content = element('div', '', { className: 'evidence-permission-content' });
+  const close = button('×', () => prompt.remove(), 'evidence-permission-close');
+  close.setAttribute('aria-label', 'Dismiss evidence prompt');
+  content.append(close, element('p', 'OPTIONAL · EVIDENCE', { className: 'evidence-permission-eyebrow' }),
+    element('h2', "Let's collect evidence", { id: 'evidence-permission-title' }),
+    element('p', 'You can give Mgadi access to the files you choose, so it can record their fingerprints for your incident pack. Nothing is accessed automatically.'));
+  const actions = element('div', '', { className: 'evidence-permission-actions' });
+  actions.append(
+    button('Deny', () => prompt.remove(), 'button secondary'),
+    button('Accept & choose files', () => {
+      prompt.remove();
+      picker.click(); // User gesture: opens the native file picker; no broad device permission.
+    }, 'button')
+  );
+  const details = document.createElement('a');
+  details.className = 'evidence-permission-explain';
+  details.href = '/evidence-access.html';
+  details.target = '_blank';
+  details.rel = 'noopener noreferrer';
+  details.textContent = 'What access will Mgadi have?';
+  content.append(actions, details);
+  prompt.append(content);
+  return prompt;
+}
+
 function renderStep() {
   const { label, flow, position } = journey;
   clear(); const step = flow.steps[position];
@@ -450,6 +518,17 @@ function renderStep() {
   outcomes.append(done, button('Need help', () => reportOther('needs_help'), 'button secondary'), button('Not applicable', () => reportOther('not_applicable'), 'button secondary'));
   card.append(element('h2', 'How did this step go?'), outcomes, element('p', 'Your choice is saved in your incident pack. You can revisit any step above.', { className: 'privacy' }), element('p', 'Need help only marks this step in your pack. Mgadi does not contact anyone for you.', { className: 'privacy need-help-note' }));
   const links = resourceLinks(label, step.id); if (links) card.append(links);
+  if (step.id === 'evidence') {
+    const input = element('input', '', { type: 'file', id: 'step-evidence-picker', multiple: 'multiple', accept: 'image/*,.pdf,.eml,.msg,.txt', className: 'evidence-step-picker' });
+    const feedback = element('p', '', { className: 'evidence-feedback', role: 'status' });
+    const recordedList = element('ul', '', { className: 'evidence-step-recorded' });
+    incident.evidence.forEach((item) => recordedList.append(plain('li', item.name + ' · fingerprint recorded')));
+    attachEvidencePicker(input, feedback, (item) => recordedList.append(plain('li', item.name + ' · fingerprint recorded')));
+    const selectAgain = button('Choose evidence files', () => input.click(), 'button secondary');
+    card.append(input, feedback, recordedList, selectAgain);
+    const suggestion = makeEvidencePermissionPrompt(input);
+    if (suggestion) card.append(suggestion);
+  }
   card.append(reviewBadge(flow), button('Start again', showHome, 'button secondary')); app.append(card);
 }
 
@@ -460,24 +539,15 @@ function showEvidencePack(flow) {
   const addRow = (item) => list.append(plain('li', `${item.name} — SHA-256 ${item.sha256}`));
   incident.evidence.forEach(addRow);
   const feedback = element('p', '', { className: 'privacy', role: 'status' });
-  files.addEventListener('change', async () => {
-    feedback.textContent = '';
-    for (const file of files.files) {
-      try {
-        const sha256 = await sha256Hex(await file.arrayBuffer());
-        if (incident.evidence.some((item) => item.sha256 === sha256 && item.name === file.name)) continue;
-        const item = { name: file.name, size: file.size, type: file.type || 'unknown', sha256, addedAt: new Date().toISOString() };
-        incident.evidence.push(item); addRow(item); log(`Fingerprinted evidence: ${file.name}`);
-      } catch (error) { feedback.textContent = error.message; }
-    }
-    files.value = '';
-  });
+  attachEvidencePicker(files, feedback, addRow);
   const business = element('input', '', { id:'business-name', placeholder: 'Business name (optional)' });
   const amount = element('input', '', { id:'amount-paid', placeholder: 'Amount paid, e.g. R 70 000,00 (optional)' });
   business.value = incident.business ?? ''; amount.value = incident.amount ?? '';
   business.addEventListener('input', () => { incident.business = business.value; });
   amount.addEventListener('input', () => { incident.amount = amount.value; });
   card.append(element('h1', 'Keep evidence and make your incident pack'), element('p', 'Choose screenshots, emails or proof of payment. Files stay on this device; only their fingerprints go into the pack.'), element('label', 'Evidence files', {for:'evidence-files'}), files, feedback, list, element('label', 'Business', {for:'business-name'}), business, element('label', 'Amount paid', {for:'amount-paid'}), amount, handoffForm(), button('Review what goes in the pack', () => showPackReview(flow)), button('Start a new incident', showHome, 'button secondary'));
+  const suggestion = makeEvidencePermissionPrompt(files);
+  if (suggestion) card.append(suggestion);
   app.append(card);
 }
 
