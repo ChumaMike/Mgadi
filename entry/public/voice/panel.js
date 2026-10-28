@@ -8,6 +8,8 @@ import { createRetellAdapter } from './retell-adapter.js';
 import { createMockAdapter } from './mock-adapter.js';
 import { createAvatarDock } from './avatar-dock.js';
 import { createCompanion } from './avatar/index.js';
+import { createAvatar as createGestureAvatar } from '../accessibility/avatar.js';
+import { recognizeGesture, cueSignature } from './gesture-cues.js';
 import { watchKeyboard } from './viewport.js';
 
 const make = (tag, className, text) => { const n = document.createElement(tag); if (className) n.className = className; if (text != null) n.textContent = text; return n; };
@@ -163,7 +165,39 @@ export async function initVoice({ bridge }) {
   const progress = make('details', 'vp-progress'); progress.append(tr('summary', null, 'Steps and timeline'));
   const tasks = make('ul', 'vp-tasks'); const timeline = make('ol', 'vp-timeline'); progress.append(tr('h3', null, 'Steps'), tasks, tr('h3', null, 'Timeline'), timeline);
   const announce = make('p', 'sr-only'); announce.setAttribute('role', 'status'); live.announce = announce;
-  body.append(notice, consentBox, operatorBox, chat, jump, action, progress, privacyLine, announce);
+  // Gesture character follows the live caption stream, with an explicit manual fallback.
+  const gestureSection = make('section', 'vp-gesture-section');
+  const gestureHeader = make('div', 'vp-gesture-heading');
+  const gestureTitle = make('strong', null, 'Visual gesture companion');
+  const gestureToggle = make('button', 'button secondary vp-small', 'Show gestures'); gestureToggle.type='button'; gestureToggle.setAttribute('aria-expanded','false');
+  gestureHeader.append(gestureTitle, gestureToggle);
+  const gestureArea = make('div', 'vp-gesture-area'); gestureArea.hidden = true;
+  const gestureCanvas = make('canvas'); gestureCanvas.width = 440; gestureCanvas.height = 518; gestureCanvas.setAttribute('aria-label', 'Illustrative hand and arm gestures, not South African Sign Language'); gestureCanvas.setAttribute('role','img');
+  const gestureLabel = make('p', 'vp-gesture-word', 'Say STOP, CALL, SAVE, HELP, CHECK or PROTECT.');
+  const gestureExplanation = make('p','vp-note','Animations follow recognized words in live captions. These are illustrative gestures, NOT SASL translations.');
+  const gestureButtons = make('div','vp-gesture-buttons');
+  const gestureNames = [['stop','Stop'],['call','Call'],['save','Save'],['help','Help'],['check','Check'],['protect','Protect']];
+  gestureArea.append(gestureCanvas,gestureLabel,gestureExplanation,gestureButtons);
+  gestureSection.append(gestureHeader,gestureArea);
+  let gestureAvatar = null, gestureLast = '', gestureTimeout = null;
+  function setGesture(key, source='manual') {
+    if (!gestureAvatar || !key) return;
+    gestureAvatar.setGesture(key);
+    gestureLabel.textContent = `${key.toUpperCase()} · ${source === 'live' ? 'recognized in live captions' : 'manual preview'}`;
+    for(const b of gestureButtons.children) b.setAttribute('aria-pressed',String(b.dataset.gesture===key));
+    clearTimeout(gestureTimeout);
+    gestureTimeout = setTimeout(() => { gestureAvatar?.setGesture('none'); gestureLabel.textContent='Listening for STOP, CALL, SAVE, HELP, CHECK or PROTECT.'; }, 3800);
+  }
+  for (const [key,label] of gestureNames) {
+    const b = make('button','button secondary vp-small',label); b.type='button'; b.dataset.gesture=key; b.addEventListener('click',()=>setGesture(key)); gestureButtons.append(b);
+  }
+  gestureToggle.addEventListener('click',()=>{
+    gestureArea.hidden = !gestureArea.hidden; gestureToggle.setAttribute('aria-expanded', String(!gestureArea.hidden));
+    gestureToggle.textContent = gestureArea.hidden ? 'Show gestures' : 'Hide gestures';
+    if(!gestureArea.hidden && !gestureAvatar){gestureAvatar=createGestureAvatar(gestureCanvas); if(!matchMedia('(prefers-reduced-motion: reduce)').matches) gestureAvatar.play();}
+    else if(gestureAvatar){if(gestureArea.hidden)gestureAvatar.pause();else if(!matchMedia('(prefers-reduced-motion: reduce)').matches)gestureAvatar.play();}
+  });
+  body.append(notice, consentBox, operatorBox, gestureSection, chat, jump, action, progress, privacyLine, announce);
   const controls = make('div', 'vp-controls');
   const startBtn = tr('button', 'button vp-start', 'Start voice conversation'); startBtn.type = 'button';
   const muteBtn = tr('button', 'button secondary', 'Mute microphone'); muteBtn.type = 'button';
@@ -320,6 +354,16 @@ export async function initVoice({ bridge }) {
     opPill.hidden = config.access !== 'operator';
     micPill.hidden = !inCall || config.mode === 'mock'; micPill.textContent = s.muted ? 'Mic muted' : 'Mic on'; micPill.dataset.muted = String(s.muted);
     renderChips(s); renderMessages(s); renderControls(s); if (progress.open) renderProgress();
+    if (inCall && gestureArea.hidden) gestureToggle.click();
+    if (inCall && gestureAvatar) {
+      // Streaming transcripts may repeat or extend; only newly matched words animate.
+      const candidates = s.messages.filter(m => m.role !== 'system' && m.callIndex === s.callIndex).slice(-5);
+      for (const m of candidates) {
+        const match = recognizeGesture(m.text);
+        const signature = cueSignature(m.key,match);
+        if (signature && signature !== gestureLast) { gestureLast=signature; setGesture(match.key,'live'); }
+      }
+    }
     if (inCall) avatarPreviewing = false;
     dock.setActive(inCall || avatarPreviewing);
     dock.setState({ uiState: inCall ? s.uiState : avatarPreviewing ? avatarPreviewMood : s.uiState, muted: inCall && s.muted });
