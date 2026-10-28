@@ -69,8 +69,13 @@ try {
     check(`${width}px call: only three live bottom controls`, await page.locator('.vp-controls button:visible').count() === 3);
     check(`${width}px call: current instructions and all outcomes visible`, await page.locator('.vp-instructions li').count() > 0 && await page.locator('.vp-actions button').count() === 3);
     await page.locator('.vp-bank').click(); await page.locator('.bank-popover[open]').waitFor();
+    if (width === 390) check('bank dialog: voice shortcut announces expanded', await page.locator('.vp-bank').getAttribute('aria-expanded') === 'true');
     check(`${width}px call: bank shortcut keeps call connected`, await page.locator('.vp-status').innerText() === 'Connected');
     await page.getByRole('button', { name: 'Close bank numbers' }).click();
+    if (width === 390) {
+      await page.locator('.vp-bank[aria-expanded="false"]').waitFor();
+      check('bank dialog: voice shortcut resets after closing', true);
+    }
     if (width === 390) { await shot(page, '04-call-mobile'); await audit(page, 'voice'); }
     await page.locator('.vp-actions button').filter({ hasText: 'Need help' }).click();
     check(`${width}px call: advances shared response step`, (await page.locator('.vp-count-row').innerText()).includes('2 / 4'));

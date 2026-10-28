@@ -32,7 +32,7 @@ Run with Node 24.22.1 (project declares 22.x), local Chromium, Playwright and ax
 
 - Build passed: Retell bundle, icons and integrity-checked offline manifest.
 - Unit tests: **300/300 passed**; baseline was 294/300. Updated stale language/handoff expectations, filled missing existing-source metadata, regenerated translation coverage, retained the review disclosure and added the previously missing browser suite.
-- New `experience-smoke`: **101/101 passed**, covering all seven screens, axe WCAG A/AA checks, 320/390/768/1440 widths, 200% type and short landscape, native chooser/deny/cancel/read failures, metadata-only reports, actual JSON download, tamper rejection, shared progress, Options settings and browser speech lifecycle. Screenshots inspected during implementation.
+- New `experience-smoke`: **103/103 passed**, covering all seven screens, axe WCAG A/AA checks, 320/390/768/1440 widths, 200% type and short landscape, native chooser/deny/cancel/read failures, metadata-only reports, actual JSON download, tamper rejection, shared progress, bank dialog announcements, Options settings and browser speech lifecycle. Screenshots inspected during implementation.
 - Real SDK, mocked provider: **37/37 passed**. Navigation/Options selectors updated to reflect the new UI.
 - WebRTC audio suite: **27/35 passed**. Mocked peers stayed in `new`; eight ICE/audio/mute measurements failed. This is not live audio acceptance. Controller, adapter and level algorithms were not changed.
 - Rules scoreboard passed its safety gates: zero unsafe payment/ransomware/mixed cases, sealed set intact. Existing classification misses remain in the output; no fresh accuracy claim.

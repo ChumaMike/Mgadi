@@ -91,11 +91,13 @@ function showBankLines() {
     bankDialog.addEventListener('close', () => {
       inBank = false;
       emergencyButton.setAttribute('aria-expanded', 'false');
+      document.querySelector('.vp-bank')?.setAttribute('aria-expanded', 'false');
       if (afterBank) { const next = afterBank; afterBank = null; next(); }
     });
   }
   inBank = true;
   emergencyButton.setAttribute('aria-expanded', 'true');
+  document.querySelector('.vp-bank')?.setAttribute('aria-expanded', 'true');
   bankDialog.showModal();
   const heading = bankDialog.querySelector('.bank-popover-content h2');
   if (heading) { heading.tabIndex = -1; heading.focus(); }
