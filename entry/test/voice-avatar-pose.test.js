@@ -151,5 +151,5 @@ test('weak devices start on the lite renderer; ordinary ones do not', async () =
   assert.equal(isLowEndDevice({ hardwareConcurrency: 8, deviceMemory: 1 }), true);
   assert.equal(isLowEndDevice({ hardwareConcurrency: 8, deviceMemory: 4 }), false);
   assert.equal(isLowEndDevice({ hardwareConcurrency: 4 }), false, 'memory unknown: the core count decides');
-  assert.equal(isLowEndDevice({}), false); assert.equal(isLowEndDevice(undefined), false); assert.equal(isLowEndDevice({ hardwareConcurrency: 0, deviceMemory: NaN }), false);
+  assert.equal(isLowEndDevice({}), false); assert.equal(isLowEndDevice(undefined), isLowEndDevice(globalThis.navigator), 'undefined uses the actual browser/runtime navigator'); assert.equal(isLowEndDevice({ hardwareConcurrency: 0, deviceMemory: NaN }), false);
 });
