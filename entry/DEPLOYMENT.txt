@@ -38,7 +38,7 @@ vercel.cmd deploy
 Verify the preview, then:
 vercel.cmd deploy --prod
 
-Dashboard Git-import alternative: import ChumaMike/Mgadi, set Root Directory entry, Framework Other, output public and use the checked-in build command. Pick supported Node 24.x in project settings. The repository contains preparation and presentation files; only entry is the website. Do not publish the repo root as static files. The hosting project name can be mgadi; the actual available URL must be read from the deployment, not assumed to be mgadi.vercel.app.
+Dashboard Git-import alternative: import ChumaMike/Mgadi, set Root Directory entry, Framework Other, output public and use the checked-in build command. Node: package.json engines.node is pinned to 22.x (changed 28 October 2026 on feature/final-demo-integration: every test in this repository ran on Node 22.22, while the earlier open range let Vercel choose Node 24, which was never tested). Do not override it in project settings unless you re-run the tests on that version. The repository contains preparation and presentation files; only entry is the website. Do not publish the repo root as static files. The hosting project name can be mgadi; the actual available URL must be read from the deployment, not assumed to be mgadi.vercel.app.
 
 HTTPS SMOKE CHECKS
 1. Home page, CSS, JS modules and /data files load, with no browser errors.
@@ -65,7 +65,7 @@ Local checks done: npm test (44/44) includes the Vercel-style adapter tests (pre
 Confirm these with Chuma BEFORE any deploy (answers go in SOURCE-OF-TRUTH.md):
 1. Target: which Vercel account/team, and is the project to be named mgadi? (No project is linked; no URL exists.)
 2. Source: deploy the feature/critical-fixes branch as a PREVIEW only. Production deploy is a separate decision after the smoke checks below.
-3. Configuration to confirm: Root Directory entry; Framework Other; Output Directory public; Build Command from vercel.json (`npm run build`, which builds the voice engine bundle, the icons and the offline manifest); no environment variables (rules-only mode, no ANTHROPIC_API_KEY, no telephony keys); Node 24.x or the newest supported.
+3. Configuration to confirm: Root Directory entry; Framework Other; Output Directory public; Build Command from vercel.json (`npm run build`, which builds the voice engine bundle, the icons and the offline manifest); no environment variables (rules-only mode, no ANTHROPIC_API_KEY, no telephony keys); Node 22.x (pinned by package.json engines; see the Node note above).
 4. Access: preview URLs are usually behind Vercel login (Deployment Protection). A phone test needs either a logged-in browser or a deliberately chosen protection setting. Chuma decides; do not change protection silently.
 5. Cost: confirm the plan has no charge; no paid add-ons.
 
