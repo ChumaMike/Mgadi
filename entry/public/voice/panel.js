@@ -196,6 +196,9 @@ export async function initVoice({ bridge }) {
     if(!('speechSynthesis' in globalThis)) {guideStatus.textContent='Speech playback unavailable here. Read the captions below.';return;}
     globalThis.speechSynthesis.cancel();
     const utterance=new SpeechSynthesisUtterance(text); utterance.lang='en-ZA'; utterance.rate=.93;utterance.volume=1;
+    // Avoid listening to our own spoken answer. Restart only after playback finishes.
+    utterance.onend=()=>{if(guideMode && !localRecognizer && !gestureArea.hidden && !['connecting','live','reconnecting'].includes(controller.getState().phase))localButton.click();};
+    utterance.onerror=()=>{if(guideMode && !localRecognizer && !gestureArea.hidden)localButton.click();};
     globalThis.speechSynthesis.speak(utterance);
   };
   const guideReply=async(spoken)=>{
@@ -258,7 +261,7 @@ export async function initVoice({ bridge }) {
     rec.onresult=(e)=>{const words=e.results[e.results.length-1]?.[0]?.transcript||'';
       localStatus.textContent='Heard: '+words;
       const match=recognizeGesture(words);if(match)setGesture(match.key,'microphone');
-      if(guideMode && e.results[e.results.length-1]?.isFinal && words.trim() && words.trim()!==lastProcessed){lastProcessed=words.trim();guideReply(words.trim());}
+      if(guideMode && e.results[e.results.length-1]?.isFinal && words.trim() && words.trim()!==lastProcessed){lastProcessed=words.trim();stopLocal();guideReply(words.trim());}
     };
     rec.onerror=(e)=>{localStatus.textContent='Microphone recognition error: '+e.error;};
     rec.onend=()=>{if(localRecognizer===rec){localRecognizer=null;localButton.textContent='Speak gesture words';}};
