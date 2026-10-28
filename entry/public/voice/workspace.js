@@ -101,7 +101,9 @@ export function installVoiceWorkspace({ panel, head, title, statusRow, bankBtn, 
   settings.append(bigText, lessMotion);
   drawer.append(drawerHeader, settings, gestureSection, progress, privacyLine, operatorBox);
   if (clearBtn) drawer.append(clearBtn);
-  body.append(setup, shell, drawer);
+  const liveAnnouncement = body.querySelector('.sr-only[role="status"]');
+  body.replaceChildren(setup, shell, drawer);
+  if (liveAnnouncement) body.append(liveAnnouncement);
   // The sound-unlock control is used only if actual audio needs a user gesture; keep it accessible.
   if (sound) setup.append(sound);
 
