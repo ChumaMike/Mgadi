@@ -54,17 +54,21 @@ export async function initVoice({ bridge }) {
   // ---- structure
   const panel = make('section', 'voice-panel'); panel.hidden = true; panel.setAttribute('aria-label', 'Talk to Mgadi');
   const head = make('div', 'vp-head');
-  const title = tr('h2', 'vp-title', 'Talk to Mgadi'); title.tabIndex = -1;
+  const title = tr('h2', 'vp-title', 'Mgadi'); title.tabIndex = -1;
+  const brand = make('div', 'vp-brand');
+  const brandMark = make('img', 'vp-brand-mark'); brandMark.src = '/brand/mgadi-logo.png'; brandMark.alt = '';
+  brand.append(brandMark, title);
+  const duration = make('time', 'vp-duration', '00:00'); duration.setAttribute('aria-label', 'Call duration');
   const sim = make('span', 'vp-sim', 'SIMULATED'); sim.hidden = config.mode !== 'mock';
   const status = make('p', 'vp-status'); status.setAttribute('role', 'status');
   const activity = make('p', 'vp-activity'); activity.setAttribute('aria-hidden', 'true');
-  const bankBtn = tr('button', 'button danger vp-bank', 'Bank fraud line'); bankBtn.type = 'button';
+  const bankBtn = tr('button', 'button danger vp-bank', 'Bank fraud line'); bankBtn.type = 'button'; bankBtn.setAttribute('aria-expanded', 'false');
   const minBtn = tr('button', 'button secondary vp-small', 'Minimise'); minBtn.type = 'button'; minBtn.setAttribute('aria-expanded', 'true');
   const closeBtn = tr('button', 'button secondary vp-small', 'Close'); closeBtn.type = 'button';
   const statusRow = make('div', 'vp-statusrow'); statusRow.append(status, activity);
-  const btnRow = make('div', 'vp-btnrow'); btnRow.append(bankBtn, minBtn, closeBtn);
+  const btnRow = make('div', 'vp-btnrow'); btnRow.append(bankBtn);
   const now = make('p', 'vp-now'); now.setAttribute('aria-label', 'Current action');
-  head.append(title, sim, statusRow, now, btnRow);
+  head.append(brand, statusRow, duration, sim, btnRow);
   const body = make('div', 'vp-body');
   const chips = make('ul', 'vp-chips'); chips.setAttribute('aria-label', 'Privacy and connection');
   const notice = make('p', 'notice vp-avail');
@@ -110,13 +114,13 @@ export async function initVoice({ bridge }) {
     try { const { next } = await reloadConfig(); if (next) applyConfig(next); } catch { /* keep the old view until the next load */ }
     render(controller.getState());
   });
-  const action = make('details', 'vp-action'); action.setAttribute('aria-label', 'Current action');
+  const action = make('details', 'vp-action'); action.open = true; action.setAttribute('aria-label', 'Current action');
   // A plain container with role=log: an <ol> with role=log would lose its list semantics and orphan its items.
   const chat = make('div', 'vp-chat'); chat.setAttribute('role', 'log'); chat.setAttribute('aria-label', 'Conversation'); chat.tabIndex = 0;
   const empty = tr('p', 'vp-empty', 'Your conversation will appear here as captions, kept on this screen only.');
   chat.append(empty);
   const jump = tr('button', 'button secondary vp-small vp-jump', 'Latest messages'); jump.type = 'button'; jump.hidden = true;
-  const progress = make('details', 'vp-progress'); progress.open = true; progress.append(tr('summary', null, 'Steps and timeline'));
+  const progress = make('details', 'vp-progress'); progress.open = false; progress.append(tr('summary', null, 'Steps and timeline'));
   const tasks = make('ul', 'vp-tasks'); const timeline = make('ol', 'vp-timeline'); progress.append(tr('h3', null, 'Steps'), tasks, tr('h3', null, 'Timeline'), timeline);
   const announce = make('p', 'sr-only'); announce.setAttribute('role', 'status'); live.announce = announce;
   body.append(chips, notice, consentBox, operatorBox, chat, jump, action, progress, announce);
@@ -128,17 +132,52 @@ export async function initVoice({ bridge }) {
   const avatarBtn = tr('button', 'button secondary', 'Show avatar'); avatarBtn.type = 'button';
   const clearBtn = tr('button', 'button secondary', 'Clear conversation'); clearBtn.type = 'button';
   const sound = tr('button', 'button secondary', 'No sound? Tap to enable'); sound.type = 'button'; sound.hidden = true;
-  controls.append(startBtn, muteBtn, endBtn, sound, textBtn, avatarBtn, clearBtn);
+  controls.append(startBtn, muteBtn, endBtn, textBtn, sound, avatarBtn, clearBtn);
   panel.append(head, body, controls);
   document.body.append(panel);
 
   const dock = createAvatarDock({ createAvatar });
-  const stage = make('div', 'vp-stage'); stage.hidden = true;
-  stage.append(dock.root, tr('p', 'vp-note', 'Visual companion · not SASL translation'));
-  body.insertBefore(stage, chat);
+  const stage = make('section', 'vp-stage'); stage.setAttribute('aria-label', 'Mgadi visual companion');
+  const avatarScene = make('div', 'vp-avatar-scene');
+  const speakingDisplay = make('div', 'vp-speaking-display');
+  const speakingLabel = make('strong', 'vp-speaking-label', 'Ready to talk');
+  const wave = make('span', 'vp-wave'); wave.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 7; i++) wave.append(make('i', 'vp-wave-bar'));
+  speakingDisplay.append(speakingLabel, wave);
+  const avatarNote = tr('p', 'vp-avatar-note', '3D visual companion · not SASL translation');
+  avatarScene.append(speakingDisplay, dock.root, avatarNote);
+  const quick = make('div', 'vp-quick-tools');
+  const signBtn = make('button', 'vp-quick-button', 'SASL'); signBtn.type = 'button'; signBtn.setAttribute('aria-label', 'South African Sign Language assistance');
+  const captionsBtn = make('button', 'vp-quick-button', 'Hide captions'); captionsBtn.type = 'button'; captionsBtn.setAttribute('aria-pressed', 'true');
+  const settingsBtn = make('button', 'vp-quick-button', 'Settings'); settingsBtn.type = 'button'; settingsBtn.setAttribute('aria-expanded', 'false');
+  quick.append(signBtn, captionsBtn, settingsBtn);
+  stage.append(avatarScene, quick);
+  const signStatus = make('p', 'vp-sign-status'); signStatus.setAttribute('role', 'status'); signStatus.hidden = true;
+  const settings = make('div', 'vp-inline-settings'); settings.hidden = true;
+  const largeText = make('label', 'vp-toggle'); const sizeToggle = make('input'); sizeToggle.type = 'checkbox'; sizeToggle.checked = ['large', 'larger', 'largest'].includes(document.documentElement.dataset.textSize); largeText.append(sizeToggle, document.createTextNode('Larger text'));
+  const lessMotion = make('label', 'vp-toggle'); const motionToggle = make('input'); motionToggle.type = 'checkbox'; motionToggle.checked = document.documentElement.dataset.reducedMotion === 'true'; lessMotion.append(motionToggle, document.createTextNode('Reduce motion'));
+  settings.append(largeText, lessMotion);
+  const captionHeader = make('div', 'vp-caption-header'); captionHeader.append(tr('h3', null, 'Live captions'), tr('span', 'vp-caption-hint', 'Appear here when available'));
+  body.insertBefore(stage, chat); body.insertBefore(signStatus, chat); body.insertBefore(settings, chat); body.insertBefore(captionHeader, chat);
   let opener = null;
 
   let showBank = () => bridge.showBank();
+  signBtn.addEventListener('click', () => {
+    const j = bridge.getJourney(); const item = j?.steps?.[j.position];
+    const clip = item ? findReviewedSign(j.label + '.' + item.id) : null;
+    signStatus.hidden = false;
+    if (!clip) {
+      signStatus.textContent = 'No reviewed SASL clip is available for this step. The 3D avatar does not translate speech or text into sign language.';
+      return;
+    }
+    action.open = true; const video = action.querySelector('.vp-more video');
+    const more = action.querySelector('.vp-more'); if (more) more.open = true;
+    if (video) { signStatus.textContent = 'Reviewed SASL clip opened below the action.'; video.scrollIntoView({ block: 'nearest' }); }
+  });
+  captionsBtn.addEventListener('click', () => { chat.hidden = !chat.hidden; captionHeader.hidden = chat.hidden; captionsBtn.textContent = chat.hidden ? 'Show captions' : 'Hide captions'; captionsBtn.setAttribute('aria-pressed', String(!chat.hidden)); });
+  settingsBtn.addEventListener('click', () => { settings.hidden = !settings.hidden; settingsBtn.setAttribute('aria-expanded', String(!settings.hidden)); });
+  sizeToggle.addEventListener('change', () => { document.documentElement.dataset.textSize = sizeToggle.checked ? 'large' : 'normal'; });
+  motionToggle.addEventListener('change', () => { document.documentElement.dataset.reducedMotion = String(motionToggle.checked); });
   // ---- rendering
   const chip = (text, tone) => { const li = make('li', `vp-chip${tone ? ` ${tone}` : ''}`, text); chips.append(li); };
   function renderChips(s) {
@@ -170,6 +209,8 @@ export async function initVoice({ bridge }) {
   }
   function renderAction() {
     action.replaceChildren();
+    action.open = true;
+    signStatus.hidden = true;
     const journey = bridge.getJourney();
     action.append(tr('summary', null, 'Your next action'));
     if (!journey) { now.textContent = 'Now: choose what happened, or tell the assistant.'; action.append(tr('p', null, 'No steps yet. Choose what happened on the main screen, or tell the assistant. Your bank fraud line is always available above.')); return; }
@@ -178,17 +219,23 @@ export async function initVoice({ bridge }) {
     if (!pending) { now.textContent = 'Now: review your incident pack.'; action.append(tr('p', null, 'You have recorded a response for each step. Review your incident pack on the main screen, including anything you still need help with.')); return; }
     const title = make('p', 'vp-step'); bindText(title, step.title);
     now.textContent = ''; now.append(make('strong', null, 'Now: '), (() => { const t = make('span'); bindText(t, step.title); return t; })());
-    action.append(make('p', 'vp-count', `${journey.title} · step ${journey.position + 1} of ${journey.steps.length}`), title);
+    const count = make('div', 'vp-count-row');
+    count.append(make('p', 'vp-count', `Step ${journey.position + 1} of ${journey.steps.length}`));
+    const dots = make('div', 'vp-step-dots'); dots.setAttribute('role', 'img'); dots.setAttribute('aria-label', `Step ${journey.position + 1} of ${journey.steps.length}`);
+    journey.steps.forEach((item, index) => { const dot = make('span', 'vp-step-dot'); if (index <= journey.position) dot.classList.add('reached'); if (item.state === 'confirmed') dot.classList.add('completed'); dots.append(dot); });
+    count.append(dots); action.append(count, tr('p', 'vp-next-label', 'Your next step'), title);
+    const directions = make('ol', 'vp-directions'); for (const line of step.do ?? []) { const li = make('li'); bindText(li, line); directions.append(li); } action.append(directions);
     const buttons = make('div', 'vp-actions');
     if (step.id === 'bank') { const b = tr('button', 'button danger', 'Choose a bank fraud line'); b.type = 'button'; b.addEventListener('click', () => showBank()); buttons.append(b); }
-    const done = make('button', 'button'); done.type = 'button'; bindText(done, step.done); done.addEventListener('click', () => bridge.confirmCurrent());
+    const done = tr('button', 'button vp-done', 'Done'); done.type = 'button'; done.setAttribute('aria-label', 'Done: ' + step.done); done.addEventListener('click', () => bridge.confirmCurrent());
     buttons.append(done);
     for (const [state, label] of [['needs_help', 'Need help'], ['not_applicable', 'Not applicable']]) {
       const other = tr('button', 'button secondary', label); other.type = 'button'; other.addEventListener('click', () => bridge.reportOther(state)); buttons.append(other);
     }
     action.append(buttons, tr('p', 'vp-note', 'Only you can mark a step done. The assistant cannot.'));
-    // Why it matters, and signing guidance. Signing appears only from reviewed SASL clips; the avatar is never presented as signing.
-    const more = make('details', 'vp-more'); more.append(tr('summary', null, 'Why this matters and signing'));
+    // The supplied playbook is still a draft: external links are sources, not an expert sign-off.
+    action.append(make('p', 'vp-review-warning', 'Draft guidance · practitioner review pending'));
+    const more = make('details', 'vp-more'); more.append(tr('summary', null, 'Why this matters and SASL assistance'));
     const why = make('p', 'vp-why'); bindText(why, step.why); more.append(why);
     const clip = findReviewedSign(`${journey.label}.${step.id}`);
     if (clip) {
@@ -200,7 +247,7 @@ export async function initVoice({ bridge }) {
     if (sources.length) {
       const refs = make('details', 'vp-sources'); refs.append(make('summary', null, 'Sources for this step'));
       for (const source of sources) { const p = make('p', 'vp-note'); const a = make('a', null, source.title); a.href = source.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; p.append(a, document.createTextNode(' · ' + source.publisher)); refs.append(p); }
-      more.append(refs);
+      action.append(refs);
     }
     action.append(more);
   }
@@ -236,12 +283,17 @@ export async function initVoice({ bridge }) {
   }
   function render(s) {
     panel.dataset.phase = s.phase;
+    panel.dataset.activity = s.activity ?? 'idle';
+    panel.dataset.callActive = String(['connecting', 'live', 'reconnecting'].includes(s.phase));
+    duration.textContent = s.startedAt ? formatElapsed(Date.now() - s.startedAt) : '00:00';
+    speakingLabel.textContent = s.phase === 'live' ? (s.muted ? 'Microphone muted' : (ACTIVITY[s.activity] ?? 'Listening')) : (s.phase === 'connecting' ? 'Connecting…' : s.phase === 'reconnecting' ? 'Reconnecting…' : 'Ready to talk');
+    sim.hidden = config.mode !== 'mock';
     const label = s.muted && s.phase === 'live' ? "Muted. Mgadi can't hear you" : STATUS[s.phase] ?? (s.phase === 'live' ? 'Connected' : '');
     if (status.textContent !== label) status.textContent = label;
     activity.textContent = s.phase === 'live' && !s.muted ? ACTIVITY[s.activity] ?? '' : '';
     renderChips(s); renderMessages(s); renderControls(s); if (progress.open) renderProgress();
-    stage.hidden = !['connecting', 'live', 'reconnecting'].includes(s.phase);
-    dock.setActive(!stage.hidden);
+    stage.hidden = false;
+    dock.setActive(!panel.hidden && ['connecting', 'live', 'reconnecting'].includes(s.phase));
     dock.setMood(s.phase === 'live' ? (s.activity === 'speaking' ? 'speaking' : s.muted ? 'muted' : 'listening') : ['connecting', 'reconnecting'].includes(s.phase) ? 'connecting' : 'idle');
   }
 
@@ -256,18 +308,16 @@ export async function initVoice({ bridge }) {
   muteBtn.addEventListener('click', () => (controller.getState().muted ? controller.unmute() : controller.mute()));
   sound.addEventListener('click', () => controller.startAudioPlayback());
   clearBtn.addEventListener('click', () => controller.clearMessages());
-  const collapse = () => { panel.dataset.collapsed = 'true'; minBtn.setAttribute('aria-expanded', 'false'); minBtn.textContent = 'Expand'; };
-  // Opening the bank numbers minimises the panel so they are fully visible. A running call carries on.
-  showBank = () => { if (!panel.hidden) collapse(); bridge.showBank(); };
+  // Bank contact popover opens over this workspace. A second press closes it; the call stays visible.
+  showBank = () => { bridge.showBank(); bankBtn.setAttribute('aria-expanded', String(Boolean(document.querySelector('.bank-popover')?.open))); };
   bankBtn.addEventListener('click', showBank);
-  document.querySelector('#emergency-button')?.addEventListener('click', () => { if (!panel.hidden) collapse(); });
+
   textBtn.addEventListener('click', () => { controller.end('You switched to text guidance. Your progress is kept.'); close({ keepFocus: true }); bridge.showText(); });
   avatarBtn.addEventListener('click', () => { dock.show(); render(controller.getState()); });
   dock.onHidden = () => render(controller.getState());
   jump.addEventListener('click', () => { chat.scrollTop = chat.scrollHeight; jump.hidden = true; });
   chat.addEventListener('scroll', () => { if (chat.scrollHeight - chat.scrollTop - chat.clientHeight < 48) jump.hidden = true; });
-  minBtn.addEventListener('click', () => { const collapsed = panel.dataset.collapsed !== 'true'; panel.dataset.collapsed = String(collapsed); minBtn.setAttribute('aria-expanded', String(!collapsed)); minBtn.textContent = collapsed ? 'Expand' : 'Minimise'; });
-  closeBtn.addEventListener('click', () => { controller.end('You closed the voice panel.'); close({}); });
+
   panel.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !['connecting', 'live', 'reconnecting'].includes(controller.getState().phase)) close({}); });
   document.addEventListener('mgadi:language', (e) => { const lang = e.detail.locale; controller.languageChanged(lang, config.languages?.[lang]); refresh(); });
   // A live AI call cannot survive losing the internet. End it cleanly, keep everything shown, and point to the offline guide.
@@ -278,12 +328,23 @@ export async function initVoice({ bridge }) {
   const header = document.querySelector('.site-header');
   if (header) new ResizeObserver(() => document.documentElement.style.setProperty('--header-h', `${Math.ceil(header.getBoundingClientRect().height)}px`)).observe(header);
 
+  let elapsedTimer = null;
+  const formatElapsed = (ms) => { const seconds = Math.max(0, Math.floor(ms / 1000)); return String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0'); };
   function open() {
-    opener = document.activeElement; panel.hidden = false; panel.dataset.collapsed = 'false'; minBtn.setAttribute('aria-expanded', 'true'); minBtn.textContent = 'Minimise';
-    document.documentElement.dataset.voice = 'open'; refresh(); title.focus();
+    if (!panel.hidden) { refresh(); return; }
+    opener = document.activeElement; panel.hidden = false; panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true');
+    document.documentElement.dataset.voice = 'open';
+    document.querySelector('main')?.setAttribute('inert', '');
+    document.querySelector('#accessibility')?.setAttribute('inert', '');
+    if (elapsedTimer) clearInterval(elapsedTimer);
+    elapsedTimer = setInterval(() => { if (controller.getState().phase === 'live') duration.textContent = formatElapsed(Date.now() - controller.getState().startedAt); }, 1000);
+    refresh(); title.focus();
   }
   function close({ keepFocus = false }) {
+    if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
     panel.hidden = true; document.documentElement.dataset.voice = 'closed'; dock.setActive(false);
+    document.querySelector('main')?.removeAttribute('inert');
+    document.querySelector('#accessibility')?.removeAttribute('inert');
     if (!keepFocus && opener?.isConnected) opener.focus();
   }
   refresh();
