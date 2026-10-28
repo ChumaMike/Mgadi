@@ -139,6 +139,7 @@ function showHome() {
   limits.append(element('summary', 'What still needs a person?'), element('p', 'You make bank calls, confirm supplier details and approve sharing. Mgadi does not freeze money or change accounts. Live voice needs a connection; SASL translation is not available yet.'));
   practical.append(limits); card.append(practical);
   app.append(card);
+  document.dispatchEvent(new Event('mgadi:idle')); // lets a waiting update apply now that nothing is in progress
 }
 
 function startRecord() {
@@ -424,7 +425,16 @@ const tools = initTools({
 window.addEventListener('hashchange', () => tools.openFromHash());
 emergencyButton.addEventListener('click', showBankLines);
 // The offline copy is saved in the background. It must never delay or break the emergency screens, so failures are swallowed.
-initOffline({ statusEl: document.querySelector('#offline-status') }).catch(() => {});
+// "Idle" is the only moment a newer version may replace the page by itself: the start screen, nothing typed, no incident or evidence in
+// progress, no voice panel or dialog open. Anything else keeps its screen, and the person chooses when to switch.
+function isIdle() {
+  if (!app.querySelector('.welcome-card')) return false;
+  if ((journey && !journey.finished) || incident.evidence.length || Object.keys(incident.outcomes ?? {}).length) return false;
+  if ([...app.querySelectorAll('input, textarea, select')].some((node) => (node.type === 'checkbox' || node.type === 'radio' ? node.checked : String(node.value ?? '') !== ''))) return false;
+  if (document.documentElement.dataset.voice === 'open' || document.querySelector('dialog[open]')) return false;
+  return true;
+}
+initOffline({ statusEl: document.querySelector('#offline-status'), isIdle }).catch(() => {});
 // What the voice panel may see and do. It can read progress and show the bank list; only the person's own taps confirm steps.
 const voiceBridge = {
   getJourney: () => (journey ? {
