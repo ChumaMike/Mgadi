@@ -114,3 +114,10 @@ html[data-text-only='true'] .vp-stage { display:none; }
 .capability-limits { background:transparent; padding:.75rem 0; border:0; font-size:.85rem; }
 @media(max-width:600px) { .tool-grid { grid-template-columns:1fr; } .welcome-companion .text-entry { grid-column:2; } }
 html[data-text-size='largest'] .tool-grid { grid-template-columns:1fr; }
+
+/* ---- Update banner: the one obvious place to switch to a newer version. Empty and collapsed until an update is ready. ---- */
+.update-banner { display: none; }
+.update-banner[data-open="true"] { position: sticky; z-index: 55; box-shadow: 0 6px 18px #123c3533; display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; max-width: 1000px; width: calc(100% - 2.4rem); margin: .6rem auto; padding: .8rem 1rem; background: #fff2d3; border: 2px solid #9b690f; border-radius: 14px; color: var(--mg-ink); }
+.update-banner .update-message { flex: 1 1 16rem; margin: 0; font-size: 1rem; font-weight: 650; line-height: 1.45; }
+.update-banner .update-now { flex: 0 1 auto; margin: 0; min-height: 48px; }
+@media print { .update-banner { display: none !important; } }
